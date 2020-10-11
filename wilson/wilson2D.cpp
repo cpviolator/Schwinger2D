@@ -6,7 +6,9 @@
 #include "hmc.h"
 
 int main(int argc, char **argv) {
-  
+
+  struct timeval start, end, total_start, total_end;
+  gettimeofday(&total_start, NULL);  
   param_t p;
 
   int Nx=32, Ny=32, Nd=2;

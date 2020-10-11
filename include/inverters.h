@@ -3,6 +3,7 @@
 #include "schwinger2d_internal.h"
 #include "utils.h"
 #include "dirac_op.h"
+#include "blas.h"
 
 //===============================================================
 // CG solutions to Apsi = b 

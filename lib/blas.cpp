@@ -5,7 +5,7 @@ namespace blas {
   /**
      @brief asserts that two vectors have the same length   
   */
-  void assertVectorLength(std::vector<Complex> &x, const std::vector<Complex> &y,
+  void assertVectorLength(const std::vector<Complex> &x, const std::vector<Complex> &y,
 			  const char *func){
     if(x.size() != y.size()) {
       cout << "Error: vector sizes not equal (" << __func__ << ")" << endl;
@@ -13,31 +13,44 @@ namespace blas {
     }
   }
 
+  void assertVectorLength(const std::vector<double> &x, const std::vector<double> &y,
+			  const char *func){
+    if(x.size() != y.size()) {
+      cout << "Error: vector sizes not equal (" << __func__ << ")" << endl;
+      exit(0);
+    }
+  }
+
+  
   // Zero vector
-  template<typename T> void zero(std::vector<T> &x) {
+  void zero(std::vector<Complex> &x) {
     for(int i=0; i<(int)x.size(); i++) x[i] = 0.0;
   }
 
   // Copy vector 
-  template<typename T> void copy(std::vector<T> &x, const std::vector<T> &y) {
+  void copy(std::vector<Complex> &x, const std::vector<Complex> &y) {
+    assertVectorLength(x,y,__func__);
+    for(int i=0; i<(int)x.size(); i++) x[i] = y[i];
+  }
+
+  // Copy vector 
+  void copy(std::vector<double> &x, const std::vector<double> &y) {
     assertVectorLength(x,y,__func__);
     for(int i=0; i<(int)x.size(); i++) x[i] = y[i];
   }
 
   // Inner product
-  template<typename T> T dotProd(const std::vector<T> &x, const std::vector<T> &y) {
-    T prod = 0.0;
+  Complex cDotProd(const std::vector<Complex> &x, const std::vector<Complex> &y) {
+    Complex prod = 0.0;
     assertVectorLength(x,y,__func__);
     for(int i=0; i<(int)x.size(); i++) prod += conj(x[i]) * y[i];
     return prod;
   }
   
-  // Norm squared 
-  template<typename T> T norm2(std::vector<T> &x) { 
-    T norm2 = 0.0;
-    for(int i=0; i<(int)x.size(); i++) {
-      norm2 += conj(x[i]) * x[i];
-    }
+  // Norm squared
+  double norm2(std::vector<Complex> &x) { 
+    double norm2 = 0.0;
+    for(int i=0; i<(int)x.size(); i++) norm2 += (conj(x[i]) * x[i]).real();
     return norm2;
   }
 
@@ -46,8 +59,8 @@ namespace blas {
     return sqrt(real(norm2(a)));
   }
 
-  // (c)axpby
-  template<typename Ta, typename Tb> void caxpby(const Ta a, std::vector<Complex> &x, const Tb b, std::vector<Complex> &y) {
+  // caxpby
+  void caxpby(const Complex a, const std::vector<Complex> &x, const Complex b, std::vector<Complex> &y) {
     assertVectorLength(x,y,__func__);
     for(int i=0; i<(int)x.size(); i++) {
       y[i] *= b;
@@ -55,23 +68,47 @@ namespace blas {
     }
   }
 
-  // (c)axpy in place
-  template<typename T> void caxpy(const T a, std::vector<Complex> &x, std::vector<Complex> &y) {
+  // axpby
+  void caxpby(const double a, const std::vector<Complex> &x, const double b, std::vector<Complex> &y) {
+    assertVectorLength(x,y,__func__);
+    for(int i=0; i<(int)x.size(); i++) {
+      y[i] *= b;
+      y[i] += a*x[i];
+    }
+  }
+  
+  // caxpy in place
+  void caxpy(const Complex a, const std::vector<Complex> &x, std::vector<Complex> &y) {
     assertVectorLength(x,y,__func__);
     for(int i=0; i<(int)x.size(); i++) {
       y[i] += a*x[i];
     }
   }
-
-  // (c)axpy in result
-  template<typename T> void caxpy(const T a, std::vector<Complex> &x, std::vector<Complex> &y, std::vector<Complex> &z) {
+  
+  // caxpy in result
+  void caxpy(const Complex a, const std::vector<Complex> &x, const std::vector<Complex> &y, std::vector<Complex> &z) {
     assertVectorLength(x,y,__func__);
     for(int i=0; i<(int)x.size(); i++) {
       z[i] = y[i] + a*x[i];
     }
   }
 
-  
+  // axpy in place
+  void axpy(const double a, const std::vector<Complex> &x, std::vector<Complex> &y) {
+    assertVectorLength(x,y,__func__);
+    for(int i=0; i<(int)x.size(); i++) {
+      y[i] += a*x[i];
+    }
+  }
+
+  // axpy in result
+  void axpy(const double a, const std::vector<Complex> &x, const std::vector<Complex> &y, std::vector<Complex> &z) {
+    assertVectorLength(x,y,__func__);
+    for(int i=0; i<(int)x.size(); i++) {
+      z[i] = y[i] + a*x[i];
+    }
+  }
+
   // (c)ax
   template<typename Ta> void cax(const Ta a, std::vector<Complex> &x) {
     for(int i=0; i<(int)x.size(); i++) {

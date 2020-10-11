@@ -16,31 +16,45 @@ namespace blas {
   /**
      @brief asserts that two vectors have the same length   
   */
-  void assertVectorLength(std::vector<Complex> &x, const std::vector<Complex> &y, const char *func);
+  void assertVectorLength(const std::vector<Complex> &x, const std::vector<Complex> &y, const char *func);
+
+  void assertVectorLength(const std::vector<double> &x, const std::vector<double> &y, const char *func);
 
   // Zero vector
-  template<typename T> void zero(std::vector<T> &x);
+  void zero(std::vector<Complex> &x);
 
   // Copy vector 
-  template<typename T> void copy(std::vector<T> &x, const std::vector<T> &y);
+  void copy(std::vector<Complex> &x, const std::vector<Complex> &y);
 
+  // Copy vector 
+  void copy(std::vector<double> &x, const std::vector<double> &y);
+  
   // Inner product
-  template<typename T> T dotProd(std::vector<T> &x, const std::vector<T> &y);
+  Complex cDotProd(const std::vector<Complex> &x, const std::vector<Complex> &y);
   
   // Norm squared 
-  double norm2(std::vector<Complex> &x) ;
+  double norm2(std::vector<Complex> &x);
 
   // Norm 
-  double norm(std::vector<Complex> &a) ;
+  double norm(std::vector<Complex> &a);
 
-  // (c)axpby
-  template<typename Ta, typename Tb> void caxpby(const Ta a, std::vector<Complex> &x, const Tb b, std::vector<Complex> &y);
+  // caxpby
+  void caxpby(const Complex a, const std::vector<Complex> &x, const Complex b, std::vector<Complex> &y);
 
-  // (c)axpy in place
-  template<typename Ta> void caxpy(const Ta a, std::vector<Complex> &x, std::vector<Complex> &y);
+  // axpby
+  void caxpby(const double a, const std::vector<Complex> &x, const double b, std::vector<Complex> &y);
 
-  // (c)axpy in result
-  template<typename Ta> void caxpy(const Ta a, std::vector<Complex> &x, std::vector<Complex> &y, std::vector<Complex> &z);
+  // caxpy in place
+  void caxpy(const Complex a, const std::vector<Complex> &x, std::vector<Complex> &y);
+
+  // caxpy in result
+  void caxpy(const Complex a, const std::vector<Complex> &x, const std::vector<Complex> &y, std::vector<Complex> &z);
+
+  // axpy in place
+  void axpy(const double a, const std::vector<Complex> &x, std::vector<Complex> &y);
+
+  // axpy in result
+  void axpy(const double a, const std::vector<Complex> &x, const std::vector<Complex> &y, std::vector<Complex> &z);
   
   // (c)ax
   template<typename Ta> void cax(const Ta a, std::vector<Complex> &x);

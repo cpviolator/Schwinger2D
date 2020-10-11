@@ -1,4 +1,3 @@
-#include "utils.h"
 #include "inverters.h"
 
 int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Complex> *gauge) {
@@ -29,7 +28,7 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
     //Solve the deflated system.
     deflating = true;
     DdagDpsi(temp, x0, gauge);    
-    blas::caxpy(-1.0, temp->data, res->data);
+    blas::axpy(-1.0, temp->data, res->data);
     
     cout << "using initial guess, |x0| = " << blas::norm(x0->data)
 	 << ", |b| = " << bsqrt
@@ -46,11 +45,11 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
     // Compute Ap.
     DdagDpsi(Ap, p, gauge);
     
-    denom = blas::dotProd(p->data, Ap->data).real();
+    denom = (blas::cDotProd(p->data, Ap->data)).real();
     alpha = rsq/denom;
     
-    blas::caxpy( alpha, p->data,    x->data);
-    blas::caxpy(-alpha, Ap->data, res->data);
+    blas::axpy( alpha, p->data,    x->data);
+    blas::axpy(-alpha, Ap->data, res->data);
     
     // Exit if new residual is small enough
     rsq_new = blas::norm2(res->data);
@@ -64,7 +63,7 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
     beta = rsq_new/rsq;
     rsq = rsq_new;
     
-    blas::caxpy(beta, p->data, res->data, p->data);
+    blas::axpy(beta, p->data, res->data, p->data);
     
   } // End loop over k
   
@@ -80,7 +79,7 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
   if(deflating) {
     // x contains the solution to the deflated system b - A*x0.
     // We must add back the exact part
-    blas::caxpy(1.0, x0->data, x->data);
+    blas::axpy(1.0, x0->data, x->data);
     // x now contains the solution to the RHS b.
   }
 
