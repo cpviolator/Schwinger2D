@@ -1,81 +1,54 @@
-#ifndef MEASUREMENTHELPERS_H
-#define MEASUREMENTHELPERS_H
+#include "measurements.h"
 
-#include <iostream>
-#include <fstream>
-#include <iomanip>
-#include <string.h>
-#include <cmath>
-#include <complex>
-#include "utils.h"
-#include "fermionHelpers.h"
-#include "dOpHelpers.h"
-#include "inverters.h"
+void measWilsonLoops(field<Complex> *gauge, double plaq, int iter){
 
-#ifdef USE_ARPACK
-#include "arpack_interface_wilson.h"
-#endif
-
-
-using namespace std;
-
-//-----------------------------------------------------------------------------------
-// 2 Dimensional routines 
-//-----------------------------------------------------------------------------------
-
-//   Creutz     exp[ -sigma L^2] exp[ -sigma(L-1)(L-1)]
-//   ratio:    ---------------------------------------  = exp[ -sigma]
-//              exp[ -sigma (L-1)L] exp[-sigma L(L-1)]
-void measWilsonLoops(Complex gauge[LX][LY][2], double plaq, int iter, param_t p){
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
   
-  Complex wLoops[LX/2][LY/2];
-  zeroWL(wLoops);
-
-  double sigma[LX/2];  
-  for(int i=0; i<LX/2; i++) sigma[i] = 0.0;
+  std::vector<std::vector<Complex>> wLoops(Nx/2 ,std::vector<Complex> (Ny/2 ,0.0));  
+  std::vector<double> sigma(Nx/2, 0.0);
   
   Complex w;
   int p1, p2, dx, dy, x, y;
-  double inv_Lsq = 1.0/(LX*LY);
-
-  int loopMax = p.loopMax;
+  double inv_Lsq = 1.0/(Nx*Ny);  
+  int loop_max = gauge->p.loop_max;
 
   //Smear the gauge field
-  Complex smeared[LX][LY][2];
-  smearLink(smeared, gauge, p);
+  field<Complex> *smeared = new field<Complex>(gauge->p);  
+  smearLink(smeared, gauge);
   
   //Loop over all X side sizes of rectangle 
-  for(int Xrect=1; Xrect<loopMax; Xrect++) {
+  for(int Xrect=1; Xrect<loop_max; Xrect++) {
       
     //Loop over all Y side sizes of rectangle
-    for(int Yrect=1; Yrect<loopMax; Yrect++) {
+    for(int Yrect=1; Yrect<loop_max; Yrect++) {
       
       //Loop over all x,y starting points
-      for(x=0; x<LX; x++)
-	for(y=0; y<LY; y++){
+      for(x=0; x<Nx; x++)
+	for(y=0; y<Ny; y++){
 	    
 	  w = Complex(1.0,0.0);
 	    
 	  //Move in +x up to p1.
-	  for(dx=0; dx<Xrect; dx++)     w *= smeared[ (x+dx)%LX ][y][0];
+	  for(dx=0; dx<Xrect; dx++)     w *= smeared->read(x+dx,y,0);
 	    
 	  //Move in +y up to p2 (p1 constant)
-	  p1 = (x + Xrect)%LX;
-	  for(dy=0; dy<Yrect; dy++)     w *= smeared[p1][ (y+dy)%LY ][1];
-	    
+	  p1 = (x + Xrect)%Nx;
+	  for(dy=0; dy<Yrect; dy++)     w *= smeared->read(p1,y+dy,1);
+	  
 	  //Move in -x from p1 to (p2 constant)
-	  p2 = (y + Yrect)%LY;
-	  for(dx=Xrect-1; dx>=0; dx--)  w *= conj(smeared[ (x+dx)%LX ][p2][0]);
+	  p2 = (y + Yrect)%Ny;
+	  for(dx=Xrect-1; dx>=0; dx--)  w *= conj(smeared->read(x+dx,p2,0));
 	  
 	  //Move in -y from p2 to y
-	  for(dy=Yrect-1; dy>=0; dy--)  w *= conj(smeared[x][ (y+dy)%LY ][1]);
+	  for(dy=Yrect-1; dy>=0; dy--)  w *= conj(smeared->read(x,y+dy,1));
 	  wLoops[Xrect][Yrect] += w*inv_Lsq;
 	}
     }
   }
-
+  
   //Compute string tension
-  for(int size=1; size<loopMax; size++) {
+  for(int size=1; size<loop_max; size++) {
     sigma[size]  = -log(abs((real(wLoops[size][size])/real(wLoops[size-1][size]))* 
 			    (real(wLoops[size-1][size-1])/real(wLoops[size][size-1]))));
     
@@ -91,21 +64,21 @@ void measWilsonLoops(Complex gauge[LX][LY][2], double plaq, int iter, param_t p)
   FILE *fp;
   
   name = "data/creutz/creutz";
-  constructName(name, p);
+  constructName(name, gauge->p);
   name += ".dat";
   sprintf(fname, "%s", name.c_str());
   fp = fopen(fname, "a");
   fprintf(fp, "%d %.16e ", iter+1, -log(abs(plaq)) );
-  for(int size=2; size<loopMax; size++)
+  for(int size=2; size<loop_max; size++)
     fprintf(fp, "%.16e ", sigma[size]);
   fprintf(fp, "\n");
   fclose(fp);
   
-  for(int sizex=2; sizex<loopMax; sizex++)
-    for(int sizey=sizex-1; (sizey < loopMax && sizey <= sizex+1); sizey++) {
+  for(int sizex=2; sizex<loop_max; sizex++)
+    for(int sizey=sizex-1; (sizey < loop_max && sizey <= sizex+1); sizey++) {
       name = "data/rect/rectWL";
       name += "_" + to_string(sizex) + "_" + to_string(sizey);
-      constructName(name, p);
+      constructName(name, gauge->p);
       name += ".dat";
       sprintf(fname, "%s", name.c_str());
       fp = fopen(fname, "a");
@@ -116,6 +89,7 @@ void measWilsonLoops(Complex gauge[LX][LY][2], double plaq, int iter, param_t p)
   return;
 }
 
+/*
 //Polyakov loops. x is the spatial dim, y is the temporal dim.
 void measPolyakovLoops(Complex gauge[LX][LY][2], int iter, param_t p){
 
@@ -404,37 +378,45 @@ double measTopCharge(Complex gauge[LX][LY][2], param_t p){
     }
   return top/TWO_PI;
 }
+*/
 
-double measGaugeAction(Complex gauge[LX][LY][2], param_t p) {
+double measGaugeAction(field<Complex> *gauge) {
 
-  double beta  = p.beta;
-  double Hgauge = 0.0;
+  double beta = gauge->p.beta;
+  double action = 0.0;
   Complex plaq = 0.0;
-  
-  for(int x=0; x<LX;x++)
-    for(int y=0; y<LY; y++){      
-      plaq = gauge[x][y][0]*gauge[ (x+1)%LX ][y][1]*conj(gauge[x][ (y+1)%LY ][0])*conj(gauge[x][y][1]);
-      Hgauge += beta*real(1.0 - plaq);      
+
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;  
+  for(int x=0; x<Nx;x++)
+    for(int y=0; y<Ny; y++){      
+      plaq = (gauge->read(x,y,0) * gauge->read(x+1,y,1) *
+	      conj(gauge->read(x,y+1,0)) * conj(gauge->read(x,y,1)));
+      
+      action += beta*real(1.0 - plaq);      
     }  
-  return Hgauge;
+  return action;
 }
 
-double measMomAction(double mom[LX][LY][2], param_t p) {
-
-  double Hmom = 0.0;
-  Complex plaq;
+double measMomAction(field<double> *mom) {
   
-  for(int x=0; x<LX; x++)
-    for(int y=0; y<LY; y++){
+  double action = 0.0;
+  double temp = 0.0;
+  int Nx = mom->p.Nx;
+  int Ny = mom->p.Ny;
+  for(int x=0; x<Nx; x++)
+    for(int y=0; y<Ny; y++){
       for(int mu=0; mu<2; mu++){
-	Hmom += 0.5*mom[x][y][mu] * mom[x][y][mu];
+	temp = mom->read(x,y,mu);
+	action += 0.5 * temp * temp;
       }
     }
   
-  return Hmom;
+  return action;
 }
 
 //Staggered fermion
+/*
 double measFermAction(Complex gauge[LX][LY][2], Complex phi[LX][LY],
 		      param_t p, bool postStep) {
   
@@ -469,51 +451,56 @@ double measAction(double mom[LX][LY][2], Complex gauge[LX][LY][2],
   
   return H;
 }
+*/
 
 //Wilson fermion
-double measFermAction(Complex gauge[LX][LY][2], Complex phi[LX][LY][2],
-		      param_t p, bool postStep) {
+double measFermAction(field<Complex> *gauge, field<Complex> *phi, bool postStep) {
   
-  double Hferm = 0.0;
-  Complex phitmp[LX][LY][2];
+  field<Complex> *phi_tmp = new field<Complex>(gauge->p);  
   
   //cout << "Before Fermion force H = " << H << endl;
-  Complex scalar = Complex(0.0,0.0);
-  zeroField(phitmp);
-  if(postStep) Ainvpsi(phitmp, phi, phitmp, gauge, p);
-  else copyField(phitmp, phi);
+  Complex action = 0.0;
   
-  for(int x=0; x<LX; x++)
-    for(int y=0; y<LY; y++){
-      for(int s=0; s<2; s++){
-	scalar += conj(phi[x][y][s])*phitmp[x][y][s];
+  if(postStep) Ainvpsi(phi_tmp, phi, phi_tmp, gauge);
+  else phi_tmp->copy(phi);
+
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+  for(int x=0; x<Nx; x++)
+    for(int y=0; y<Ny; y++){
+      for(int mu=0; mu<2; mu++){
+	action += conj(phi->read(x,y,mu))*phi_tmp->read(x,y,mu);
       }
     }    
   
-  Hferm += real(scalar);
-  
-  return Hferm;
+  return action.real();
 }
 
 //Wilson Action
-double measAction(double mom[LX][LY][2], Complex gauge[LX][LY][2],
-		  Complex phi[LX][LY][2], param_t p, bool postStep) {
+double measAction(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, bool postStep) {
   
-  double H = 0.0;
-  H += measMomAction(mom, p);
-  H += measGaugeAction(gauge, p);
-  if (p.dynamic) H += measFermAction(gauge, phi, p, postStep);
+  double action = 0.0;
+  action += measMomAction(mom);
+  action += measGaugeAction(gauge);
+  if (gauge->p.dynamic) action += measFermAction(gauge, phi, postStep);
   
-  return H;
+  return action;
+}
+
+
+Complex measPlaq(field<Complex> *gauge) {
+  Complex plaq = 0.0;
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+  double norm = 1.0/(Nx * Ny);
+  
+  for(int x=0; x<Nx; x++) {
+    for(int y=0; y<Ny; y++) { 
+      // Anti-clockwise plaquette, starting at (x,y). BC handled in read accessor
+      plaq += (gauge->read(x,y,0) * gauge->read((x+1),y,1) * conj(gauge->read(x,(y+1),0)) * conj(gauge->read(x,y,1)));
+    }
+  }
+  return plaq * norm;
 }
 
 //-----------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-#endif

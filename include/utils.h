@@ -1,149 +1,101 @@
-#ifndef UTILS_H
-#define UTILS_H
+#pragma once
 
-#include <iostream>
-#include <fstream>
-#include <iomanip>
-#include <string.h>
-#include <cmath>
-#include <complex>
-#include "latHelpers.h"
-#include "fermionHelpers.h"
+#include "schwinger2d_internal.h"
+//#include "measurements.h"
+#include "blas.h"
 
 using namespace std;
 
 typedef struct{
   
   //HMC
-  int nstep = 25;
+  int n_step = 25;
   double tau = 1.0;
-  int iterHMC = 1000;
+  int iter_hmc = 1000;
   int therm = 50;
   int skip = 25;
   int chkpt = 100;
-  int checkpointStart = 0;
-  int maxIterCG = 1000;
+  int checkpoint_start = 0;
+  int max_iter_cg = 1000;
   double eps = 1e-6;
+
+  int seed = 1234;
   
   //physics
-  int XLatsize = LX;
-  int YLatsize = LY;
+  int Nx = 32;
+  int Ny = 32;
   double beta = 3.0;
-  double betaz = 0.5;
   double m = -0.06;
   bool dynamic = true;
-  bool lockedZ = false;
   bool deflate = true;
   
   //Smearing
   double alpha = 0.5;
-  int smearIter = 1;
+  int smear_iter = 1;
   
-  //Arpack params
-  int nEv = NEV;
-  int nKr = NKR;
-  double arpackTol = 1e-6;
-  int arpackMaxiter = 10000;
-  int polyACC = 0;
-  double amax = 10.0;
-  double amin = 0.1;
-  int n_poly = 100;
-  bool ARPACK_verbose = false;
+  //Eigensolver params
+  int n_ev = 16;
+  int n_kr = 64;
+  double eig_tol = 1e-6;
+  int eig_max_restarts = 10000;
+  bool poly_acc = false;
+  double amax = -1.0;
+  double amin = -1.0;
+  int poly_deg = 0;
 
   //Measurements
-  bool measPL = false; //Polyakov loops
-  bool measWL = false; //Wilson loop and Creutz ratios
-  bool measPC = false; //Pion
-  bool measVT = false; //Vacuum trace
+  bool meas_pl = false; //Polyakov loops
+  bool meas_wl = false; //Wilson loop and Creutz ratios
+  bool meas_pc = false; //Pion
+  bool meas_vt = false; //Vacuum trace
 
-  //Pulsing
-  bool pulse = false;  //Pulsed HMC
-  int pulseFreq = 500;
-  int pulseRetherm = 250;
-  int pulsePulse = 15;
-  int pulseInterval= 5;
-  double pulseStrength = 0.5;
-  
   //Wilson loop and Polyakov loop max size.
-  int loopMax = LX/2;
+  int loop_max = 16;
   
 } param_t;
 
-
-void printParams(param_t p) {
-  cout << endl;
-  cout << "Physics:  XSize = "<< LX << endl;
-  cout << "          YSize = "<< LY << endl;
-  cout << "          Beta = "<< p.beta << endl;
-  cout << "          Dynamic = " << (p.dynamic == true ? "True" : "False") << endl;
-  if (p.dynamic == true) cout << "          Mass = " << p.m << endl;
-#ifdef LZ
-  cout << "          ZSize = "<< LZ << endl;
-  if (LZ != 1)   cout << "          BetaZ = "<< p.betaz << endl;
-  if (p.lockedZ) cout << "          Z locked = True " << endl;
-#endif
-  cout << "HMC:      Therm Sweeps: (" << p.therm << " accept) (" << p.therm << " accept/reject)" << endl; 
-  cout << "          Data Points = " << p.iterHMC << endl;
-  cout << "          Time Step = " << p.tau/p.nstep << endl;
-  cout << "          Trajectory Steps " << p.nstep << endl;
-  cout << "          Trajectory Length = " << p.tau << endl;
-  cout << "          Pulsing = " << (p.pulse == true ? "True" : "False") << endl;
-  cout << "Smearing: APE iter = " << p.smearIter << endl;
-  cout << "          APE alpha = " << p.alpha << endl;
-#ifdef USE_ARPACK
-  cout << "ARPACK:   nkv = " << p.nKr << endl;
-  cout << "          nev = " << p.nEv << endl;
-  cout << "          tol = " << p.arpackTol << endl;
-  cout << "          maxiter = " << p.arpackMaxiter << endl;
-#endif  
-}
-
-void constructName(string &name, param_t p) {
-  name += "_LX" + to_string(p.XLatsize) + "_LY" + to_string(p.YLatsize) + "_B" + to_string(p.beta);
-  if(p.dynamic == true) name += "_M"+ to_string(p.m);
-  name += "_tau" + to_string(p.tau) + "_nHMCstep" + to_string(p.nstep);
-}
-
-void printLattice(Complex gauge[LX][LY][2]){
+template<class T> class field {
   
-  for(int x=0; x<LX; x++)
-    for(int y=0; y<LY; y++) {
-      cout << "(x,y) = " << x << "," << y << " ";
-      cout << gauge[x][y][0]<< " " << gauge[x][y][1] << endl;
-    }
-  return;
-}
+public:
 
-double measPlaq(Complex gauge[LX][LY][2]){
+  ~field();
   
-  double plaq = 0.0;  
-  for(int x=0; x<LX; x++)
-    for(int y=0; y<LY; y++){
-      plaq += real(gauge[x][y][0]*gauge[ (x+1)%LX ][y][1]*conj(gauge[x][ (y+1)%LY ][0])*conj(gauge[x][y][1]));
-    }
-  return plaq/(LX*LY);
-}
+  std::vector<T> data;
+  param_t p;
+  
+  field(std::vector<T> &field, param_t p);
+  field(param_t p);  
+  T read(int x, int y, int mu);
+  void write(int x, int y, int mu, const T elem);
+  void copy(field<T> *in);
+  void print();
+  
+};
 
-
-void writeGaugeLattice(Complex gauge[LX][LY][2], string name){
+void printParams(param_t p);
+void constructName(string &name, param_t p);
+void writeGauge(field<Complex> *gauge, string name){
 
   fstream outPutFile;
   outPutFile.open(name,ios::in|ios::out|ios::trunc);  
   outPutFile.setf(ios_base::fixed,ios_base::floatfield); 
 
   //Plaquette action header
-  outPutFile << setprecision(20) <<  setw(20) << measPlaq(gauge) << endl;
+  //outPutFile << setprecision(20) <<  setw(20) << measPlaq(gauge).real() << endl;
+
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
   
-  for(int x=0; x<LX; x++)
-    for(int y=0; y<LY; y++)
+  for(int x=0; x<Nx; x++)
+    for(int y=0; y<Ny; y++)
       for(int mu=0; mu<2; mu++)
-	outPutFile << setprecision(12) <<  setw(20) << arg(gauge[x][y][mu]) << endl;
+	outPutFile << setprecision(12) <<  setw(20) << arg(gauge->read(x,y,mu)) << endl;
   
   outPutFile.close();
-  return;
-  
+  return;  
 }
-void readGaugeLattice(Complex gauge[LX][LY][2], string name){
+
+void readGauge(field<Complex> *gauge, string name){
 
   fstream inPutFile;
   inPutFile.open(name);
@@ -154,163 +106,135 @@ void readGaugeLattice(Complex gauge[LX][LY][2], string name){
   }
   
   //Header check
-  getline(inPutFile, val);
-  double plaq = stod(val);
-
-  for(int x=0; x<LX; x++)
-    for(int y=0; y<LY; y++)
-      for(int mu=0; mu<2; mu++){
+  //getline(inPutFile, val);
+  //double plaq_real_header = stod(val);
+  
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+  
+  for(int x=0; x<Nx; x++) {
+    for(int y=0; y<Ny; y++) {
+      for(int mu=0; mu<2; mu++) {
 	getline(inPutFile, val);
-	gauge[x][y][mu] = polar(1.0, stod(val));	  
+	gauge->write(x, y, mu, polar(1.0, stod(val)));
       }
-  cout << setprecision(16) << setw(20) << "Plaqette on file  = " << plaq << endl;
-  cout << setprecision(16) << setw(20) << "Plaqette measured = " << measPlaq(gauge) << endl;
-  double err = fabs(1.0 - plaq/measPlaq(gauge));
-  if(err > 1e-12) {
-    cout << "Gauge read fail!" <<  endl;
-    exit(0);
-  }    
+    }
+  }
+  
+  //double plaq_real_measured = measPlaq(gauge).real();
+  //double err = fabs(1.0 - plaq_real_header/plaq_real_measured);
+  //if(abs(err) > 1e-12) {
+  //cout << "Gauge read fail!" << endl;
+  //cout << setprecision(16) << setw(20) << "Plaqette on file  = " << plaq_real_header << endl;
+  //cout << setprecision(16) << setw(20) << "Plaqette measured = " << plaq_real_measured << endl;   
+  //exit(0);
+  //}    
   return;
 }
 
-/*===============================================================================
-  Gaussian numbers with p(theta) = sqrt(beta/ 2 PI) exp( - beta* theta^2/2)
-  <Gaussian^2> = 1/beta  
-  Perimeter Law:  Wilson Loop = exp[ - 4 sigma L ]   sigma = - Log[ <cos(theta)> ]
-  ================================================================================*/ 
-void gaussStart(Complex gauge[LX][LY][2],param_t p){
+void gaussStart(field<Complex> *gauge) {
 
-  for(int x=0; x<LX; x++)
-    for(int y=0; y<LY; y++){
-      gauge[x][y][0] = polar(1.0,sqrt(1.0/p.beta)*drand48());
-      gauge[x][y][1] = polar(1.0,sqrt(1.0/p.beta)*drand48());
-    }
-  return;
-}  
-
-void coldStart(Complex gauge[LX][LY][2],param_t p){
-
-  for(int x=0; x<LX; x++)
-    for(int y=0; y<LY; y++)
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+  for(int x=0; x<Nx; x++) 
+    for(int y=0; y<Ny; y++)
       for(int mu=0; mu<2; mu++)
-	gauge[x][y][mu] = Complex(1.0,0.0);
-  return;
+	gauge->write(x, y, mu, polar(1.0,drand48()));  
 }  
 
-void gaussReal_F(double field[LX][LY][2]) {
-  //normalized gaussian exp[ - phi*phi/2]  <phi|phi> = 1
+void coldStart(field<Complex> *gauge) {
+
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+  for(int x=0; x<Nx; x++) 
+    for(int y=0; y<Ny; y++)
+      for(int mu=0; mu<2; mu++)
+	gauge->write(x, y, mu, Complex(1.0,0.0));    
+}  
+
+// Normalized gaussian exp(-phi*phi/2) and  <phi|phi> = 1
+void gaussReal(field<double> *field) {
+  
   double r, theta, sum;
-  for(int x=0; x<LX; x++)
-    for(int y=0; y<LY; y++){
-      r = sqrt(-2.0*log(drand48()));
-      theta = TWO_PI*drand48();
-      field[x][y][0] = r*cos(theta);
-      
-      r = sqrt(-2.0*log(drand48()));
-      theta = TWO_PI*drand48();
-      field[x][y][1] = r*cos(theta);
-      //sum += field[x][y][0]*field[x][y][0] + field[x][y][1]*field[x][y][1];
+  int Nx = field->p.Nx;
+  int Ny = field->p.Ny;
+  for(int x=0; x<Nx; x++) {
+    for(int y=0; y<Ny; y++) {
+      for(int mu=0; mu<2; mu++) {
+	
+	r = sqrt(-2.0*log(drand48()));
+	theta = TWO_PI*drand48();
+	field->write(x,y,mu, r*cos(theta));
+      }
     }
-  
-  //cout << "mom check: " << sum/(L*L) << endl;
-  
-  return;
+  }  
 }
 
-void gaussReal_F(double field[LX][LY]) {
-  //normalized gaussian exp[ - phi*phi/2]  <phi|phi> = 1
-  double r, theta, sum;
-  for(int x=0; x<LX; x++)
-    for(int y=0; y<LY; y++){
-      r = sqrt(-2.0*log(drand48()));
-      theta = TWO_PI*drand48();
-      field[x][y] = r*cos(theta);
+//normalized gaussian exp[ - eta*eta/2]  <eta|eta> = 1;
+void gaussComplex(field<Complex> *field) {
 
-      //sum += field[x][y]*field[x][y];
-    }
-  
-  //cout << "mom check: " << sum/(L*L) << endl;
-  
-  return;
-}
-
-
-void gaussComplex_F(Complex eta[LX][LY][2], param_t p) {
-  
-  //normalized gaussian exp[ - eta*eta/2]  <eta|eta> = 1;
   double r1, theta1, r2, theta2, sum;
   double inv_sqrt2 = 1.0/sqrt(2);
-  
-  for(int x=0; x<LX; x++) {
-    for(int y=0; y<LY; y++) {
-      for(int s=0; s<2; s++) {
+
+  int Nx = field->p.Nx;
+  int Ny = field->p.Ny;
+  for(int x=0; x<Nx; x++) {
+    for(int y=0; y<Ny; y++) {
+      for(int mu=0; mu<2; mu++) {
+	
 	r1 = sqrt(-2.0*log(drand48()));
 	theta1 = TWO_PI*(drand48());
 	r2 = sqrt(-2.0*log(drand48()));
 	theta2 = TWO_PI*(drand48());
 	
-	eta[x][y][s] = Complex(r1*cos(theta1),r2*sin(theta2))*inv_sqrt2;
+	field->write(x,y,mu, Complex(r1*cos(theta1),r2*sin(theta2))*inv_sqrt2);
       }
     }
   }
-  //cout << "GaussComplex_F: norm(eta) = " << norm2(eta)/(LX*LY*2) << endl;
-  return;
-}
-
-void gaussComplex_F(Complex eta[LX][LY], param_t p) {
-  
-  //normalized gaussian exp[ - eta*eta/2]  <eta|eta> = 1;
-  double r1, theta1, r2, theta2;
-  double inv_sqrt2 = 1.0/sqrt(2);
-  
-  for(int x=0; x<LX; x++) {
-    for(int y=0; y<LY; y++) {
-      r1 = sqrt(-2.0*log(drand48()));
-      theta1 = TWO_PI*(drand48());
-      r2 = sqrt(-2.0*log(drand48()));
-      theta2 = TWO_PI*(drand48());
-      
-      eta[x][y] = Complex(r1*cos(theta1),r2*sin(theta2))*inv_sqrt2;
-    }
-  }
-  //cout << "GaussComplex_F: norm(eta) = " << norm2(eta)/(LX*LY) << endl;
-  return;
-  
 }
 
 //staple x is 0th, y is 1st.
 //APE smearing: project back on U(1)       
-void smearLink(Complex Smeared[LX][LY][2], const Complex gauge[LX][LY][2], param_t p){
+void smearLink(field<Complex> *smeared, field<Complex> *gauge){
 
-  double alpha = p.alpha;
-  int iter = p.smearIter;
-  int xp1, xm1, yp1, ym1;
+  double alpha = gauge->p.alpha;
+  int iter = gauge->p.smear_iter;
+  Complex tmp = 0;
   
-  Complex SmearedTmp[LX][LY][2];
-  copyLat(Smeared, gauge);
-  copyLat(SmearedTmp, Smeared);
+  field<Complex> *smeared_tmp = new field<Complex>(gauge->p);
+  smeared->copy(gauge);
+  smeared_tmp->copy(smeared);
   
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
   for(int i=0; i<iter; i++) {    
-    for(int x=0; x<LX; x++) {
-      xp1 = (x+1)%LX;
-      xm1 = (x-1+LX)%LX;
-      for(int y=0; y<LY; y++) {
-	yp1 = (y+1)%LY;
-	ym1 = (y-1+LY)%LY;
+    for(int x=0; x<Nx; x++) {
+      for(int y=0; y<Ny; y++) {
 	
-	SmearedTmp[x][y][0] += alpha * Smeared[x][y][1] * Smeared[x][yp1][0] * conj(Smeared[x][y][1]);
-	SmearedTmp[x][y][0] += alpha * conj(Smeared[x][ym1][1]) * Smeared[x][ym1][0] * Smeared[xp1][ym1][1];
-	SmearedTmp[x][y][1] += alpha * Smeared[x][y][0] * Smeared[xp1][y][1] * conj(Smeared[xp1][yp1][0]);
-	SmearedTmp[x][y][1] += alpha * conj(Smeared[xm1][y][0]) * Smeared[xm1][y][1] * Smeared[xm1][yp1][0];
+	//|->-|   |   |
+	//^   v + v   ^
+	//|   |   |->-|
+	tmp = alpha * (smeared->read(x,y,1) * smeared->read(x,y+1,0) * conj(smeared->read(x+1,y,1)));
+	
+	tmp += alpha * (conj(smeared->read(x,y-1,1)) * smeared->read(x,y-1,0) * smeared->read(x+1,y-1,1));
+			
+	smeared_tmp->write(x,y,0, tmp);
+				
+	//|->-    -<-|
+	//^    +     ^
+	//|-<-    ->-|
+	tmp = alpha * (smeared->read(x,y,0) * smeared->read(x+1,y,1) * conj(smeared->read(x,y+1,0)));
+	
+	tmp += alpha * (conj(smeared->read(x-1,y,0)) * smeared->read(x-1,y,1) * smeared->read(x-1, y+1,01));
+	
+	smeared_tmp->write(x,y,1, tmp);	
       }
     }
     
     //Project back to U(1)
-    for(int x=0; x<LX; x++)
-      for(int y=0; y<LY; y++)
+    for(int x=0; x<Nx; x++)
+      for(int y=0; y<Ny; y++)
 	for(int mu=0; mu<2; mu++)
-	  Smeared[x][y][mu] = polar(1.0,arg(SmearedTmp[x][y][mu]));
+	  smeared->write(x,y,mu, polar(1.0,arg(smeared_tmp->read(x,y,mu))));
   }
 }
-
-#endif
