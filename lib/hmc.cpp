@@ -51,7 +51,7 @@ void trajectory(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, 
   double H = 0.0;
   field<Complex> *guess = new field<Complex>(gauge->p);
 
-  if(gauge->p.deflate) {
+  if(gauge->p.deflate && iter > 2*gauge->p.therm) {
     //deflate using phi as source
     //Deflation eigenvectors
     eig_param_t eig_param;
@@ -71,8 +71,6 @@ void trajectory(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, 
     guess->copy(phi);
     iram(gauge, kSpace, evals, eig_param);
     deflate(guess, phi, kSpace, evals, eig_param);
-
-    
     
     // Sanity:
     //cout << "Guess norm = " << blas::norm(guess->data) << endl;

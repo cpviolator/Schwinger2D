@@ -19,6 +19,7 @@ typedef struct{
   double eps = 1e-6;
 
   int seed = 1234;
+  bool verbosity = true;
   
   //physics
   int Nx = 32;

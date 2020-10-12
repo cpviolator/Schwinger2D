@@ -86,7 +86,7 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
     blas::axpy(1.0, x0->data, x->data);
     // x now contains the solution to the RHS b.
   }
-  //printf("CG: Converged iter = %d\n", k+1);
+  printf("CG: Converged iter = %d\n", k+1);
   /*
   DdagDpsi(temp, x, gauge);
   blas::axpy(-1.0, temp->data, b->data, res->data);
