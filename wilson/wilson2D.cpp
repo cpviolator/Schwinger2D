@@ -1,20 +1,18 @@
 #include "schwinger2d_internal.h"
 #include "utils.h"
-//#include "measurements.h"
-//#include "dirac_op.h"
-//#include "inverters.h"
 #include "hmc.h"
 
 int main(int argc, char **argv) {
 
   struct timeval start, end, total_start, total_end;
-  gettimeofday(&total_start, NULL);  
+  gettimeofday(&total_start, NULL);
+  double t_hmc =  0.0;
+  double t_meas = 0;
+  double t_total =  0.0;
+  
   param_t p;
 
-  int Nx=32, Ny=32, Nd=2;
-
-  p.Nx = Nx;
-  p.Ny = Ny;
+  int Nd=2;
   p.beta = atof(argv[1]); 
   p.iter_hmc = atoi(argv[2]);
   p.therm = atoi(argv[3]);
@@ -33,21 +31,27 @@ int main(int argc, char **argv) {
   p.eps = atof(argv[15]);
   
   //VOATOL params
-  p.n_kr = 64;
-  p.n_ev = 16;
-  p.eig_tol = atof(argv[16]);
-  p.eig_max_restarts = atoi(argv[17]);
-  p.poly_acc = (atoi(argv[18]) == 0 ? false : true);
-  p.amax = atof(argv[19]);
-  p.amin = atof(argv[20]);
-  p.poly_deg = atoi(argv[21]);
-
+  p.deflate = (atoi(argv[16]) == 0 ? false : true);
+  p.n_kr = atoi(argv[17]);
+  p.n_ev = atoi(argv[18]);
+  p.n_conv = atoi(argv[19]);
+  p.eig_tol = atof(argv[20]);
+  p.eig_max_restarts = atoi(argv[21]);
+  p.poly_acc = (atoi(argv[22]) == 0 ? false : true);
+  p.amax = atof(argv[23]);
+  p.amin = atof(argv[24]);
+  p.poly_deg = atoi(argv[25]);
+  
   //Measurements
-  p.meas_pl = (atoi(argv[22]) == 0 ? false : true);
-  p.meas_wl = (atoi(argv[23]) == 0 ? false : true);
-  p.meas_pc = (atoi(argv[24]) == 0 ? false : true);
-  p.meas_vt = (atoi(argv[25]) == 0 ? false : true);
+  //p.meas_pl = (atoi(argv[22]) == 0 ? false : true);
+  //p.meas_wl = (atoi(argv[23]) == 0 ? false : true);
+  //p.meas_pc = (atoi(argv[24]) == 0 ? false : true);
+  //p.meas_vt = (atoi(argv[25]) == 0 ? false : true);
 
+  // Lattice size 
+  p.Nx = atoi(argv[26]);
+  p.Ny = atoi(argv[27]);
+  
   //Pseudo RNG seed
   srand48((long)p.seed);
   
@@ -81,6 +85,11 @@ int main(int argc, char **argv) {
   field<Complex> *gauge = new field<Complex>(p);
   gaussStart(gauge);  // hot start
 
+  // Sanity check
+  //gauge->print();
+  //exit(0);
+  //cout << "Norm of gauge field = " << blas::norm(gauge->data) << endl;
+  
   //Start simulation
   double time0 = -((double)clock());
   int iter_offset = 0;
@@ -100,37 +109,33 @@ int main(int argc, char **argv) {
     
     //Thermalise from random start
     //---------------------------------------------------------------------
+
+    gettimeofday(&start, NULL);  
     for(iter=0; iter<2*p.therm; iter++){  
       //Perform HMC step
       accept = hmc(gauge, iter, expdHAve, dHAve, hmccount);
-      
-      double time = time0 + clock();
-      cout << fixed << iter+1 << " ";              //Iteration
-      cout << time/CLOCKS_PER_SEC << " " << endl;  //Time
-    }    
+    }
+    gettimeofday(&end, NULL);  
+    t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+
     iter_offset = 2*p.therm;    
   }
-  
-  double beta0 = p.beta;
-  bool measure = false;
-  int freq = 200;
-  int pulse = 50;
-  int interval = 10;
-  int strength = 2;
-  
+    
   //Begin thermalised trajectories
   //---------------------------------------------------------------------
   for(iter=iter_offset; iter<p.iter_hmc + iter_offset; iter++){
-    
+
     //Perform HMC step
+    gettimeofday(&start, NULL);  
     accept = hmc(gauge, iter, expdHAve, dHAve, hmccount);    
     accepted += accept;
+    gettimeofday(&end, NULL);  
+    t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
     
     //Measure the topological charge if trajectory is accepted
     //---------------------------------------------------------------------
-    if(accept == 1) {
-      /*
-      top = measTopCharge(gauge, p);
+    if(accept == 1) {      
+      top = measTopCharge(gauge);
       top_int = round(top);
       name = "data/top/top_charge";
       constructName(name, p);
@@ -143,8 +148,7 @@ int main(int argc, char **argv) {
       index = top_int + (histL-1)/2;
       histQ[index]++;
       if(top_old == top_int) top_stuck++;
-      top_old = top_int;
-      */
+      top_old = top_int;      
     }
     
     //Perform Measurements
@@ -166,9 +170,11 @@ int main(int argc, char **argv) {
       plaqSum += plaq;
 
       //Dump simulation data to stdout
+      gettimeofday(&total_end, NULL);  
+      t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
       double time = time0 + clock();
       cout << fixed << setprecision(16) << iter+1 << " "; //Iteration
-      cout << time/CLOCKS_PER_SEC << " ";                 //Time
+      cout << t_total << " ";                             //Time
       cout << plaqSum/count << " ";                       //Action
       cout << (double)top_stuck/(accepted) << " ";        //P(stuck)
       cout << expdHAve/hmccount << " ";                   //Average exp(-dH)

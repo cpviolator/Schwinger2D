@@ -35,6 +35,7 @@ typedef struct{
   //Eigensolver params
   int n_ev = 16;
   int n_kr = 64;
+  int n_conv = 16;
   double eig_tol = 1e-6;
   int eig_max_restarts = 10000;
   bool poly_acc = false;
@@ -53,17 +54,34 @@ typedef struct{
   
 } param_t;
 
+typedef struct {
+
+  int n_ev = 0;
+  int n_kr = 0;
+  int n_conv = 0;
+  int max_restarts = 0;
+  double tol = 0.0;
+  int spectrum = 0;
+  bool verbose = false;
+
+  int block_size = 0;
+  
+} eig_param_t;
+
+
 template<typename T> class field {
   
 public:
   
-  ~field();
+  ~field(){
+    data.resize(0);
+  }
   
   std::vector<T> data;
   param_t p;
   
-  field(std::vector<T> &field, param_t p);
- field(param_t p) : p(p)
+  field(std::vector<T> &data, param_t p) : data(data), p(p) { }    
+  field(param_t p) : p(p)
   {
     data.resize(p.Nx * p.Ny * 2);
     for(unsigned int i=0; i<data.size(); i++) data[i] = 0.0;
@@ -73,9 +91,25 @@ public:
     return data[2*(x%p.Nx + (p.Nx * (y%p.Ny))) + mu];
   }
   
-  void write(int x, int y, int mu, const T elem);
-  void copy(field<T> *in);
-  void print();
+  void write(int x, int y, int mu, const T elem) {
+    data[2*(x%p.Nx + (p.Nx * (y%p.Ny))) + mu] = elem;
+  }
+  
+  void copy(field<T> *in){
+    blas::copy(data, in->data);
+  }
+
+  unsigned int size() { return data.size(); }
+  
+  void print() {
+    for(int x=0; x<p.Nx; x++) {
+      for(int y=0; y<p.Ny; y++) {
+	for(int mu=0; mu<2; mu++) {      
+	  cout << "elem("<<x<<","<<y<<":" << mu << ") = " << data[2*(x%p.Nx + (p.Nx * (y%p.Ny))) + mu] << endl;
+	}
+      }
+    }    
+  }
   
 };
 

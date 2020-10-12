@@ -18,6 +18,7 @@ double measMomAction(field<double> *mom);
 double measFermAction(field<Complex> *gauge, field<Complex> *phi, bool postStep);
 double measAction(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, bool postStep);
 Complex measPlaq(field<Complex> *gauge);
+double measTopCharge(field<Complex> *gauge);
 
 /*
 //Polyakov loops. x is the spatial dim, y is the temporal dim.

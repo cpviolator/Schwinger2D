@@ -10,11 +10,15 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
   field<Complex> *temp = new field<Complex>(gauge->p);
   
   double alpha = 0.0, beta = 0.0, denom = 0.0, rsq = 0.0, rsq_new = 0.0, bsqrt = 0.0, bnorm = 0.0;
-  bool deflating = false;
+  bool deflating = false;  
   
   // Find norm of rhs.
   bnorm = blas::norm2(b->data);
   bsqrt = sqrt(bnorm);
+
+  // Sanity
+  //cout << "Guess norm = " << blas::norm(x0->data) << endl;
+  //cout << "source norm = " << blas::norm(b->data) << endl;
   
   if(bsqrt == 0 || bsqrt != bsqrt) {
     cout << "Error in Wilson Ainvpsi: inverting on zero source... or nan!" << endl;
@@ -23,20 +27,20 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
   res->copy(b);
   
   // res = b - A*x0
-  if (blas::norm2(x0->data) != 0.0) {
+  if (blas::norm2(x0->data) > 0.0) {
     
     //Solve the deflated system.
     deflating = true;
     DdagDpsi(temp, x0, gauge);    
     blas::axpy(-1.0, temp->data, res->data);
-    
-    cout << "using initial guess, |x0| = " << blas::norm(x0->data)
-	 << ", |b| = " << bsqrt
-	 << ", |res| = " << blas::norm(res->data) << endl;
+
+    //cout << "using initial guess, |x0| = " << blas::norm(x0->data)
+    //<< ", |b| = " << bsqrt
+    //<< ", |res| = " << blas::norm(res->data) << endl;
   }
   
   p->copy(res);
-  rsq = blas::norm(res->data);
+  rsq = blas::norm2(res->data);
   
   // Iterate until convergence
   int k;
@@ -82,18 +86,20 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
     blas::axpy(1.0, x0->data, x->data);
     // x now contains the solution to the RHS b.
   }
-
-  //delete res;
-  //delete p;
-  //delete Ap;
-  //delete temp;
+  //printf("CG: Converged iter = %d\n", k+1);
+  /*
+  DdagDpsi(temp, x, gauge);
+  blas::axpy(-1.0, temp->data, b->data, res->data);
+  double truersq = blas::norm2(res->data);
+  printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", k+1, rsq, truersq/(bsqrt*bsqrt));
+  */
   
-  //DdagDpsi(temp, x, gauge);
-  //blas::caxpy(-1.0, temp->data, b, res->data);
-  //double truersq = real(dotField(res, res));
-  //printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", k+1, rsq, truersq/(bsqrt*bsqrt));
-  return success;
+  delete res;
+  delete p;
+  delete Ap;
+  delete temp;
   
+  return success;  
 }
 
 // let dD \equiv (d/dtheta D)
@@ -106,27 +112,32 @@ void forceD(field<double> *fD, field<Complex> *gauge, field<Complex> *phi, field
   
   if(gauge->p.dynamic == true) {
 
-    //blas::zero(fD->data);
+    blas::zero(fD->data);
     
     //phip = (D^dagD)^-1 * phi
     field<Complex> *phip = new field<Complex>(gauge->p);
     
     //Ainvpsi inverts using the DdagD (g3Dg3D) operator, returns
     // phip = (D^-1 * Ddag^-1) phi = (D^-1 * g3 * D^-1 g3) phi.
-    field<Complex> *guess = new field<Complex>(gauge->p);
     Ainvpsi(phip, phi, guess, gauge);
     
     //g3Dphi = g3D * phip
     field<Complex> *g3Dphi = new field<Complex>(gauge->p); 
     g3Dpsi(g3Dphi, phip, gauge);
     
-    double temp = 0.0;
+
     double r = 1.0;
     int Nx = gauge->p.Nx;
     int Ny = gauge->p.Ny;
+#pragma omp parallel for
     for(int x=0; x<Nx; x++) {
+      int xp1 = (x+1)%Nx;
+      int xm1 = (x-1+Nx)%Nx;
       for(int y=0; y<Ny; y++) {
+	int yp1 = (y+1)%Ny;
+	int ym1 = (y-1+Ny)%Ny;	
 
+	double temp = 0.0;
 	//mu = 0
 	//upper
 	// | r  1 | 
@@ -145,7 +156,7 @@ void forceD(field<double> *fD, field<Complex> *gauge, field<Complex> *phi, field
 			)
 		     );
 	
-	fD->write(x,y,1,temp);
+	fD->write(x,y,0,temp);
 	
 	//mu = 1
 	//upper
@@ -168,8 +179,7 @@ void forceD(field<double> *fD, field<Complex> *gauge, field<Complex> *phi, field
       }
     }
     
-    //delete phip;
-    //delete guess;
-    //delete g3Dphi;    
+    delete phip;
+    delete g3Dphi;    
   }
 }

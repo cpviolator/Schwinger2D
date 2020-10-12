@@ -7,8 +7,13 @@
 #include <string.h>
 #include <cmath>
 #include <complex>
+#include <sys/time.h>
 
+#include <Eigen/Eigenvalues>
 using namespace std;
+using Eigen::MatrixXcd;
+using Eigen::MatrixXd;
+
 typedef complex<double> Complex;
 
 #define PI 3.141592653589793

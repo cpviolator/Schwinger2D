@@ -17,7 +17,8 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter){
   field<Complex> *smeared = new field<Complex>(gauge->p);  
   smearLink(smeared, gauge);
   
-  //Loop over all X side sizes of rectangle 
+  //Loop over all X side sizes of rectangle
+#pragma omp parallel for
   for(int Xrect=1; Xrect<loop_max; Xrect++) {
       
     //Loop over all Y side sizes of rectangle
@@ -27,27 +28,28 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter){
       for(x=0; x<Nx; x++)
 	for(y=0; y<Ny; y++){
 	    
-	  w = Complex(1.0,0.0);
+	  Complex w = Complex(1.0,0.0);
 	    
 	  //Move in +x up to p1.
-	  for(dx=0; dx<Xrect; dx++)     w *= smeared->read(x+dx,y,0);
+	  for(int dx=0; dx<Xrect; dx++)     w *= smeared->read(x+dx,y,0);
 	    
 	  //Move in +y up to p2 (p1 constant)
-	  p1 = (x + Xrect)%Nx;
-	  for(dy=0; dy<Yrect; dy++)     w *= smeared->read(p1,y+dy,1);
+	  int p1 = (x + Xrect)%Nx;
+	  for(int dy=0; dy<Yrect; dy++)     w *= smeared->read(p1,y+dy,1);
 	  
 	  //Move in -x from p1 to (p2 constant)
-	  p2 = (y + Yrect)%Ny;
-	  for(dx=Xrect-1; dx>=0; dx--)  w *= conj(smeared->read(x+dx,p2,0));
+	  int p2 = (y + Yrect)%Ny;
+	  for(int dx=Xrect-1; dx>=0; dx--)  w *= conj(smeared->read(x+dx,p2,0));
 	  
 	  //Move in -y from p2 to y
-	  for(dy=Yrect-1; dy>=0; dy--)  w *= conj(smeared->read(x,y+dy,1));
+	  for(int dy=Yrect-1; dy>=0; dy--)  w *= conj(smeared->read(x,y+dy,1));
 	  wLoops[Xrect][Yrect] += w*inv_Lsq;
 	}
     }
   }
   
   //Compute string tension
+#pragma	omp parallel for
   for(int size=1; size<loop_max; size++) {
     sigma[size]  = -log(abs((real(wLoops[size][size])/real(wLoops[size-1][size]))* 
 			    (real(wLoops[size-1][size-1])/real(wLoops[size][size-1]))));
@@ -361,23 +363,6 @@ void measVacuumTrace(Complex gauge[LX][LY][2], int top, int iter, param_t p) {
   
 }
 
-double measTopCharge(Complex gauge[LX][LY][2], param_t p){
-  
-  Complex w;
-  double top = 0.0;  
-  Complex smeared[LX][LY][2];
-  smearLink(smeared, gauge, p);
-  
-  for(int x=0; x<LX; x++)
-    for(int y=0; y<LY; y++){
-      w = (smeared[x][y][0] * smeared[ (x+1)%LX ][y][1] *
-	   conj(smeared[x][ (y+1)%LY ][0])*conj(smeared[x][y][1]));
-      top += arg(w);  // -pi < arg(w) < pi  Geometric value is an integer.
-      //print local def here for topology dynamics
-      //printf("arg(w) = [ arg(link1) + arg(link2) + c_arg(link3) + c_arg(link4)]
-    }
-  return top/TWO_PI;
-}
 */
 
 double measGaugeAction(field<Complex> *gauge) {
@@ -387,11 +372,12 @@ double measGaugeAction(field<Complex> *gauge) {
   Complex plaq = 0.0;
 
   int Nx = gauge->p.Nx;
-  int Ny = gauge->p.Ny;  
+  int Ny = gauge->p.Ny;
+#pragma	omp parallel for reduction (+:action)
   for(int x=0; x<Nx;x++)
     for(int y=0; y<Ny; y++){      
-      plaq = (gauge->read(x,y,0) * gauge->read(x+1,y,1) *
-	      conj(gauge->read(x,y+1,0)) * conj(gauge->read(x,y,1)));
+      Complex plaq = (gauge->read(x,y,0) * gauge->read(x+1,y,1) *
+		      conj(gauge->read(x,y+1,0)) * conj(gauge->read(x,y,1)));
       
       action += beta*real(1.0 - plaq);      
     }  
@@ -404,10 +390,11 @@ double measMomAction(field<double> *mom) {
   double temp = 0.0;
   int Nx = mom->p.Nx;
   int Ny = mom->p.Ny;
+#pragma	omp parallel for reduction (+:action)
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++){
       for(int mu=0; mu<2; mu++){
-	temp = mom->read(x,y,mu);
+	double temp = mom->read(x,y,mu);
 	action += 0.5 * temp * temp;
       }
     }
@@ -466,6 +453,7 @@ double measFermAction(field<Complex> *gauge, field<Complex> *phi, bool postStep)
 
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
+#pragma	omp parallel for reduction(+:action)
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++){
       for(int mu=0; mu<2; mu++){
@@ -481,8 +469,11 @@ double measAction(field<double> *mom, field<Complex> *gauge, field<Complex> *phi
   
   double action = 0.0;
   action += measMomAction(mom);
+  //cout << "action mom: " << action << endl;
   action += measGaugeAction(gauge);
+  //cout << "action gauge: " << action << endl;
   if (gauge->p.dynamic) action += measFermAction(gauge, phi, postStep);
+  //cout << "action ferm: " << action << endl;
   
   return action;
 }
@@ -493,7 +484,8 @@ Complex measPlaq(field<Complex> *gauge) {
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
   double norm = 1.0/(Nx * Ny);
-  
+
+#pragma	omp parallel for reduction(+:plaq)
   for(int x=0; x<Nx; x++) {
     for(int y=0; y<Ny; y++) { 
       // Anti-clockwise plaquette, starting at (x,y). BC handled in read accessor
@@ -501,6 +493,26 @@ Complex measPlaq(field<Complex> *gauge) {
     }
   }
   return plaq * norm;
+}
+
+double measTopCharge(field<Complex> *gauge){
+  
+  field<Complex> *smeared = new field<Complex>(gauge->p);
+  smearLink(smeared, gauge);
+
+  double top = 0.0;
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+#pragma	omp parallel for reduction(+:top)
+  for(int x=0; x<Nx; x++) {
+    int xp1 = (x+1)%Nx;
+    for(int y=0; y<Ny; y++){
+      int yp1 = (y+1)%Ny;
+      Complex w = smeared->read(x,y,0) * smeared->read(xp1,y,1) * conj(smeared->read(x,yp1,0)) * conj(smeared->read(x,y,1));
+      top += arg(w);  // -pi < arg(w) < pi  Geometric value is an integer.
+    }
+  }
+  return top/TWO_PI;
 }
 
 //-----------------------------------------------------------------------------------

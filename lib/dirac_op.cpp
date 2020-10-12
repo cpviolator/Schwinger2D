@@ -1,25 +1,26 @@
 #include "dirac_op.h"
-//#include "utils.h"
 
 void Dpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge) {
   
   double m0 = gauge->p.m;
   double  r = 1.0;
   double constant = (2*r + m0);
-  Complex tmp = 0.0;
-  int xp1, xm1, yp1, ym1;
+
+  // Sanity checks
+  //cout << "Norm in = " << blas::norm(in->data);
+  
   //Sum over 0,1 directions.
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
+#pragma omp parallel for 
   for(int x=0; x<Nx; x++) {
+    int xp1 = (x+1)%Nx;
+    int xm1 = (x-1+Nx)%Nx;    
     for(int y=0; y<Ny; y++) {
-
-      xp1 = (x+1)%Nx;
-      xm1 = (x-1+Nx)%Nx;
-      yp1 = (y+1)%Ny;
-      ym1 = (y-1+Ny)%Ny;
-            
-      //upper      
+      int yp1 = (y+1)%Ny;
+      int ym1 = (y-1+Ny)%Ny;            
+      //upper
+      Complex tmp = 0.0;
       tmp = constant * in->read(x,y,0) -
 	
 	0.5*(     gauge->read(x,y,0)    * (r*in->read(xp1,y,0) - in->read(xp1,y,1)) +
@@ -40,12 +41,16 @@ void Dpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge) {
       out->write(x,y,1, tmp);
     }
   }
+  // Sanity
+  //cout << "Norm out = " << blas::norm(out->data) << endl;
+  //exit(0);
 }
 
 void g3psi(field<Complex> *out, field<Complex> *in){
 
   int Nx = in->p.Nx;
   int Ny = in->p.Ny;
+#pragma omp parallel for 
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++) {
       out->write(x,y,0,  in->read(x,y,0));
@@ -57,6 +62,7 @@ void g2psi(field<Complex> *out, field<Complex> *in){
 
   int Nx = in->p.Nx;
   int Ny = in->p.Ny;
+#pragma omp parallel for 
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++) {
       out->write(x,y,0, -I*in->read(x,y,1));
@@ -68,6 +74,7 @@ void g1psi(field<Complex> *out, field<Complex> *in){
 
   int Nx = in->p.Nx;
   int Ny = in->p.Ny;
+#pragma omp parallel for 
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++) {
       out->write(x,y,0, in->read(x,y,1));
@@ -80,7 +87,7 @@ void g3Dpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge){
   field<Complex> *temp = new field<Complex>(in->p);  
   Dpsi(temp, in, gauge);
   g3psi(out, temp);
-  //delete temp;
+  delete temp;
 }
 
 void Ddagpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge){
@@ -89,7 +96,7 @@ void Ddagpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge){
   g3psi(out, in);
   Dpsi(temp, out, gauge);
   g3psi(out, temp);
-  //delete temp;
+  delete temp;
 }
 
 
@@ -100,5 +107,5 @@ void DdagDpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge) {
   g3psi(out, temp);
   Dpsi(temp, out, gauge);
   g3psi(out, temp);
-  //delete temp;
+  delete temp;
 }

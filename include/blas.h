@@ -22,6 +22,9 @@ namespace blas {
 
   // Zero vector
   void zero(std::vector<Complex> &x);
+  
+  // Zero vector
+  void zero(std::vector<double> &x);
 
   // Copy vector 
   void copy(std::vector<Complex> &x, const std::vector<Complex> &y);
@@ -34,7 +37,10 @@ namespace blas {
   
   // Norm squared 
   double norm2(std::vector<Complex> &x);
-
+  
+  // Norm squared 
+  double norm2(Complex *x, int size);
+  
   // Norm 
   double norm(std::vector<Complex> &a);
 
@@ -56,10 +62,13 @@ namespace blas {
   // axpy in result
   void axpy(const double a, const std::vector<Complex> &x, const std::vector<Complex> &y, std::vector<Complex> &z);
   
-  // (c)ax
-  template<typename Ta> void cax(const Ta a, std::vector<Complex> &x);
-
+  // cax
+  void cax(const Complex a, std::vector<Complex> &x);
+  
+  // ax
+  void ax(const double a, std::vector<Complex> &x);
+  
   // Print the vector elements
   void printVector(const std::vector<Complex> &x);
-
+  
 }

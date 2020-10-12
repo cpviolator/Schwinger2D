@@ -1,4 +1,5 @@
 #include "hmc.h"
+#include "iram.h"
 
 //2D HMC Routines
 //---------------------------------------------------------------------
@@ -33,6 +34,8 @@ int hmc(field<Complex> *gauge, int iter, double &expdHAve, double &dHAve, int &h
     dHAve += (H-H_old);
   }
 
+  //cout << "H = " << H << "  H old = " << H_old << " delta = " << H - H_old << endl;
+  
   // Metropolis accept/reject step
   if (iter >= gauge->p.therm) {    
     if ( drand48() > exp(-(H-H_old)) ) gauge->copy(gauge_old);
@@ -47,20 +50,34 @@ void trajectory(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, 
   double dtau = gauge->p.tau/gauge->p.n_step;
   double H = 0.0;
   field<Complex> *guess = new field<Complex>(gauge->p);
-  
-#ifdef USE_ARPACK
-  /*
-  //deflate using phi as source
-  //Deflation eigenvectors
-  Complex defl_evecs[NEV][LX][LY][2];
-  //Deflation eigenvalues
-  Complex defl_evals[NEV];
-  
-  copyField(guess, phi);
-  arpack_solve(gauge, defl_evecs, defl_evals, 0, 0, p);
-  deflate(guess, phi, defl_evecs, defl_evals, p);
-  */
-#endif
+
+  if(gauge->p.deflate) {
+    //deflate using phi as source
+    //Deflation eigenvectors
+    eig_param_t eig_param;
+    eig_param.n_ev = gauge->p.n_ev;
+    eig_param.n_kr = gauge->p.n_kr;
+    eig_param.n_conv = gauge->p.n_conv;
+    eig_param.max_restarts = gauge->p.eig_max_restarts;
+    eig_param.tol = gauge->p.eig_tol;;
+    eig_param.spectrum = 1;
+    eig_param.verbose = false;
+    
+    std::vector<field<Complex> *> kSpace(eig_param.n_conv);
+    for(int i=0; i<eig_param.n_conv; i++) kSpace[i] = new field<Complex>(gauge->p);
+    //Deflation eigenvalues
+    std::vector<Complex> evals(eig_param.n_conv);
+    
+    guess->copy(phi);
+    iram(gauge, kSpace, evals, eig_param);
+    deflate(guess, phi, kSpace, evals, eig_param);
+
+    
+    
+    // Sanity:
+    //cout << "Guess norm = " << blas::norm(guess->data) << endl;
+    //cout << "phi norm = " << blas::norm(phi->data) << endl;
+  }
   
   //gauge force
   field<double> *fU = new field<double>(gauge->p);
@@ -114,14 +131,12 @@ void forceU(field<double> *fU, field<Complex> *gauge) {
       ym1 = (y-1+Ny)%Ny;
       
       plaq0 = gauge->read(x,y,0)*gauge->read(xp1,y,1)*conj(gauge->read(x,yp1,0))*conj(gauge->read(x,y,1));
-      //fU->write(x,y,0) += p.beta*imag(plaq0);
-      
       plaq =  gauge->read(x,ym1,0)*gauge->read(xp1,ym1,1)*conj(gauge->read(x,y,0))*conj(gauge->read(x,ym1,1));
-      temp = beta*imag(plaq0) - beta*imag(plaq);
+      temp = beta*(imag(plaq0) - imag(plaq));
       fU->write(x,y,0, temp);
       
       plaq =  gauge->read(x,y,1)*conj(gauge->read(xm1,yp1,0))*conj(gauge->read(xm1,y,1))*gauge->read(xm1,y,0);
-      temp = beta*imag(plaq) - beta*imag(plaq0);
+      temp = beta*(imag(plaq) - imag(plaq0));
       fU->write(x,y,1, temp);
 
       //This plaquette was aleady computed. We want the conjugate.
@@ -138,7 +153,7 @@ void update_mom(field<double> *fU, field<double> *fD, field<double> *mom, double
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++)
       for(int mu=0; mu<2; mu++) {
-	temp = -1.0 * (fU->read(x,y,mu) - fD->read(x,y,mu))*dtau;
+	temp = mom->read(x,y,mu) - (fU->read(x,y,mu) - fD->read(x,y,mu))*dtau;
 	mom->write(x,y,mu, temp);
       }
 }
@@ -152,8 +167,7 @@ void update_gauge(field<Complex> *gauge, field<double> *mom, double dtau){
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++)
       for(int mu=0; mu<2; mu++) {
-	temp = gauge->read(x,y,mu);
-	temp *= polar(1.0, mom->read(x,y,mu) * dtau);
+	temp = gauge->read(x,y,mu) * polar(1.0, mom->read(x,y,mu) * dtau);
 	gauge->write(x,y,mu, temp);
       }
 }

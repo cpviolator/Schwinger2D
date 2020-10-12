@@ -1,31 +1,5 @@
 #include "utils.h"
 
-template<class T> field<T>::field(std::vector<T> &data, param_t p) : data(data), p(p) { }    
-  
-template<class T> void field<T>::write(int x, int y, int mu, const T elem) {
-    data[2*(x%p.Nx + (p.Nx * (y%p.Ny))) + mu] = elem;
-}
-
-template<class T> void field<T>::copy(field<T> *in) {
-  blas::copy(data, in->data);
-}
-
-
-template<class T> void field<T>::print() {
-  for(int x=0; x<p.Nx; x++) {
-    for(int y=0; y<p.Ny; y++) {
-      for(int mu=0; mu<2; mu++) {      
-	cout << "elem("<<x<<","<<y<<":" << mu << ") = " << *this->read(x,y,mu) << endl;
-      }
-    }
-  }
-}
-
-template<class T> field<T>::~field() {
-  data.resize(0);
-}
-
-
 void printParams(param_t p) {
   cout << endl;
   cout << "Physics:  XSize = "<< p.Nx << endl;
@@ -64,8 +38,7 @@ void writeGauge(field<Complex> *gauge, string name){
   //outPutFile << setprecision(20) <<  setw(20) << measPlaq(gauge).real() << endl;
 
   int Nx = gauge->p.Nx;
-  int Ny = gauge->p.Ny;
-  
+  int Ny = gauge->p.Ny;  
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++)
       for(int mu=0; mu<2; mu++)
@@ -181,6 +154,7 @@ void smearLink(field<Complex> *smeared, field<Complex> *gauge){
   double alpha = gauge->p.alpha;
   int iter = gauge->p.smear_iter;
   Complex tmp = 0;
+  int xp1, xm1, yp1, ym1;
   
   field<Complex> *smeared_tmp = new field<Complex>(gauge->p);
   smeared->copy(gauge);
@@ -191,22 +165,27 @@ void smearLink(field<Complex> *smeared, field<Complex> *gauge){
   for(int i=0; i<iter; i++) {    
     for(int x=0; x<Nx; x++) {
       for(int y=0; y<Ny; y++) {
-	
+
+	xp1 = (x+1)%Nx;
+	xm1 = (x-1+Nx)%Nx;
+	yp1 = (y+1)%Ny;
+	ym1 = (y-1+Ny)%Ny;
+		
 	//|->-|   |   |
 	//^   v + v   ^
 	//|   |   |->-|
-	tmp = alpha * (smeared->read(x,y,1) * smeared->read(x,y+1,0) * conj(smeared->read(x+1,y,1)));
+	tmp = alpha * (smeared->read(x,y,1) * smeared->read(x,yp1,0) * conj(smeared->read(xp1,y,1)));
 	
-	tmp += alpha * (conj(smeared->read(x,y-1,1)) * smeared->read(x,y-1,0) * smeared->read(x+1,y-1,1));
+	tmp += alpha * (conj(smeared->read(x,ym1,1)) * smeared->read(x,ym1,0) * smeared->read(xp1,ym1,1));
 			
 	smeared_tmp->write(x,y,0, tmp);
 				
 	//|->-    -<-|
 	//^    +     ^
 	//|-<-    ->-|
-	tmp = alpha * (smeared->read(x,y,0) * smeared->read(x+1,y,1) * conj(smeared->read(x,y+1,0)));
+	tmp = alpha * (smeared->read(x,y,0) * smeared->read(xp1,y,1) * conj(smeared->read(x,yp1,0)));
 	
-	tmp += alpha * (conj(smeared->read(x-1,y,0)) * smeared->read(x-1,y,1) * smeared->read(x-1, y+1,01));
+	tmp += alpha * (conj(smeared->read(xm1,y,0)) * smeared->read(xm1,y,1) * smeared->read(xm1, yp1,01));
 	
 	smeared_tmp->write(x,y,1, tmp);	
       }
