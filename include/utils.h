@@ -89,11 +89,11 @@ public:
   }
   
   T read(int x, int y, int mu) {
-    return data[2*(x%p.Nx + (p.Nx * (y%p.Ny))) + mu];
+    return data[2*(x + p.Nx * y) + mu];
   }
   
   void write(int x, int y, int mu, const T elem) {
-    data[2*(x%p.Nx + (p.Nx * (y%p.Ny))) + mu] = elem;
+    data[2*(x + p.Nx * y) + mu] = elem;
   }
   
   void copy(field<T> *in){
@@ -106,7 +106,7 @@ public:
     for(int x=0; x<p.Nx; x++) {
       for(int y=0; y<p.Ny; y++) {
 	for(int mu=0; mu<2; mu++) {      
-	  cout << "elem("<<x<<","<<y<<":" << mu << ") = " << data[2*(x%p.Nx + (p.Nx * (y%p.Ny))) + mu] << endl;
+	  cout << "elem("<<x<<","<<y<<":" << mu << ") = " << data[2*(x + p.Nx * y) + mu] << endl;
 	}
       }
     }    
@@ -131,3 +131,15 @@ void gaussComplex(field<Complex> *field);
 //APE smearing: project back on U(1)
 // staple x is 0th, y is 1st.
 void smearLink(field<Complex> *smeared, field<Complex> *gauge);
+
+void measBlockColinearity(std::vector<field<Complex> *> kSpace, int blockScheme[2], int nLow);
+
+void blockCompress(std::vector<field<Complex> *> &kSpace,
+		   std::vector<std::vector<Complex>> &block_data_ortho,
+		   std::vector<std::vector<Complex>> &block_coef,
+		   int blockScheme[2], int n_low, int n_conv);
+
+void blockExpand(std::vector<field<Complex> *> &kSpace,
+		 std::vector<std::vector<Complex>> &block_data_ortho,
+		 std::vector<std::vector<Complex>> &block_coef,
+		 int blockScheme[2], int n_low, int n_conv);

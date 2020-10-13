@@ -86,7 +86,7 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
     blas::axpy(1.0, x0->data, x->data);
     // x now contains the solution to the RHS b.
   }
-  printf("CG: Converged iter = %d\n", k+1);
+  //printf("CG: Converged iter = %d\n", k+1);
   /*
   DdagDpsi(temp, x, gauge);
   blas::axpy(-1.0, temp->data, b->data, res->data);
@@ -132,10 +132,10 @@ void forceD(field<double> *fD, field<Complex> *gauge, field<Complex> *phi, field
 #pragma omp parallel for
     for(int x=0; x<Nx; x++) {
       int xp1 = (x+1)%Nx;
-      int xm1 = (x-1+Nx)%Nx;
+      //int xm1 = (x-1+Nx)%Nx;
       for(int y=0; y<Ny; y++) {
 	int yp1 = (y+1)%Ny;
-	int ym1 = (y-1+Ny)%Ny;	
+	//int ym1 = (y-1+Ny)%Ny;	
 
 	double temp = 0.0;
 	//mu = 0
@@ -147,12 +147,12 @@ void forceD(field<double> *fD, field<Complex> *gauge, field<Complex> *phi, field
 	// | 1 -r |
 	
 	temp = real(I*((conj(gauge->read(x,y,0)) *
-			 (conj(phip->read(x+1,y,0)) * (r*g3Dphi->read(x,y,0) +   g3Dphi->read(x,y,1)) -
-			  conj(phip->read(x+1,y,1)) * (  g3Dphi->read(x,y,0) + r*g3Dphi->read(x,y,1))))
+			 (conj(phip->read(xp1,y,0)) * (r*g3Dphi->read(x,y,0) +   g3Dphi->read(x,y,1)) -
+			  conj(phip->read(xp1,y,1)) * (  g3Dphi->read(x,y,0) + r*g3Dphi->read(x,y,1))))
 			-
 			(gauge->read(x,y,0) *
-			 (conj(phip->read(x,y,0)) * (r*g3Dphi->read(x+1,y,0) -   g3Dphi->read(x+1,y,1)) +
-			  conj(phip->read(x,y,1)) * (  g3Dphi->read(x+1,y,0) - r*g3Dphi->read(x+1,y,1))))
+			 (conj(phip->read(x,y,0)) * (r*g3Dphi->read(xp1,y,0) -   g3Dphi->read(xp1,y,1)) +
+			  conj(phip->read(x,y,1)) * (  g3Dphi->read(xp1,y,0) - r*g3Dphi->read(xp1,y,1))))
 			)
 		     );
 	
@@ -166,12 +166,12 @@ void forceD(field<double> *fD, field<Complex> *gauge, field<Complex> *phi, field
 	// | r  i |
 	// | i -r |
 	temp = real(I*((conj(gauge->read(x,y,1)) *
-			 (conj(phip->read(x,y+1,0)) * (r*g3Dphi->read(x,y,0) - I*g3Dphi->read(x,y,1)) -
-			  conj(phip->read(x,y+1,1)) * (I*g3Dphi->read(x,y,0) + r*g3Dphi->read(x,y,1))))
+			 (conj(phip->read(x,yp1,0)) * (r*g3Dphi->read(x,y,0) - I*g3Dphi->read(x,y,1)) -
+			  conj(phip->read(x,yp1,1)) * (I*g3Dphi->read(x,y,0) + r*g3Dphi->read(x,y,1))))
 			-			       
 			(gauge->read(x,y,1) *
-			 (conj(phip->read(x,y,0)) * (r*g3Dphi->read(x,y+1,0) + I*g3Dphi->read(x,y+1,1)) +
-			  conj(phip->read(x,y,1)) * (I*g3Dphi->read(x,y+1,0) - r*g3Dphi->read(x,y+1,1))))
+			 (conj(phip->read(x,y,0)) * (r*g3Dphi->read(x,yp1,0) + I*g3Dphi->read(x,yp1,1)) +
+			  conj(phip->read(x,y,1)) * (I*g3Dphi->read(x,yp1,0) - r*g3Dphi->read(x,yp1,1))))
 			)
 		     );
 	

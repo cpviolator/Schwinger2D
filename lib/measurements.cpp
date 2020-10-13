@@ -374,13 +374,16 @@ double measGaugeAction(field<Complex> *gauge) {
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
 #pragma	omp parallel for reduction (+:action)
-  for(int x=0; x<Nx;x++)
-    for(int y=0; y<Ny; y++){      
-      Complex plaq = (gauge->read(x,y,0) * gauge->read(x+1,y,1) *
-		      conj(gauge->read(x,y+1,0)) * conj(gauge->read(x,y,1)));
+  for(int x=0; x<Nx; x++) {
+    int xp1 = (x+1)%Nx;
+    for(int y=0; y<Ny; y++) {
+      int yp1 = (y+1)%Ny;
+      Complex plaq = (gauge->read(x,y,0) * gauge->read(xp1,y,1) *
+		      conj(gauge->read(x,yp1,0)) * conj(gauge->read(x,y,1)));
       
       action += beta*real(1.0 - plaq);      
-    }  
+    }
+  }
   return action;
 }
 
@@ -487,9 +490,11 @@ Complex measPlaq(field<Complex> *gauge) {
 
 #pragma	omp parallel for reduction(+:plaq)
   for(int x=0; x<Nx; x++) {
-    for(int y=0; y<Ny; y++) { 
-      // Anti-clockwise plaquette, starting at (x,y). BC handled in read accessor
-      plaq += (gauge->read(x,y,0) * gauge->read((x+1),y,1) * conj(gauge->read(x,(y+1),0)) * conj(gauge->read(x,y,1)));
+    int xp1 = (x+1)%Nx;
+    for(int y=0; y<Ny; y++) {
+      int yp1 = (y+1)%Ny;
+      // Anti-clockwise plaquette, starting at (x,y)
+      plaq += (gauge->read(x,y,0) * gauge->read(xp1,y,1) * conj(gauge->read(x,yp1,0)) * conj(gauge->read(x,y,1)));
     }
   }
   return plaq * norm;

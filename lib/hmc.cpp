@@ -70,6 +70,33 @@ void trajectory(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, 
     
     guess->copy(phi);
     iram(gauge, kSpace, evals, eig_param);
+
+    int Nx = gauge->p.Nx;
+    int Ny = gauge->p.Ny;
+    int blk_scheme[2] = {8,8};
+    int x_block_size = Nx/blk_scheme[0];
+    int y_block_size = Ny/blk_scheme[1];
+    int n_blocks = blk_scheme[0]*blk_scheme[1];
+    int blk_size = 2 * x_block_size * y_block_size; // Complex elems per block
+    int n_low = eig_param.n_conv/4;
+    int n_conv = eig_param.n_conv;
+    
+    std::vector<std::vector<Complex>> block_data_ortho(n_blocks, std::vector<Complex> (n_low * blk_size, 0.0));
+    std::vector<std::vector<Complex>> block_coef(n_blocks, std::vector<Complex> (n_low * eig_param.n_conv, 0.0));
+    
+    blockCompress(kSpace, block_data_ortho, block_coef, blk_scheme, n_low, n_conv);
+    blockExpand(kSpace, block_data_ortho, block_coef, blk_scheme, n_low, n_conv);
+    
+    std::vector<double> resid(n_conv, 0.0);
+    std::vector<Complex> evals_recon(n_conv);
+    computeEvals(gauge, kSpace, resid, evals_recon, n_conv);
+    for(int i=0; i<eig_param.n_conv; i++) printf("%d: %e %e \n", i, abs(evals[i].real() - evals_recon[i].real())/evals[i].real(), resid[i]);;
+
+    int pre = n_conv * 2 * Nx * Ny;
+    int post= n_blocks * n_low * (blk_size + eig_param.n_conv);
+    cout << "Algorithmic compression: pre = " << pre << " post = " << post << endl;
+    cout << "Ratio: " << (100 * post)/pre << "% of original data " << endl;
+    
     deflate(guess, phi, kSpace, evals, eig_param);
     
     // Sanity:

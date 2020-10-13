@@ -114,12 +114,16 @@ int main(int argc, char **argv) {
     for(iter=0; iter<2*p.therm; iter++){  
       //Perform HMC step
       accept = hmc(gauge, iter, expdHAve, dHAve, hmccount);
+      gettimeofday(&total_end, NULL);  
+      t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
+      cout << fixed << setprecision(16) << iter+1 << " "; //Iteration
+      cout << t_total << " " << endl;                     //Time
     }
     gettimeofday(&end, NULL);  
     t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
 
-    iter_offset = 2*p.therm;    
-  }
+    iter_offset = 2*p.therm;
+  }  
     
   //Begin thermalised trajectories
   //---------------------------------------------------------------------
@@ -172,7 +176,6 @@ int main(int argc, char **argv) {
       //Dump simulation data to stdout
       gettimeofday(&total_end, NULL);  
       t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
-      double time = time0 + clock();
       cout << fixed << setprecision(16) << iter+1 << " "; //Iteration
       cout << t_total << " ";                             //Time
       cout << plaqSum/count << " ";                       //Action
@@ -191,7 +194,7 @@ int main(int argc, char **argv) {
       fp = fopen(fname, "a");	
       fprintf(fp, "%d %.16e %.16e %.16e %.16e %.16e %.16e %d\n",
 	      iter+1,
-	      time/CLOCKS_PER_SEC,
+	      t_total,
 	      plaqSum/count,
 	      (double)top_stuck/(accepted),
 	      expdHAve/hmccount,

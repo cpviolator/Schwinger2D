@@ -70,5 +70,5 @@ namespace blas {
   
   // Print the vector elements
   void printVector(const std::vector<Complex> &x);
-  
+
 }

@@ -50,7 +50,6 @@ void writeGauge(field<Complex> *gauge, string name){
 
 void readGauge(field<Complex> *gauge, string name)
 {
-
   fstream inPutFile;
   inPutFile.open(name);
   string val;
@@ -112,6 +111,7 @@ void gaussReal(field<double> *field) {
   double r, theta, sum;
   int Nx = field->p.Nx;
   int Ny = field->p.Ny;
+#pragma omp parallel for 
   for(int x=0; x<Nx; x++) {
     for(int y=0; y<Ny; y++) {
       for(int mu=0; mu<2; mu++) {
@@ -132,6 +132,7 @@ void gaussComplex(field<Complex> *field) {
 
   int Nx = field->p.Nx;
   int Ny = field->p.Ny;
+#pragma omp parallel for 
   for(int x=0; x<Nx; x++) {
     for(int y=0; y<Ny; y++) {
       for(int mu=0; mu<2; mu++) {
@@ -154,8 +155,6 @@ void smearLink(field<Complex> *smeared, field<Complex> *gauge){
   double alpha = gauge->p.alpha;
   int iter = gauge->p.smear_iter;
   Complex tmp = 0;
-  int xp1, xm1, yp1, ym1;
-  
   field<Complex> *smeared_tmp = new field<Complex>(gauge->p);
   smeared->copy(gauge);
   smeared_tmp->copy(smeared);
@@ -166,10 +165,10 @@ void smearLink(field<Complex> *smeared, field<Complex> *gauge){
     for(int x=0; x<Nx; x++) {
       for(int y=0; y<Ny; y++) {
 
-	xp1 = (x+1)%Nx;
-	xm1 = (x-1+Nx)%Nx;
-	yp1 = (y+1)%Ny;
-	ym1 = (y-1+Ny)%Ny;
+	int xp1 = (x+1)%Nx;
+	int xm1 = (x-1+Nx)%Nx;
+	int yp1 = (y+1)%Ny;
+	int ym1 = (y-1+Ny)%Ny;
 		
 	//|->-|   |   |
 	//^   v + v   ^
@@ -198,3 +197,181 @@ void smearLink(field<Complex> *smeared, field<Complex> *gauge){
 	  smeared->write(x,y,mu, polar(1.0,arg(smeared_tmp->read(x,y,mu))));
   }
 }
+
+void blockCompress(std::vector<field<Complex> *> &kSpace,
+		   std::vector<std::vector<Complex>> &block_data_ortho,
+		   std::vector<std::vector<Complex>> &block_coef,
+		   int blockScheme[2], int nLow, int nConv) {
+  
+  int Nx = kSpace[0]->p.Nx;
+  int Ny = kSpace[0]->p.Ny;
+  if(Nx%blockScheme[0] != 0) {
+    cout << "Error: x blockScheme = " << blockScheme[0] << " does not divide Nx = " << Nx << endl;
+  }
+  if(Ny%blockScheme[1] != 0) {
+    cout << "Error: y blockScheme = " << blockScheme[1] << " does not divide Ny = " << Ny << endl;
+  }
+  
+  int x_block_size = Nx/blockScheme[0];
+  int y_block_size = Ny/blockScheme[1];
+  int n_blocks = blockScheme[0]*blockScheme[1];
+  int blk_size = 2 * x_block_size * y_block_size;
+
+  // Object to hold the blocked eigenvector data
+  std::vector<std::vector<Complex>> block_data(n_blocks, std::vector<Complex> (nConv * blk_size, 0.0));
+
+  // Copy data from the eigenvector array into a block array
+  for(int by=0; by<blockScheme[1]; by++) {
+    for(int bx=0; bx<blockScheme[0]; bx++) {
+      int blk_idx = by * blockScheme[0] + bx;
+      
+      // Location of the start of the desired block (x runs fastest)
+      int blk_offset = 2 * ((x_block_size * bx) + Nx * (y_block_size * by));
+
+      for(int i=0; i<nConv; i++) {
+	for(int nx=0; nx<x_block_size; nx++) {
+	  for(int ny=0; ny<y_block_size; ny++) {
+	    for(int mu=0; mu<2; mu++) {
+
+	      int loc_idx = 2*(nx + x_block_size * ny) + mu;      // Local index
+	      int glo_idx = blk_offset + 2*((ny * Nx) + nx) + mu; // Global index
+	      block_data[blk_idx][blk_size * i + loc_idx] = kSpace[i]->data[glo_idx];	      
+	    }
+	  }
+	}
+      }
+    }
+  }
+
+  // Initialise the block ortho array 
+  for(int by=0; by<blockScheme[1]; by++) {
+    for(int bx=0; bx<blockScheme[0]; bx++) {
+      int blk_idx = by * blockScheme[0] + bx;
+      
+      // Location of the start of the desired block (x runs fastest)
+      int blk_offset = 2 * ((x_block_size * bx) + Nx * (y_block_size * by));
+  
+      for(int i=0; i<nLow; i++) {
+
+	// Copy data from the block data into the block ortho array
+	for(int k=0; k<blk_size; k++) {
+	  block_data_ortho[blk_idx][blk_size * i + k] = block_data[blk_idx][blk_size * i + k];
+	}
+	
+	// Loop up to i
+	for(int j=0; j<i; j++) {
+
+	  // Copy data from the jth ortho array into a temp array
+	  std::vector<Complex> temp(blk_size, 0.0);
+	  for(int k=0; k<blk_size; k++) temp[k] = block_data_ortho[blk_idx][blk_size * j + k];
+	  
+	  // <Vj | Vi > block inner product
+	  Complex ip = 0.0;	  
+	  for(int k=0; k<blk_size; k++) ip += conj(temp[k]) * block_data[blk_idx][blk_size * i + k];
+	  
+	  // | Vi > = | Vi > - <Vj | Vi > | Vj > project and write to block_data_ortho 
+	  for(int k=0; k<blk_size; k++) {
+	    block_data_ortho[blk_idx][blk_size * i + k] = (block_data_ortho[blk_idx][blk_size * i + k] - ip * temp[k]);
+	  }	  
+	}
+
+	// Normalize
+	Complex ip = 0.0;
+	for(int k=0; k<blk_size; k++) {
+	  ip += conj(block_data_ortho[blk_idx][blk_size * i + k]) * block_data_ortho[blk_idx][blk_size * i + k];
+	}
+	
+	double nrm = 1.0/sqrt(ip.real());
+	for(int k=0; k<blk_size; k++) {
+	  block_data_ortho[blk_idx][blk_size * i + k] *= nrm;
+	}
+      }
+    }
+  }
+    
+  // Get coefficients
+#pragma omp parallel for 
+  for(int by=0; by<blockScheme[1]; by++) {
+    for(int bx=0; bx<blockScheme[0]; bx++) {
+      int blk_idx = by * blockScheme[0] + bx;  
+
+      for(int j=0; j<nConv; j++) {
+	for(int i=0; i<nLow; i++) {
+	  
+	  // Inner product between orthed i block (low) and j block (high)
+	  Complex ip = 0.0;
+	  for(int k=0; k<blk_size; k++) {
+	    ip += (conj(block_data_ortho[blk_idx][blk_size * i + k]) * 
+		   block_data[blk_idx][blk_size * j + k]);
+	  }
+	  
+	  block_coef[blk_idx][nLow * j + i] = ip;
+	  
+	  for(int k=0; k<blk_size; k++) {
+	    block_data[blk_idx][blk_size * j + k] = block_data[blk_idx][blk_size * j + k] - (ip * block_data_ortho[blk_idx][blk_size * i + k]);
+	  }
+	}
+      }
+    }
+  }  
+}
+
+void blockExpand(std::vector<field<Complex> *> &kSpace,
+		 std::vector<std::vector<Complex>> &block_data_ortho,
+		 std::vector<std::vector<Complex>> &block_coef,
+		 int blockScheme[2], int nLow, int nConv) {
+
+#if 1
+  int Nx = kSpace[0]->p.Nx;
+  int Ny = kSpace[0]->p.Ny;
+  if(Nx%blockScheme[0] != 0) {
+    cout << "Error: x blockScheme = " << blockScheme[0] << " does not divide Nx = " << Nx << endl;
+  }
+  if(Ny%blockScheme[1] != 0) {
+    cout << "Error: y blockScheme = " << blockScheme[1] << " does not divide Ny = " << Ny << endl;
+  }
+  int x_block_size = Nx/blockScheme[0];
+  int y_block_size = Ny/blockScheme[1];
+  int n_blocks = blockScheme[0]*blockScheme[1];
+  int blk_size = 2 * x_block_size * y_block_size;
+
+#pragma omp parallel for 
+  for(int j=0; j<nConv; j++) {    
+    std::vector<std::vector<Complex>> block_data_temp(n_blocks, std::vector<Complex> (blk_size, 0.0));      
+    // Loop over blocks, Gramm-Schmidt the blocks on the low modes
+    for(int by=0; by<blockScheme[1]; by++) {
+      for(int bx=0; bx<blockScheme[0]; bx++) {
+	int blk_idx = by * blockScheme[0] + bx;
+
+	for(int i=0; i<nLow; i++) {	  
+	  for(int k=0; k<blk_size; k++) {
+	    block_data_temp[blk_idx][k] += block_coef[blk_idx][j*nLow + i] * block_data_ortho[blk_idx][blk_size * i + k];
+	  }
+	}	
+      }
+    }
+
+    for(int by=0; by<blockScheme[1]; by++) {
+      for(int bx=0; bx<blockScheme[0]; bx++) {
+	int blk_idx = by * blockScheme[0] + bx;
+
+	// Location of the start of the desired block (x runs fastest)
+	int blk_offset = 2 * ((x_block_size * bx) + Nx * (y_block_size * by));
+
+	// Copy data to the jth eigenvector
+	for(int ny=0; ny<y_block_size; ny++) {
+	  for(int nx=0; nx<x_block_size; nx++) {
+	    for(int mu=0; mu<2; mu++) {
+	      
+	      int loc_idx = 2*(nx + x_block_size * ny) + mu;      // Local index
+	      int glo_idx = blk_offset + 2*((ny * Nx) + nx) + mu; // Global index
+	      kSpace[j]->data[glo_idx] = block_data_temp[blk_idx][loc_idx];
+	    }
+	  }
+	}
+      }
+    }
+  }
+#endif
+} 
+
