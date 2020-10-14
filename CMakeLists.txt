@@ -12,6 +12,7 @@ if(ENABLE_OPENMP)
   find_package(OpenMP)
 endif()
 
+
 set(EIGEN_VERSION 3.3.7)
 set(EIGEN_DOWNLOAD_LOCATION ${CMAKE_SOURCE_DIR}/externals/eigen/${EIGEN_VERSION}.tar.bz2)
 set(EIGEN_URL https://gitlab.com/libeigen/eigen/-/archive/${EIGEN_VERSION}/eigen-${EIGEN_VERSION}.tar.bz2)
@@ -33,7 +34,9 @@ if(${EIGEN_DOWNLOADED_CODE})
 e again."
     )
 endif()
+
 include(ExternalProject)
+
 ExternalProject_Add(
   Eigen
   URL ${CMAKE_SOURCE_DIR}/externals/eigen/${EIGEN_VERSION}.tar.bz2
@@ -44,6 +47,33 @@ ExternalProject_Add(
   INSTALL_COMMAND "")
 ExternalProject_Get_Property(Eigen source_dir)
 set(EIGEN_INCLUDE_DIRS ${source_dir})
+
+
+option(DOWNLOAD_HDF5 "download HDF5" ON)
+
+if(NOT DOWNLOAD_HDF5)
+  find_package(HDF5)
+else()
+  include(GNUInstallDirs)
+  ExternalProject_Add(
+    HDF5
+    GIT_REPOSITORY https://github.com/HDFGroup/hdf5.git
+    GIT_TAG hdf5-1_12_0
+    GIT_SHALLOW YES
+    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/externals/hdf5
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+    -DHDF5_BUILD_EXAMPLES=OFF
+    -DBUILD_TESTING=OFF
+    -DONLY_SHARED_LIBS=ON
+    #HDF5_ENABLE_SANITIZERS
+    CMAKE_GENERATOR "Unix Makefiles")
+  ExternalProject_Get_Property(HDF5 INSTALL_DIR)
+  set(HDF5_HOME ${INSTALL_DIR})
+  add_library(hdf5 STATIC IMPORTED)
+  add_dependencies(hdf5 HDF5)
+  set_target_properties(hdf5 PROPERTIES IMPORTED_LOCATION ${HDF5_HOME}/${CMAKE_INSTALL_LIBDIR}/libhdf5.a)
+  
+endif()
 
 
 add_subdirectory(lib)
