@@ -49,66 +49,59 @@ void trajectory(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, 
   
   double dtau = gauge->p.tau/gauge->p.n_step;
   double H = 0.0;
-  field<Complex> *guess = new field<Complex>(gauge->p);
-
-  if(gauge->p.deflate && iter > 2*gauge->p.therm) {
-    //deflate using phi as source
-    //Deflation eigenvectors
-    eig_param_t eig_param;
-    eig_param.n_ev = gauge->p.n_ev;
-    eig_param.n_kr = gauge->p.n_kr;
-    eig_param.n_conv = gauge->p.n_conv;
-    eig_param.max_restarts = gauge->p.eig_max_restarts;
-    eig_param.tol = gauge->p.eig_tol;;
-    eig_param.spectrum = 1;
-    eig_param.verbose = false;
-    
-    std::vector<field<Complex> *> kSpace(eig_param.n_conv);
-    for(int i=0; i<eig_param.n_conv; i++) kSpace[i] = new field<Complex>(gauge->p);
-    //Deflation eigenvalues
-    std::vector<Complex> evals(eig_param.n_conv);
-    
-    guess->copy(phi);
-    iram(gauge, kSpace, evals, eig_param);
-
-    int Nx = gauge->p.Nx;
-    int Ny = gauge->p.Ny;
-    int blk_scheme[2] = {8,8};
-    int x_block_size = Nx/blk_scheme[0];
-    int y_block_size = Ny/blk_scheme[1];
-    int n_blocks = blk_scheme[0]*blk_scheme[1];
-    int blk_size = 2 * x_block_size * y_block_size; // Complex elems per block
-    int n_low = eig_param.n_conv/4;
-    int n_conv = eig_param.n_conv;
-    
-    std::vector<std::vector<Complex>> block_data_ortho(n_blocks, std::vector<Complex> (n_low * blk_size, 0.0));
-    std::vector<std::vector<Complex>> block_coef(n_blocks, std::vector<Complex> (n_low * eig_param.n_conv, 0.0));
-    
-    blockCompress(kSpace, block_data_ortho, block_coef, blk_scheme, n_low, n_conv);
-    blockExpand(kSpace, block_data_ortho, block_coef, blk_scheme, n_low, n_conv);
-    
-    std::vector<double> resid(n_conv, 0.0);
-    std::vector<Complex> evals_recon(n_conv);
-    computeEvals(gauge, kSpace, resid, evals_recon, n_conv);
-    for(int i=0; i<eig_param.n_conv; i++) printf("%d: %e %e \n", i, abs(evals[i].real() - evals_recon[i].real())/evals[i].real(), resid[i]);;
-
-    int pre = n_conv * 2 * Nx * Ny;
-    int post= n_blocks * n_low * (blk_size + eig_param.n_conv);
-    cout << "Algorithmic compression: pre = " << pre << " post = " << post << endl;
-    cout << "Ratio: " << (100 * post)/pre << "% of original data " << endl;
-    
-    deflate(guess, phi, kSpace, evals, eig_param);
-    
-    // Sanity:
-    //cout << "Guess norm = " << blas::norm(guess->data) << endl;
-    //cout << "phi norm = " << blas::norm(phi->data) << endl;
-  }
+  //bool inspectrum = true;
+  bool inspectrum = false;
   
-  //gauge force
+  //gauge force (U field)
   field<double> *fU = new field<double>(gauge->p);
-  //fermion fermion
+  //fermion force (D operator)
   field<double> *fD = new field<double>(gauge->p);
+
+  // Construct objects for an eigensolver
+  //-------------------------------------
+  field<Complex> *guess = new field<Complex>(gauge->p);
+  gaussComplex(guess);
+  eig_param_t eig_param;
+  eig_param.n_ev = gauge->p.n_ev;
+  eig_param.n_kr = gauge->p.n_kr;
+  eig_param.n_conv = gauge->p.n_conv;
+  eig_param.n_deflate = gauge->p.n_deflate;
+  eig_param.max_restarts = gauge->p.eig_max_restarts;
+  eig_param.tol = gauge->p.eig_tol;;
+  eig_param.spectrum = 1;
+  eig_param.verbose = false;
+
+  // Krylov space
+  std::vector<field<Complex>*> kSpace(eig_param.n_conv);
+  for(int i=0; i<eig_param.n_conv; i++) kSpace[i] = new field<Complex>(gauge->p);
+  // eigenvalues
+  std::vector<Complex> evals(eig_param.n_conv);
   
+  string name;
+  char fname[256];
+  FILE *fp;
+  
+  // Compute a the low spectrum
+  if(iter >= 2*gauge->p.therm && inspectrum) {
+
+    iram(gauge, kSpace, evals, eig_param);
+  
+    name = "data/eig/eigenvalues_iter" + to_string(iter);
+    constructName(name, gauge->p);
+    name += ".dat";
+    sprintf(fname, "%s", name.c_str());	
+    
+    fp = fopen(fname, "a");
+    for(int i=0; i<eig_param.n_conv; i++) {
+      fprintf(fp, "%d %d %.16e %.16e\n",
+	      0,
+	      i,
+	      evals[i].real(),
+	      evals[i].imag());
+    }
+    fprintf(fp,"\n");
+    fclose(fp);  
+  }
   //Initial half step.
   //P_{1/2} = P_0 - dtau/2 * (fU - fD)
   forceU(fU, gauge);
@@ -119,16 +112,47 @@ void trajectory(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, 
     
     //U_{k} = exp(i dtau P_{k-1/2}) * U_{k-1}
     update_gauge(gauge, mom, dtau);
+    // Compute a the low spectrum
+    if(iter >= 2*gauge->p.therm && inspectrum) {
+      iram(gauge, kSpace, evals, eig_param);
+      fp = fopen(fname, "a");
+      for(int i=0; i<eig_param.n_conv; i++) {
+	fprintf(fp, "%d %d %.16e %.16e\n",
+		k,
+		i,
+		evals[i].real(),
+		evals[i].imag());
+      }
+      fprintf(fp,"\n");
+      fclose(fp);
+    }
     
     //P_{k+1/2} = P_{k-1/2} - dtau * (fU - fD)
     forceU(fU, gauge);
     forceD(fD, gauge, phi, guess);
+    //fD->print();
+    
     update_mom(fU, fD, mom, dtau);
   }
   
   //Final half step.
   //U_{n} = exp(i dtau P_{n-1/2}) * U_{n-1}
   update_gauge(gauge, mom, dtau);
+  
+  // Compute a the low spectrum
+  if(iter >= 2*gauge->p.therm && inspectrum) {
+    iram(gauge, kSpace, evals, eig_param);
+    fp = fopen(fname, "a");
+    for(int i=0; i<eig_param.n_conv; i++) {
+      fprintf(fp, "%d %d %.16e %.16e\n",
+	      gauge->p.n_step,
+	      i,
+	      evals[i].real(),
+	      evals[i].imag());
+    }
+    fprintf(fp,"\n");
+    fclose(fp);
+  }
   
   //P_{n} = P_{n-1/2} - dtau/2 * (fU - fD)
   forceU(fU, gauge);

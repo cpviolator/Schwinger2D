@@ -49,33 +49,37 @@ ExternalProject_Get_Property(Eigen source_dir)
 set(EIGEN_INCLUDE_DIRS ${source_dir})
 
 
-option(DOWNLOAD_HDF5 "download HDF5" ON)
+option(ENABLE_HDF5 "enable HDF5" OFF)
+option(DOWNLOAD_HDF5 "download HDF5" OFF)
 
-if(NOT DOWNLOAD_HDF5)
-  find_package(HDF5)
-else()
-  include(GNUInstallDirs)
-  ExternalProject_Add(
-    HDF5
-    GIT_REPOSITORY https://github.com/HDFGroup/hdf5.git
-    GIT_TAG hdf5-1_12_0
-    GIT_SHALLOW YES
-    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/externals/hdf5
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-    -DHDF5_BUILD_EXAMPLES=OFF
-    -DBUILD_TESTING=OFF
-    -DONLY_SHARED_LIBS=ON
-    #HDF5_ENABLE_SANITIZERS
-    CMAKE_GENERATOR "Unix Makefiles")
-  ExternalProject_Get_Property(HDF5 INSTALL_DIR)
-  set(HDF5_HOME ${INSTALL_DIR})
-  add_library(hdf5 STATIC IMPORTED)
-  add_dependencies(hdf5 HDF5)
-  set_target_properties(hdf5 PROPERTIES IMPORTED_LOCATION ${HDF5_HOME}/${CMAKE_INSTALL_LIBDIR}/libhdf5.a)
-  
+if(ENABLE_HDF5)
+  if(NOT DOWNLOAD_HDF5)
+    find_package(HDF5 REQUIRED COMPONENTS CXX)
+    include_directories(${HDF5_INCLUDE_DIR})
+  else()
+    include(GNUInstallDirs)
+    ExternalProject_Add(
+      HDF5
+      GIT_REPOSITORY https://github.com/HDFGroup/hdf5.git
+      GIT_TAG hdf5-1_12_0
+      GIT_SHALLOW YES
+      PREFIX ${CMAKE_CURRENT_BINARY_DIR}/externals/hdf5
+      CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+      -DHDF5_BUILD_EXAMPLES=OFF
+      -DBUILD_TESTING=OFF
+      -DONLY_SHARED_LIBS=ON
+      -DHDF5_BUILD_CPP_LIB=ON
+      -DHDF5_BUILD_C_LIB=ON
+      #HDF5_ENABLE_SANITIZERS
+      CMAKE_GENERATOR "Unix Makefiles")
+    ExternalProject_Get_Property(HDF5 INSTALL_DIR)
+    set(HDF5_HOME ${INSTALL_DIR})
+    add_library(hdf5 STATIC IMPORTED)
+    add_dependencies(hdf5 HDF5)
+    set_target_properties(hdf5 PROPERTIES IMPORTED_LOCATION ${HDF5_HOME}/${CMAKE_INSTALL_LIBDIR}/libhdf5.a)
+    
+  endif()
 endif()
-
 
 add_subdirectory(lib)
 add_subdirectory(wilson)
-

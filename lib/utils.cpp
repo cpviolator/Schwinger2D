@@ -28,63 +28,6 @@ void constructName(string &name, param_t p) {
   name += "_tau" + to_string(p.tau) + "_nHMCstep" + to_string(p.n_step);
 }
 
-void writeGauge(field<Complex> *gauge, string name){
-
-  fstream outPutFile;
-  outPutFile.open(name,ios::in|ios::out|ios::trunc);  
-  outPutFile.setf(ios_base::fixed,ios_base::floatfield); 
-
-  //Plaquette action header
-  //outPutFile << setprecision(20) <<  setw(20) << measPlaq(gauge).real() << endl;
-
-  int Nx = gauge->p.Nx;
-  int Ny = gauge->p.Ny;  
-  for(int x=0; x<Nx; x++)
-    for(int y=0; y<Ny; y++)
-      for(int mu=0; mu<2; mu++)
-	outPutFile << setprecision(12) <<  setw(20) << arg(gauge->read(x,y,mu)) << endl;
-  
-  outPutFile.close();
-  return;  
-}
-
-void readGauge(field<Complex> *gauge, string name)
-{
-  fstream inPutFile;
-  inPutFile.open(name);
-  string val;
-  if(!inPutFile.is_open()) {
-    cout << "Error opening file " << name << endl;
-    exit(0);
-  }
-  
-  //Header check
-  //getline(inPutFile, val);
-  //double plaq_real_header = stod(val);
-  
-  int Nx = gauge->p.Nx;
-  int Ny = gauge->p.Ny;
-  
-  for(int x=0; x<Nx; x++) {
-    for(int y=0; y<Ny; y++) {
-      for(int mu=0; mu<2; mu++) {
-	getline(inPutFile, val);
-	gauge->write(x, y, mu, polar(1.0, stod(val)));
-      }
-    }
-  }
-  
-  //double plaq_real_measured = measPlaq(gauge).real();
-  //double err = fabs(1.0 - plaq_real_header/plaq_real_measured);
-  //if(abs(err) > 1e-12) {
-  //cout << "Gauge read fail!" << endl;
-  //cout << setprecision(16) << setw(20) << "Plaqette on file  = " << plaq_real_header << endl;
-  //cout << setprecision(16) << setw(20) << "Plaqette measured = " << plaq_real_measured << endl;   
-  //exit(0);
-  //}    
-  return;
-}
-
 void gaussStart(field<Complex> *gauge) {
 
   int Nx = gauge->p.Nx;
@@ -105,13 +48,12 @@ void coldStart(field<Complex> *gauge) {
 	gauge->write(x, y, mu, Complex(1.0,0.0));    
 }  
 
-// Normalized gaussian exp(-phi*phi/2) and  <phi|phi> = 1
+// Normalized gaussian exp(-phi*phi/2) and <phi|phi> = 1
 void gaussReal(field<double> *field) {
   
   double r, theta, sum;
   int Nx = field->p.Nx;
   int Ny = field->p.Ny;
-#pragma omp parallel for 
   for(int x=0; x<Nx; x++) {
     for(int y=0; y<Ny; y++) {
       for(int mu=0; mu<2; mu++) {
@@ -124,7 +66,7 @@ void gaussReal(field<double> *field) {
   }  
 }
 
-//normalized gaussian exp[ - eta*eta/2]  <eta|eta> = 1;
+//normalized gaussian exp(-eta*eta/2) and <eta|eta> = 1;
 void gaussComplex(field<Complex> *field) {
 
   double r1, theta1, r2, theta2, sum;
@@ -132,7 +74,6 @@ void gaussComplex(field<Complex> *field) {
 
   int Nx = field->p.Nx;
   int Ny = field->p.Ny;
-#pragma omp parallel for 
   for(int x=0; x<Nx; x++) {
     for(int y=0; y<Ny; y++) {
       for(int mu=0; mu<2; mu++) {
@@ -221,6 +162,7 @@ void blockCompress(std::vector<field<Complex> *> &kSpace,
   std::vector<std::vector<Complex>> block_data(n_blocks, std::vector<Complex> (nConv * blk_size, 0.0));
 
   // Copy data from the eigenvector array into a block array
+  //#pragma omp parallel for collapse(2)
   for(int by=0; by<blockScheme[1]; by++) {
     for(int bx=0; bx<blockScheme[0]; bx++) {
       int blk_idx = by * blockScheme[0] + bx;
@@ -243,7 +185,8 @@ void blockCompress(std::vector<field<Complex> *> &kSpace,
     }
   }
 
-  // Initialise the block ortho array 
+  // Initialise the block ortho array
+#pragma omp parallel for collapse(2)
   for(int by=0; by<blockScheme[1]; by++) {
     for(int bx=0; bx<blockScheme[0]; bx++) {
       int blk_idx = by * blockScheme[0] + bx;
@@ -265,11 +208,11 @@ void blockCompress(std::vector<field<Complex> *> &kSpace,
 	  std::vector<Complex> temp(blk_size, 0.0);
 	  for(int k=0; k<blk_size; k++) temp[k] = block_data_ortho[blk_idx][blk_size * j + k];
 	  
-	  // <Vj | Vi > block inner product
+	  // <Vj|Vi> : inner product
 	  Complex ip = 0.0;	  
 	  for(int k=0; k<blk_size; k++) ip += conj(temp[k]) * block_data[blk_idx][blk_size * i + k];
 	  
-	  // | Vi > = | Vi > - <Vj | Vi > | Vj > project and write to block_data_ortho 
+	  // |Vi> = |Vi> - <Vj|Vi>|Vj> : CAXPY project and write to block_data_ortho 
 	  for(int k=0; k<blk_size; k++) {
 	    block_data_ortho[blk_idx][blk_size * i + k] = (block_data_ortho[blk_idx][blk_size * i + k] - ip * temp[k]);
 	  }	  
@@ -290,7 +233,7 @@ void blockCompress(std::vector<field<Complex> *> &kSpace,
   }
     
   // Get coefficients
-#pragma omp parallel for 
+#pragma omp parallel for collapse(2)
   for(int by=0; by<blockScheme[1]; by++) {
     for(int bx=0; bx<blockScheme[0]; bx++) {
       int blk_idx = by * blockScheme[0] + bx;  
@@ -321,7 +264,6 @@ void blockExpand(std::vector<field<Complex> *> &kSpace,
 		 std::vector<std::vector<Complex>> &block_coef,
 		 int blockScheme[2], int nLow, int nConv) {
 
-#if 1
   int Nx = kSpace[0]->p.Nx;
   int Ny = kSpace[0]->p.Ny;
   if(Nx%blockScheme[0] != 0) {
@@ -372,6 +314,4 @@ void blockExpand(std::vector<field<Complex> *> &kSpace,
       }
     }
   }
-#endif
 } 
-

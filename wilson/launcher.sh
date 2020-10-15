@@ -11,7 +11,7 @@ rm -rf {gauge,data}
 mkdir -p {gauge,data/{data,plaq,creutz,polyakov,rect,top,pion,vacuum}}
 
 # The value of the coupling in the U(1) 2D theory
-BETA=5.0
+BETA=1.0
 
 # The total number of HMC iterations to perform.
 HMC_ITER=1000
@@ -41,7 +41,7 @@ DYN_QUENCH=1
 
 # Dynamic fermion parameters
 # Fermion mass
-MASS=-0.06
+MASS=0.32
 # Maximum CG iterations
 MAX_CG_ITER=10000
 # CG tolerance

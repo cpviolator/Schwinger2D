@@ -1,45 +1,65 @@
 #include "inverters.h"
 
+field<Complex> *guess_exp;
+field<Complex> *sol1;
+field<Complex> *sol2;
+field<Complex> *delta_sol;
+
+bool init = false;
+int counter = 0;
+//bool spline = true;
+bool spline = false;
+
 int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Complex> *gauge) {
   
   int success = 0;
 
+  if(counter > 1 && spline) {
+    x0->copy(guess_exp);
+  }
+  
   field<Complex> *res = new field<Complex>(gauge->p);
   field<Complex> *p = new field<Complex>(gauge->p);
   field<Complex> *Ap = new field<Complex>(gauge->p);
   field<Complex> *temp = new field<Complex>(gauge->p);
   
   double alpha = 0.0, beta = 0.0, denom = 0.0, rsq = 0.0, rsq_new = 0.0, bsqrt = 0.0, bnorm = 0.0;
-  bool deflating = false;  
+  bool use_init_guess = false;  
   
   // Find norm of rhs.
   bnorm = blas::norm2(b->data);
   bsqrt = sqrt(bnorm);
 
   // Sanity
-  //cout << "Guess norm = " << blas::norm(x0->data) << endl;
-  //cout << "source norm = " << blas::norm(b->data) << endl;
   
   if(bsqrt == 0 || bsqrt != bsqrt) {
     cout << "Error in Wilson Ainvpsi: inverting on zero source... or nan!" << endl;
     exit(0);
   }
-  res->copy(b);
+
+  // compute initial residual 
   
-  // res = b - A*x0
-  if (blas::norm2(x0->data) > 0.0) {
+  res->copy(b);
+
+  if (blas::norm2(x0->data) > 0.0) {    
+    // initial guess supplied: res = b - A*x0
     
     //Solve the deflated system.
-    deflating = true;
+    use_init_guess = true;
     DdagDpsi(temp, x0, gauge);    
     blas::axpy(-1.0, temp->data, res->data);
 
+    // Update bnorm
+    //bnorm = blas::norm2(res->data);
+    //bsqrt = sqrt(bnorm);
+    
     //cout << "using initial guess, |x0| = " << blas::norm(x0->data)
     //<< ", |b| = " << bsqrt
     //<< ", |res| = " << blas::norm(res->data) << endl;
   }
   
   p->copy(res);
+  
   rsq = blas::norm2(res->data);
   
   // Iterate until convergence
@@ -77,10 +97,10 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
     success = 0; 
   } else {
     // Convergence 
-    success = 1; 
+    success = k+1; 
   }
   
-  if(deflating) {
+  if(use_init_guess) {
     // x contains the solution to the deflated system b - A*x0.
     // We must add back the exact part
     blas::axpy(1.0, x0->data, x->data);
@@ -93,6 +113,38 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
   double truersq = blas::norm2(res->data);
   printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", k+1, rsq, truersq/(bsqrt*bsqrt));
   */
+
+  // Sanity
+  //cout << "Guess norm = " << blas::norm(x0->data) << endl;
+  //cout << "source norm = " << blas::norm(b->data) << endl;
+  //cout << "sol norm = " << blas::norm(x->data) << endl;
+  
+  if(init == false && spline) {
+    guess_exp = new field<Complex>(gauge->p);
+    sol1 = new field<Complex>(gauge->p);
+    sol2 = new field<Complex>(gauge->p);
+    delta_sol = new field<Complex>(gauge->p);
+    init = true;
+  }
+
+  if(counter == 0 && spline) {
+    sol1->copy(x);
+  }
+
+  if(counter > 0 && spline) {
+    sol2->copy(x);
+    blas::zero(delta_sol->data);
+    // delta_sol = sol2 - sol1 
+    blas::axpy( 1.0, sol2->data, delta_sol->data);
+    blas::axpy(-1.0, sol1->data, delta_sol->data);
+    // sol1 updated
+    sol1->copy(sol2);
+    // guess updated
+    guess_exp->copy(sol2);
+    blas::axpy(1.0, delta_sol->data, guess_exp->data);
+  }
+  
+  counter++;
   
   delete res;
   delete p;
@@ -120,6 +172,7 @@ void forceD(field<double> *fD, field<Complex> *gauge, field<Complex> *phi, field
     //Ainvpsi inverts using the DdagD (g3Dg3D) operator, returns
     // phip = (D^-1 * Ddag^-1) phi = (D^-1 * g3 * D^-1 g3) phi.
     Ainvpsi(phip, phi, guess, gauge);
+    //phip->print();
     
     //g3Dphi = g3D * phip
     field<Complex> *g3Dphi = new field<Complex>(gauge->p); 

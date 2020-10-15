@@ -1,14 +1,17 @@
 #include "iram.h"
 
+#define OPERATOR DdagDpsi
+//#define OPERATOR DdagDpsi
+
 void deflate(field<Complex> *guess, field<Complex> *phi,
 	     std::vector<field<Complex> *> kSpace, std::vector<Complex> &evals,
-	     eig_param_t param) {
+	     int n_deflate) {
   
   blas::zero(guess->data);
   Complex scalar;
   //Deflate each converged eigenpair from the guess
   // guess_defl = (v * lambda^-1 * v^dag) * guess
-  for(int i=0; i<param.n_conv; i++) {
+  for(int i=0; i<n_deflate; i++) {
     
     //Compute scalar part: s = (lambda)^-1 * (v^dag * phi)
     scalar = blas::cDotProd(kSpace[i]->data, phi->data);
@@ -125,7 +128,7 @@ void arnoldiStep(field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
   //%----------------------------%
   //| STEP 3:  r_{j} = OP*v_{j}; |
   //%----------------------------%  
-  DdagDpsi(r, kSpace[j], gauge);
+  OPERATOR(r, kSpace[j], gauge);
   
   //%-------------------------------------%
   //| The following is needed for STEP 5. |
@@ -443,7 +446,7 @@ int qrFromUpperHess(MatrixXcd &upperHess, MatrixXcd &Qmat, std::vector<Complex> 
   return iter;  
 }
 
-void rotateVecsComplex(std::vector<field<Complex> *> vecs, Eigen::MatrixXcd mat, int num_locked, int iter_keep, int dim) {
+void rotateVecsComplex(std::vector<field<Complex> *> vecs, Eigen::MatrixXcd mat, int num_locked, int iter_keep, int n_kr) {
 
   //loop over rows of V_k
   int Nx = vecs[0]->p.Nx;
@@ -454,8 +457,8 @@ void rotateVecsComplex(std::vector<field<Complex> *> vecs, Eigen::MatrixXcd mat,
       for(int mu=0; mu<2; mu++) {
 	
 	//put jth row of V_k in temp
-	Complex tmp[dim];  
-	for(int i=0; i<dim; i++) {
+	Complex tmp[n_kr];  
+	for(int i=0; i<n_kr; i++) {
 	  tmp[i] = vecs[i+num_locked]->read(x,y,mu);   
 	}
 	
@@ -463,7 +466,7 @@ void rotateVecsComplex(std::vector<field<Complex> *> vecs, Eigen::MatrixXcd mat,
 	for(int i=0; i<iter_keep; i++) {
 	  Complex sum = 0.0;
 	  //Loop over elements to get the y_i[j]th element 
-	  for(int l=0; l<dim; l++) {
+	  for(int l=0; l<n_kr; l++) {
 	    sum += tmp[l]*mat.col(i)[l];
 	  }
 	  
@@ -481,7 +484,7 @@ void computeEvals(field<Complex> *gauge, std::vector<field<Complex> *> kSpace, s
   for (int i = 0; i < n_ev; i++) {
     
     // r = A * v_i
-    DdagDpsi(temp, kSpace[i], gauge);
+    OPERATOR(temp, kSpace[i], gauge);
 
     // lambda_i = v_i^dag A v_i / (v_i^dag * v_i)
     evals[i] = blas::cDotProd(kSpace[i]->data, temp->data);
@@ -522,7 +525,7 @@ void iram(field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
   
   if (!(n_kr > n_ev + 6)) {
     printf("n_kr=%d must be greater than n_ev+6=%d\n", n_kr, n_ev + 6);
-    exit(0);
+    //exit(0);
   }
 
   printf("n_kr = %d\n", n_kr);
@@ -581,11 +584,8 @@ void iram(field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
     }
   }
 
-  //r->print();
-  //for(int i=0; i<10; i++) cout << (r->data)[i] << endl;
-    
   //Place initial source in range of mat
-  DdagDpsi(kSpace[0], r, gauge);
+  OPERATOR(kSpace[0], r, gauge);
   r->copy(kSpace[0]);
   
   // START IRAM
@@ -603,12 +603,8 @@ void iram(field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
     gettimeofday(&end, NULL);  
     t_compute += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
     
-    // Construct objects for Ritz and bounds
-    int dim = n_kr;
-    
     // Compute Ritz and bounds
     gettimeofday(&start, NULL);
-    //cout << upperHessEigen << endl;
     qrFromUpperHess(upperHessEigen, Qmat, evals, residua, beta, n_kr, tol/10);
     gettimeofday(&end, NULL);  
     t_EV += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
@@ -620,14 +616,14 @@ void iram(field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
     // sort the first (n_kr - n_ev) bounds to be first for forward stability
     gettimeofday(&start, NULL); 
     // Sort to put unwanted Ritz(evals) first
-    zsortc(spectrum, dim, evals, residua);    
+    zsortc(spectrum, n_kr, evals, residua);    
     // Sort to put smallest Ritz errors(residua) first
     zsortc(0, nshifts, residua, evals);
     
     // Convergence test
     iter_converged = 0;
     for(int i=0; i<n_ev; i++) {
-      int idx = dim - 1 - i;
+      int idx = n_kr - 1 - i;
       double rtemp = std::max(epsilon23, abs(evals[idx]));
       if(residua[idx] < tol * rtemp) {
 	iter_converged++;
@@ -636,16 +632,16 @@ void iram(field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
 	break;
       }
     }    
-
-    //       %---------------------------------------------------------%
-    //       | Count the number of unwanted Ritz values that have zero |
-    //       | Ritz estimates. If any Ritz estimates are equal to zero |
-    //       | then a leading block of H of order equal to at least    |
-    //       | the number of Ritz values with zero Ritz estimates has  |
-    //       | split off. None of these Ritz values may be removed by  |
-    //       | shifting. Decrease NP the number of shifts to apply. If |
-    //       | no shifts may be applied, then prepare to exit          |
-    //       %---------------------------------------------------------%
+    
+    //%---------------------------------------------------------%
+    //| Count the number of unwanted Ritz values that have zero |
+    //| Ritz estimates. If any Ritz estimates are equal to zero |
+    //| then a leading block of H of order equal to at least    |
+    //| the number of Ritz values with zero Ritz estimates has  |
+    //| split off. None of these Ritz values may be removed by  |
+    //| shifting. Decrease NP the number of shifts to apply. If |
+    //| no shifts may be applied, then prepare to exit          |
+    //%---------------------------------------------------------%
     
     int num_keep0 = num_keep;
     iter_keep = std::min(iter_converged + (n_kr - num_converged) / 2, n_kr - 12);
@@ -689,31 +685,31 @@ void iram(field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
       
     } else if (restart_iter < max_restarts) {
       
-      //          %-------------------------------------------------%
-      //          | Do not have all the requested eigenvalues yet.  |
-      //          | To prevent possible stagnation, adjust the size |
-      //          | of NEV.                                         |
-      //          | If the size of NEV was just increased resort    |
-      //          | the eigenvalues.                                |
-      //          %-------------------------------------------------%
+      //%-------------------------------------------------%
+      //| Do not have all the requested eigenvalues yet.  |
+      //| To prevent possible stagnation, adjust the size |
+      //| of NEV.                                         |
+      //| If the size of NEV was just increased resort    |
+      //| the eigenvalues.                                |
+      //%-------------------------------------------------%
 
       if(num_keep0 < num_keep) {
 	gettimeofday(&start, NULL); 
 	// Emulate zngets: sort the unwanted Ritz to the start of the arrays, then
 	// sort the first (n_kr - n_ev) bounds to be first for forward stability	
 	// Sort to put unwanted Ritz(evals) first
-	zsortc(spectrum, dim, evals, residua);
+	zsortc(spectrum, n_kr, evals, residua);
 	// Sort to put smallest Ritz errors(residua) first
 	zsortc(0, nshifts, residua, evals);
 	gettimeofday(&end, NULL);  
 	t_sort += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
       }
      
-      //       %---------------------------------------------------------%
-      //       | Apply the NP implicit shifts by QR bulge chasing.       |
-      //       | Each shift is applied to the whole upper Hessenberg     |
-      //       | matrix H.                                               |
-      //       %---------------------------------------------------------%
+      //%---------------------------------------------------------%
+      //| Apply the NP implicit shifts by QR bulge chasing.       |
+      //| Each shift is applied to the whole upper Hessenberg     |
+      //| matrix H.                                               |
+      //%---------------------------------------------------------%
 
       gettimeofday(&start, NULL); 
       Qmat.setIdentity();
@@ -722,24 +718,24 @@ void iram(field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
 	sigma.setIdentity();
 	sigma *= evals[i];
 	upperHessEigen -= sigma;
-	qriteration(upperHessEigen, Qmat, dim, tol/10);	
+	qriteration(upperHessEigen, Qmat, n_kr, tol/10);	
 	upperHessEigen += sigma;	
       }
       gettimeofday(&end, NULL);  
       t_QR += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
 
       gettimeofday(&start, NULL); 
-      rotateVecsComplex(kSpace, Qmat, 0, num_keep+1, dim);
+      rotateVecsComplex(kSpace, Qmat, 0, num_keep+1, n_kr);
       
-      //    %-------------------------------------%
-      //    | Update the residual vector:         |
-      //    |    r <- sigmak*r + betak*v(:,kev+1) |
-      //    | where                               |
-      //    |    sigmak = (e_{kev+p}'*Q)*e_{kev}  |
-      //    |    betak = e_{kev+1}'*H*e_{kev}     |
-      //    %-------------------------------------%
+      //%-------------------------------------%
+      //| Update the residual vector:         |
+      //|    r <- sigmak*r + betak*v(:,kev+1) |
+      //| where                               |
+      //|    sigmak = (e_{kev+p}'*Q)*e_{kev}  |
+      //|    betak = e_{kev+1}'*H*e_{kev}     |
+      //%-------------------------------------%
 
-      blas::caxpby(upperHessEigen(num_keep, num_keep-1), kSpace[num_keep]->data, Qmat(dim-1, num_keep-1), r->data);
+      blas::caxpby(upperHessEigen(num_keep, num_keep-1), kSpace[num_keep]->data, Qmat(n_kr-1, num_keep-1), r->data);
       gettimeofday(&end, NULL);  
       t_compute += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
 

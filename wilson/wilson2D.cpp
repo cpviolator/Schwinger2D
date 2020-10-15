@@ -1,6 +1,8 @@
 #include "schwinger2d_internal.h"
 #include "utils.h"
 #include "hmc.h"
+#include "iram.h"
+#include "io.h"
 
 int main(int argc, char **argv) {
 
@@ -12,7 +14,6 @@ int main(int argc, char **argv) {
   
   param_t p;
 
-  int Nd=2;
   p.beta = atof(argv[1]); 
   p.iter_hmc = atoi(argv[2]);
   p.therm = atoi(argv[3]);
@@ -30,7 +31,7 @@ int main(int argc, char **argv) {
   p.max_iter_cg = atoi(argv[14]);
   p.eps = atof(argv[15]);
   
-  //VOATOL params
+  //eigensolver params
   p.deflate = (atoi(argv[16]) == 0 ? false : true);
   p.n_kr = atoi(argv[17]);
   p.n_ev = atoi(argv[18]);
@@ -41,6 +42,10 @@ int main(int argc, char **argv) {
   p.amax = atof(argv[23]);
   p.amin = atof(argv[24]);
   p.poly_deg = atoi(argv[25]);
+  p.block_scheme[0] = atoi(argv[26]);
+  p.block_scheme[1] = atoi(argv[27]);
+  p.n_low = atoi(argv[28]);
+  p.n_deflate = atoi(argv[29]); 
   
   //Measurements
   //p.meas_pl = (atoi(argv[22]) == 0 ? false : true);
@@ -49,8 +54,8 @@ int main(int argc, char **argv) {
   //p.meas_vt = (atoi(argv[25]) == 0 ? false : true);
 
   // Lattice size 
-  p.Nx = atoi(argv[26]);
-  p.Ny = atoi(argv[27]);
+  p.Nx = atoi(argv[30]);
+  p.Ny = atoi(argv[31]);
   
   //Pseudo RNG seed
   srand48((long)p.seed);
@@ -69,7 +74,6 @@ int main(int argc, char **argv) {
     
   int count = 0;
   string name;
-  fstream outPutFile;
 
   int hmccount = 0;
   double expdHAve = 0.0;
@@ -121,7 +125,7 @@ int main(int argc, char **argv) {
     }
     gettimeofday(&end, NULL);  
     t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-
+    
     iter_offset = 2*p.therm;
   }  
     
@@ -136,24 +140,22 @@ int main(int argc, char **argv) {
     gettimeofday(&end, NULL);  
     t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
     
-    //Measure the topological charge if trajectory is accepted
+    //Measure the topological charge at each step if trajectory is accepted
     //---------------------------------------------------------------------
-    if(accept == 1) {      
-      top = measTopCharge(gauge);
-      top_int = round(top);
-      name = "data/top/top_charge";
-      constructName(name, p);
-      name += ".dat";
-      sprintf(fname, "%s", name.c_str());
-      fp = fopen(fname, "a");
-      fprintf(fp, "%d %d\n", iter, top_int);
-      fclose(fp);
-      
-      index = top_int + (histL-1)/2;
-      histQ[index]++;
-      if(top_old == top_int) top_stuck++;
-      top_old = top_int;      
-    }
+    top = measTopCharge(gauge);
+    top_int = round(top);
+    name = "data/top/top_charge";
+    constructName(name, p);
+    name += ".dat";
+    sprintf(fname, "%s", name.c_str());
+    fp = fopen(fname, "a");
+    fprintf(fp, "%d %d\n", iter, top_int);
+    fclose(fp);
+    
+    index = top_int + (histL-1)/2;
+    histQ[index]++;
+    if(top_old == top_int) top_stuck++;
+    top_old = top_int;      
     
     //Perform Measurements
     //---------------------------------------------------------------------
@@ -167,6 +169,7 @@ int main(int argc, char **argv) {
 	constructName(name, p);
 	name += "_traj" + to_string(iter+1) + ".dat";
 	writeGauge(gauge, name);
+	hdf5Example();
       }
       
       //Plaquette action
@@ -179,7 +182,7 @@ int main(int argc, char **argv) {
       cout << fixed << setprecision(16) << iter+1 << " "; //Iteration
       cout << t_total << " ";                             //Time
       cout << plaqSum/count << " ";                       //Action
-      cout << (double)top_stuck/(accepted) << " ";        //P(stuck)
+      cout << (double)top_stuck/(count*p.skip) << " " ;   //P(stuck)
       cout << expdHAve/hmccount << " ";                   //Average exp(-dH)
       cout << dHAve/hmccount << " ";                      //Average dH
       cout << (double)accepted/(count*p.skip) << " ";     //Acceptance
@@ -226,6 +229,131 @@ int main(int argc, char **argv) {
       //Vacuum Trace
       //if(p.meas_vt) measVacuumTrace(gauge, top_old, iter, p);
       //-------------------------------------------------------------
+
+      //Test deflation routines
+      //-------------------------------------------------------------
+      if(gauge->p.deflate) {
+
+#if 1
+	// Construct objects for an eigensolver
+	//-------------------------------------
+	eig_param_t eig_param;
+	eig_param.n_ev = gauge->p.n_ev;
+	eig_param.n_kr = gauge->p.n_kr;
+	eig_param.n_conv = gauge->p.n_conv;
+	eig_param.n_deflate = gauge->p.n_deflate;
+	eig_param.max_restarts = gauge->p.eig_max_restarts;
+	eig_param.tol = gauge->p.eig_tol;;
+	eig_param.spectrum = 1;
+	eig_param.verbose = true;
+
+	// Krylov space
+	std::vector<field<Complex>*> kSpace(eig_param.n_conv);
+	for(int i=0; i<eig_param.n_conv; i++) kSpace[i] = new field<Complex>(gauge->p);
+	// eigenvalues
+	std::vector<Complex> evals(eig_param.n_conv);
+
+	// Compute a deflation space using IRAM
+	iram(gauge, kSpace, evals, eig_param);
+	
+	
+	// Test the block compression
+	//---------------------------
+	int Nx = gauge->p.Nx;
+	int Ny = gauge->p.Ny;
+	int blk_scheme[2] = {gauge->p.block_scheme[0], gauge->p.block_scheme[1]};
+	int x_block_size = Nx/blk_scheme[0];
+	int y_block_size = Ny/blk_scheme[1];
+	int n_blocks = blk_scheme[0]*blk_scheme[1];
+	int blk_size = 2 * x_block_size * y_block_size; // Complex elems per block
+	int n_low = gauge->p.n_low;
+	int n_conv = eig_param.n_conv;
+	int n_deflate = eig_param.n_deflate;
+	
+	// Object to hold the block orthonormal low mode space
+	std::vector<std::vector<Complex>> block_data_ortho(n_blocks, std::vector<Complex> (n_low * blk_size, 0.0));
+	// Object to hold the projection coeffiecients of the high modes on the ow space
+	std::vector<std::vector<Complex>> block_coef(n_blocks, std::vector<Complex> (n_low * n_conv, 0.0));
+
+	gettimeofday(&start, NULL);
+
+	// Krylov space
+	std::vector<field<Complex>*> kSpace_recon(n_conv);
+	for(int i=0; i<n_conv; i++) kSpace_recon[i] = new field<Complex>(gauge->p);
+	// eigenvalues
+	std::vector<Complex> evals_recon(n_conv);
+	// Compress kSpace into block_data_ortho and block_coeffs...
+	blockCompress(kSpace, block_data_ortho, block_coef, blk_scheme, n_low, n_conv);
+	// ...then expand to into kSpace_recon test the quality
+	blockExpand(kSpace_recon, block_data_ortho, block_coef, blk_scheme, n_low, n_conv);
+	gettimeofday(&end, NULL);  
+	
+	// Compute the eigenvalues and residua using the reconstructed kSpace
+	std::vector<double> resid(n_conv, 0.0);
+	computeEvals(gauge, kSpace_recon, resid, evals_recon, n_conv);
+	
+	cout << "Compare eigenvalues and residua: " << endl;	
+	for(int i=0; i<eig_param.n_conv; i++) printf("%d: %e %e \n", i, abs(evals[i].real() - evals_recon[i].real())/evals[i].real(), resid[i]);
+	double delta_eval = 0.0;
+	double delta_resid = 0.0;  
+	for(int i=0; i<n_conv; i++) {
+	  delta_eval += abs(evals[i].real() - evals_recon[i].real())/evals[i].real();
+	  delta_resid += resid[i];
+	}
+	printf("<delta eval> = %e\n", delta_eval/n_conv);
+	printf("<delta resid> = %e\n", delta_resid/n_conv);
+	cout << endl;
+	
+	// Check compression ratio
+	int pre = n_conv * 2 * Nx * Ny;
+	int post= n_blocks * n_low * (blk_size + n_conv);
+	cout << "Algorithmic compression: " << endl;
+	cout << "Complex(double) elems pre = " << pre << " Complex(double) elems post = " << post << endl;
+	cout << "Ratio: " << (100 * post)/pre << "% of original data " << endl;
+	cout << n_low << " low eigenvectors used " << endl;
+	cout << (n_conv - n_low) << " high eigenvectors reconstructed " << endl;
+	cout << "Compress/decompress time = " << ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6 << endl;
+	
+	// Test deflation with reconstructed space
+	//----------------------------------------
+	field<Complex> *guess = new field<Complex>(gauge->p);
+	field<Complex> *src = new field<Complex>(gauge->p);
+	field<Complex> *sol = new field<Complex>(gauge->p);
+	field<Complex> *check = new field<Complex>(gauge->p);
+
+	// Populate src with rands
+	gaussComplex(src);
+	
+	// test inversion with no guess (guess has zero norm)
+	int undef_iter = Ainvpsi(sol, src, guess, gauge);
+	
+	//deflate the source
+	deflate(guess, src, kSpace_recon, evals_recon, n_deflate);
+	
+	// test inversion with deflated guess (guess has non-zero norm)
+	int def_iter = Ainvpsi(sol, src, guess, gauge);
+
+	// Check solution
+	double nrm = blas::norm(sol->data);
+	blas::ax(1.0/sqrt(nrm), sol->data);
+	nrm = blas::norm(src->data);
+	blas::ax(1.0/sqrt(nrm), src->data);
+
+	int check_iter = Ainvpsi(check, sol, guess, gauge);
+
+	nrm = blas::norm(check->data);
+	blas::ax(1.0/sqrt(nrm), check->data);
+	
+	blas::axpy(-1.0, src->data, check->data);
+	double check_norm = blas::norm(check->data);	
+	
+	cout << "Deflation efficacy: " << endl;
+	cout << "Undeflated CG iter = " << undef_iter << endl;
+	cout << "Deflated CG iter   = " << def_iter << endl;
+	cout << "Solution fidelity   = " << check_norm << endl;
+#endif 	
+      }
+      //-------------------------------------------------------------      
     }
   }
   return 0;

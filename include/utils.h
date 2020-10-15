@@ -2,6 +2,7 @@
 
 #include "schwinger2d_internal.h"
 #include "blas.h"
+#include "hdf5.h"
 
 using namespace std;
 
@@ -37,6 +38,7 @@ typedef struct{
   int n_ev = 16;
   int n_kr = 64;
   int n_conv = 16;
+  int n_deflate = 16;
   double eig_tol = 1e-6;
   int eig_max_restarts = 10000;
   bool poly_acc = false;
@@ -44,6 +46,10 @@ typedef struct{
   double amin = -1.0;
   int poly_deg = 0;
 
+  //Eigensolver compression
+  int block_scheme[2];
+  int n_low = 4;
+  
   //Measurements
   bool meas_pl = false; //Polyakov loops
   bool meas_wl = false; //Wilson loop and Creutz ratios
@@ -60,6 +66,7 @@ typedef struct {
   int n_ev = 0;
   int n_kr = 0;
   int n_conv = 0;
+  int n_deflate = 0;
   int max_restarts = 0;
   double tol = 0.0;
   int spectrum = 0;
@@ -143,3 +150,5 @@ void blockExpand(std::vector<field<Complex> *> &kSpace,
 		 std::vector<std::vector<Complex>> &block_data_ortho,
 		 std::vector<std::vector<Complex>> &block_coef,
 		 int blockScheme[2], int n_low, int n_conv);
+
+void hdf5Example();

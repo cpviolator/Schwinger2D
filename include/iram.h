@@ -10,11 +10,11 @@ void iram(field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
 
 void deflate(field<Complex> *guess, field<Complex> *phi,
 	     std::vector<field<Complex> *> kSpace, std::vector<Complex> &evals,
-	     eig_param_t param);
+	     int n_deflate);
 
 void eigensolveFromUpperHess(MatrixXcd &upperHessEigen, MatrixXcd &Qmat,
-			    std::vector<Complex> &evals,
-			    std::vector<double> &residua,
+			     std::vector<Complex> &evals,
+			     std::vector<double> &residua,
 			     const double beta, int nKr);
 
 void qriteration(MatrixXcd &Rmat, MatrixXcd &Qmat, const int nKr, const double tol);
