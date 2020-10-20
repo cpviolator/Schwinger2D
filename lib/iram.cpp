@@ -103,7 +103,7 @@ void zsortc(int which, int n, std::vector<double> &x, std::vector<double> &y) {
 
 
 
-void arnoldiStep(field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
+void arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
 		 Eigen::MatrixXcd &upperHessEigen,
 		 field<Complex> *r, double &beta, int j) {
 
@@ -477,7 +477,7 @@ void rotateVecsComplex(std::vector<field<Complex> *> vecs, Eigen::MatrixXcd mat,
       }
 }
 
-void computeEvals(field<Complex> *gauge, std::vector<field<Complex> *> kSpace, std::vector<double> &residua, std::vector<Complex> &evals, int n_ev) {
+void computeEvals(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace, std::vector<double> &residua, std::vector<Complex> &evals, int n_ev) {
   
   //temp vector
   field<Complex> *temp = new field<Complex>(gauge->p);
@@ -497,7 +497,7 @@ void computeEvals(field<Complex> *gauge, std::vector<field<Complex> *> kSpace, s
   delete temp;
 }
 
-void iram(field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
+void iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
 	  std::vector<Complex> &evals, eig_param_t param) {
   
   struct timeval start, end, total_start, total_end;
@@ -773,4 +773,56 @@ void iram(field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
   cout << "missing = " << (t_total) << " - " << (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen) << " = " << (t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen)) << " ("<<(100*((t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen))))/t_total<<"%)" << endl;
 
   
+}
+
+void inspectrum(const field<Complex> *gauge, int iter) {
+
+  eig_param_t eig_param;
+  std::vector<field<Complex>*> kSpace;
+  std::vector<Complex> evals;
+  
+  prepareKrylovSpace(kSpace, evals, eig_param, gauge->p);  
+  iram(gauge, kSpace, evals, eig_param);
+  
+  string name;
+  char fname[256];
+  FILE *fp;
+  
+  name = "data/eig/eigenvalues_iter" + to_string(iter);
+  constructName(name, gauge->p);
+  name += ".dat";
+  sprintf(fname, "%s", name.c_str());	
+  
+  fp = fopen(fname, "a");
+  for(int i=0; i<eig_param.n_conv; i++) {
+    fprintf(fp, "%d %d %.16e %.16e\n",
+	    0,
+	    i,
+	    evals[i].real(),
+	    evals[i].imag());
+  }
+  fprintf(fp,"\n");
+  fclose(fp);
+
+  for(int i=0; i<kSpace.size(); i++) delete kSpace[i];
+}
+
+void prepareKrylovSpace(std::vector<field<Complex>*> &kSpace,
+			std::vector<Complex> &evals,
+			eig_param_t &eig_param,
+			const param_t p) {
+  
+  eig_param.n_ev = p.n_ev;
+  eig_param.n_kr = p.n_kr;
+  eig_param.n_conv = p.n_conv;
+  eig_param.n_deflate = p.n_deflate;
+  eig_param.max_restarts = p.eig_max_restarts;
+  eig_param.tol = p.eig_tol;;
+  eig_param.spectrum = 1;
+  eig_param.verbose = false;
+    
+  // Krylov space and eigenvalues
+  kSpace.reserve(eig_param.n_conv);
+  for(int i=0; i<eig_param.n_conv; i++) kSpace[i] = new field<Complex>(p);
+  evals.resize(eig_param.n_conv);
 }

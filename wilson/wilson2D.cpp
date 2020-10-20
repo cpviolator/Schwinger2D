@@ -75,10 +75,6 @@ int main(int argc, char **argv) {
   int count = 0;
   string name;
 
-  int hmccount = 0;
-  double expdHAve = 0.0;
-  double dHAve = 0.0;
-
   int accept;
   int accepted = 0;
   char fname[256];
@@ -89,19 +85,16 @@ int main(int argc, char **argv) {
   field<Complex> *gauge = new field<Complex>(p);
   gaussStart(gauge);  // hot start
 
-  // Sanity check
-  //gauge->print();
-  //exit(0);
-  //cout << "Norm of gauge field = " << blas::norm(gauge->data) << endl;
-  
   //Start simulation
   double time0 = -((double)clock());
   int iter_offset = 0;
   int iter = 0;
   cout << setprecision(16);
   
+  leapfrogHMC *HMCStep = new leapfrogHMC();
+  
   if(p.checkpoint_start > 0) {
-
+    
     //Read in gauge field if requested
     //---------------------------------------------------------------------
     name = "gauge/gauge";
@@ -115,9 +108,9 @@ int main(int argc, char **argv) {
     //---------------------------------------------------------------------
 
     gettimeofday(&start, NULL);  
-    for(iter=0; iter<2*p.therm; iter++){  
+    for(iter=0; iter<2*p.therm; iter++){      
       //Perform HMC step
-      accept = hmc(gauge, iter, expdHAve, dHAve, hmccount);
+      accept = HMCStep->hmc(gauge, iter);
       gettimeofday(&total_end, NULL);  
       t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
       cout << fixed << setprecision(16) << iter+1 << " "; //Iteration
@@ -132,13 +125,6 @@ int main(int argc, char **argv) {
   //Begin thermalised trajectories
   //---------------------------------------------------------------------
   for(iter=iter_offset; iter<p.iter_hmc + iter_offset; iter++){
-
-    //Perform HMC step
-    gettimeofday(&start, NULL);  
-    accept = hmc(gauge, iter, expdHAve, dHAve, hmccount);    
-    accepted += accept;
-    gettimeofday(&end, NULL);  
-    t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
     
     //Measure the topological charge at each step if trajectory is accepted
     //---------------------------------------------------------------------
@@ -159,18 +145,9 @@ int main(int argc, char **argv) {
     
     //Perform Measurements
     //---------------------------------------------------------------------
-    if( (iter+1)%p.skip == 0) {
+    if((iter)%p.skip == 0 && iter > 2*p.therm) {
       
       count++; //Number of measurements taken
-
-      //Checkpoint the gauge field?
-      if( (iter+1)%p.chkpt == 0) {	  
-	name = "gauge/gauge";
-	constructName(name, p);
-	name += "_traj" + to_string(iter+1) + ".dat";
-	writeGauge(gauge, name);
-	hdf5Example();
-      }
       
       //Plaquette action
       double plaq = measPlaq(gauge).real();
@@ -179,12 +156,12 @@ int main(int argc, char **argv) {
       //Dump simulation data to stdout
       gettimeofday(&total_end, NULL);  
       t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
-      cout << fixed << setprecision(16) << iter+1 << " "; //Iteration
+      cout << fixed << setprecision(16) << iter << " ";   //Iteration
       cout << t_total << " ";                             //Time
       cout << plaqSum/count << " ";                       //Action
       cout << (double)top_stuck/(count*p.skip) << " " ;   //P(stuck)
-      cout << expdHAve/hmccount << " ";                   //Average exp(-dH)
-      cout << dHAve/hmccount << " ";                      //Average dH
+      cout << HMCStep->exp_dH_ave/(count*p.skip) << " ";  //Average exp(-dH)
+      cout << HMCStep->dH_ave/(count*p.skip) << " ";      //Average dH
       cout << (double)accepted/(count*p.skip) << " ";     //Acceptance
       cout << (double)p.beta << " ";                      //Current beta
       cout << top_int << endl;                            //T charge
@@ -196,12 +173,12 @@ int main(int argc, char **argv) {
       sprintf(fname, "%s", name.c_str());	
       fp = fopen(fname, "a");	
       fprintf(fp, "%d %.16e %.16e %.16e %.16e %.16e %.16e %d\n",
-	      iter+1,
+	      iter,
 	      t_total,
 	      plaqSum/count,
 	      (double)top_stuck/(accepted),
-	      expdHAve/hmccount,
-	      dHAve/hmccount,
+	      HMCStep->exp_dH_ave/(count*p.skip),
+	      HMCStep->dH_ave/(count*p.skip),
 	      (double)accepted/(count*p.skip),
 	      top_int);
       fclose(fp);
@@ -261,11 +238,12 @@ int main(int argc, char **argv) {
 	//---------------------------
 	int Nx = gauge->p.Nx;
 	int Ny = gauge->p.Ny;
+	int Ns = 2;
 	int blk_scheme[2] = {gauge->p.block_scheme[0], gauge->p.block_scheme[1]};
 	int x_block_size = Nx/blk_scheme[0];
 	int y_block_size = Ny/blk_scheme[1];
 	int n_blocks = blk_scheme[0]*blk_scheme[1];
-	int blk_size = 2 * x_block_size * y_block_size; // Complex elems per block
+	int blk_size = Ns * x_block_size * y_block_size; // Complex elems per block
 	int n_low = gauge->p.n_low;
 	int n_conv = eig_param.n_conv;
 	int n_deflate = eig_param.n_deflate;
@@ -309,7 +287,8 @@ int main(int argc, char **argv) {
 	int post= n_blocks * n_low * (blk_size + n_conv);
 	cout << "Algorithmic compression: " << endl;
 	cout << "Complex(double) elems pre = " << pre << " Complex(double) elems post = " << post << endl;
-	cout << "Ratio: " << (100 * post)/pre << "% of original data " << endl;
+	cout << "Ratio1: " << (100.0 * post)/pre << "% of original data " << endl;
+	cout << "Ratio2: " << 100*((1.0 * n_low)/n_conv + (1.0*n_low*n_blocks)/(Ns*Nx*Ny))<< "% of original data " << endl;
 	cout << n_low << " low eigenvectors used " << endl;
 	cout << (n_conv - n_low) << " high eigenvectors reconstructed " << endl;
 	cout << "Compress/decompress time = " << ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6 << endl;
@@ -332,7 +311,7 @@ int main(int argc, char **argv) {
 	
 	// test inversion with deflated guess (guess has non-zero norm)
 	int def_iter = Ainvpsi(sol, src, guess, gauge);
-
+	
 	// Check solution
 	double nrm = blas::norm(sol->data);
 	blas::ax(1.0/sqrt(nrm), sol->data);
@@ -354,6 +333,22 @@ int main(int argc, char **argv) {
 #endif 	
       }
       //-------------------------------------------------------------      
+    }
+    
+    //Perform HMC step
+    gettimeofday(&start, NULL);
+    accept = HMCStep->hmc(gauge, iter);
+    accepted += accept;
+    gettimeofday(&end, NULL);  
+    t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+
+    //Checkpoint the gauge field?
+    if((iter+1)%p.chkpt == 0) {	  
+      name = "gauge/gauge";
+      constructName(name, p);
+      name += "_traj" + to_string(iter+1) + ".dat";
+      writeGauge(gauge, name);
+      hdf5Example();
     }
   }
   return 0;

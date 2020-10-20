@@ -139,6 +139,56 @@ void smearLink(field<Complex> *smeared, field<Complex> *gauge){
   }
 }
 
+void writeBlockToVector(std::vector<field<Complex> *> &kSpace,
+			std::vector<std::vector<Complex>> &block_data_ortho,
+			std::vector<std::vector<Complex>> &block_coef,
+			int blockScheme[2], int nLow, int nConv) {
+    
+}
+
+// Read the block data from the (iEig)th vector in kSpace 
+void readVectorToBlock(std::vector<field<Complex> *> &kSpace,
+		       std::vector<std::vector<Complex>> &block_data,
+		       int blockScheme[2], int iEig) {
+
+  // This will become class data
+  int Nx = kSpace[0]->p.Nx;
+  int Ny = kSpace[0]->p.Ny;
+  if(Nx%blockScheme[0] != 0) {
+    cout << "Error: x blockScheme = " << blockScheme[0] << " does not divide Nx = " << Nx << endl;
+  }
+  if(Ny%blockScheme[1] != 0) {
+    cout << "Error: y blockScheme = " << blockScheme[1] << " does not divide Ny = " << Ny << endl;
+  }
+  
+  int x_block_size = Nx/blockScheme[0];
+  int y_block_size = Ny/blockScheme[1];
+  int n_blocks = blockScheme[0]*blockScheme[1];
+  int blk_size = 2 * x_block_size * y_block_size;
+  
+  for(int by=0; by<blockScheme[1]; by++) {
+    for(int bx=0; bx<blockScheme[0]; bx++) {
+      int blk_idx = by * blockScheme[0] + bx;
+      
+      // Location of the start of the desired block (x runs fastest)
+      int blk_offset = 2 * ((x_block_size * bx) + Nx * (y_block_size * by));
+      
+      for(int nx=0; nx<x_block_size; nx++) {
+	for(int ny=0; ny<y_block_size; ny++) {
+	  for(int mu=0; mu<2; mu++) {
+	    
+	    int loc_idx = 2*(nx + x_block_size * ny) + mu;      // Local index
+	    int glo_idx = blk_offset + 2*((ny * Nx) + nx) + mu; // Global index
+	    block_data[blk_idx][blk_size * iEig + loc_idx] = kSpace[iEig]->data[glo_idx];
+	  }
+	}
+      }
+    }
+  }
+}
+
+
+
 void blockCompress(std::vector<field<Complex> *> &kSpace,
 		   std::vector<std::vector<Complex>> &block_data_ortho,
 		   std::vector<std::vector<Complex>> &block_coef,
@@ -160,32 +210,39 @@ void blockCompress(std::vector<field<Complex> *> &kSpace,
 
   // Object to hold the blocked eigenvector data
   std::vector<std::vector<Complex>> block_data(n_blocks, std::vector<Complex> (nConv * blk_size, 0.0));
-
+  
   // Copy data from the eigenvector array into a block array
   //#pragma omp parallel for collapse(2)
-  for(int by=0; by<blockScheme[1]; by++) {
-    for(int bx=0; bx<blockScheme[0]; bx++) {
-      int blk_idx = by * blockScheme[0] + bx;
-      
-      // Location of the start of the desired block (x runs fastest)
-      int blk_offset = 2 * ((x_block_size * bx) + Nx * (y_block_size * by));
-
-      for(int i=0; i<nConv; i++) {
+  
+  for(int i=0; i<nConv; i++) {
+    readVectorToBlock(kSpace, block_data, blockScheme, i);
+  }
+  
+  /*  
+  for(int i=0; i<nConv; i++) {
+    for(int by=0; by<blockScheme[1]; by++) {
+      for(int bx=0; bx<blockScheme[0]; bx++) {
+	int blk_idx = by * blockScheme[0] + bx;
+	
+	// Location of the start of the desired block (x runs fastest)
+	int blk_offset = 2 * ((x_block_size * bx) + Nx * (y_block_size * by));
+	
 	for(int nx=0; nx<x_block_size; nx++) {
 	  for(int ny=0; ny<y_block_size; ny++) {
 	    for(int mu=0; mu<2; mu++) {
-
+	      
 	      int loc_idx = 2*(nx + x_block_size * ny) + mu;      // Local index
 	      int glo_idx = blk_offset + 2*((ny * Nx) + nx) + mu; // Global index
-	      block_data[blk_idx][blk_size * i + loc_idx] = kSpace[i]->data[glo_idx];	      
+	      block_data[blk_idx][blk_size * i + loc_idx] = kSpace[i]->data[glo_idx];
 	    }
 	  }
 	}
       }
     }
   }
-
-  // Initialise the block ortho array
+  */
+  
+  // Compute an orthonormal basis from the nLow vectors.
 #pragma omp parallel for collapse(2)
   for(int by=0; by<blockScheme[1]; by++) {
     for(int bx=0; bx<blockScheme[0]; bx++) {
@@ -193,9 +250,9 @@ void blockCompress(std::vector<field<Complex> *> &kSpace,
       
       // Location of the start of the desired block (x runs fastest)
       int blk_offset = 2 * ((x_block_size * bx) + Nx * (y_block_size * by));
-  
+      
       for(int i=0; i<nLow; i++) {
-
+	
 	// Copy data from the block data into the block ortho array
 	for(int k=0; k<blk_size; k++) {
 	  block_data_ortho[blk_idx][blk_size * i + k] = block_data[blk_idx][blk_size * i + k];
@@ -203,7 +260,7 @@ void blockCompress(std::vector<field<Complex> *> &kSpace,
 	
 	// Loop up to i
 	for(int j=0; j<i; j++) {
-
+	  
 	  // Copy data from the jth ortho array into a temp array
 	  std::vector<Complex> temp(blk_size, 0.0);
 	  for(int k=0; k<blk_size; k++) temp[k] = block_data_ortho[blk_idx][blk_size * j + k];
@@ -231,16 +288,19 @@ void blockCompress(std::vector<field<Complex> *> &kSpace,
       }
     }
   }
-    
-  // Get coefficients
-#pragma omp parallel for collapse(2)
-  for(int by=0; by<blockScheme[1]; by++) {
-    for(int bx=0; bx<blockScheme[0]; bx++) {
-      int blk_idx = by * blockScheme[0] + bx;  
-
-      for(int j=0; j<nConv; j++) {
+  
+  // Get coefficients: project the blocked nConv eigenvectors on to the
+  // orthonormalised low blocks.
+  // Modified Gramm-Schmidt
+#pragma omp parallel for collapse(3)
+  for(int j=0; j<nConv; j++) {
+    for(int by=0; by<blockScheme[1]; by++) {
+      for(int bx=0; bx<blockScheme[0]; bx++) {
+	
+	int blk_idx = by * blockScheme[0] + bx;        
 	for(int i=0; i<nLow; i++) {
 	  
+
 	  // Inner product between orthed i block (low) and j block (high)
 	  Complex ip = 0.0;
 	  for(int k=0; k<blk_size; k++) {
@@ -277,6 +337,7 @@ void blockExpand(std::vector<field<Complex> *> &kSpace,
   int n_blocks = blockScheme[0]*blockScheme[1];
   int blk_size = 2 * x_block_size * y_block_size;
 
+  // Loop over the desired eigenvalues.
 #pragma omp parallel for 
   for(int j=0; j<nConv; j++) {    
     std::vector<std::vector<Complex>> block_data_temp(n_blocks, std::vector<Complex> (blk_size, 0.0));      

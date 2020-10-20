@@ -1,6 +1,6 @@
 #include "dirac_op.h"
 
-void Dpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge) {
+void Dpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge) {
   
   double m0 = gauge->p.m;
   double  r = 1.0;
@@ -46,7 +46,7 @@ void Dpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge) {
   //exit(0);
 }
 
-void g3psi(field<Complex> *out, field<Complex> *in){
+void g3psi(field<Complex> *out, const field<Complex> *in){
 
   int Nx = in->p.Nx;
   int Ny = in->p.Ny;
@@ -58,7 +58,7 @@ void g3psi(field<Complex> *out, field<Complex> *in){
     }
 }
 
-void g2psi(field<Complex> *out, field<Complex> *in){
+void g2psi(field<Complex> *out, const field<Complex> *in){
 
   int Nx = in->p.Nx;
   int Ny = in->p.Ny;
@@ -82,7 +82,7 @@ void g1psi(field<Complex> *out, field<Complex> *in){
     }
 }
 
-void g3Dpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge){
+void g3Dpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge){
   
   field<Complex> *temp = new field<Complex>(in->p);  
   Dpsi(temp, in, gauge);
@@ -90,7 +90,7 @@ void g3Dpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge){
   delete temp;
 }
 
-void Ddagpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge){
+void Ddagpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge){
   
   field<Complex> *temp = new field<Complex>(in->p);  
   g3psi(out, in);
@@ -100,7 +100,7 @@ void Ddagpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge){
 }
 
 
-void DdagDpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge) {
+void DdagDpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge) {
   
   field<Complex> *temp = new field<Complex>(in->p);
   Dpsi(temp, in, gauge);

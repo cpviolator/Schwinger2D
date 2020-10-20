@@ -7,12 +7,16 @@ project(Schwinger2D VERSION 1.0.0)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+include(ExternalProject)
+
+# Link OpempMP CMake automatically adds 
+# _OPENMP to the CXX flags
 option(ENABLE_OPENMP "enable OpenMP" ON)
 if(ENABLE_OPENMP)
   find_package(OpenMP)
 endif()
 
-
+# Add Eigen for small, dense algebra
 set(EIGEN_VERSION 3.3.7)
 set(EIGEN_DOWNLOAD_LOCATION ${CMAKE_SOURCE_DIR}/externals/eigen/${EIGEN_VERSION}.tar.bz2)
 set(EIGEN_URL https://gitlab.com/libeigen/eigen/-/archive/${EIGEN_VERSION}/eigen-${EIGEN_VERSION}.tar.bz2)
@@ -28,14 +32,10 @@ file(
 list(GET EIGEN_DOWNLOADED 0 EIGEN_DOWNLOADED_CODE)
 list(GET EIGEN_DOWNLOADED 1 EIGEN_DOWNLOADED_MSG)
 if(${EIGEN_DOWNLOADED_CODE})
-  message(
-    SEND_ERROR
-    "Could not download Eigen automatically (${EIGEN_DOWNLOADED_MSG}). Please download eigen from ${EIGEN_URL} and save it to ${EIGEN_DOWNLOAD_LOCATION} and try running cmak\
-e again."
-    )
+  message( SEND_ERROR "Could not download Eigen automatically (${EIGEN_DOWNLOADED_MSG}). "
+    "Please download eigen from ${EIGEN_URL} and save it to ${EIGEN_DOWNLOAD_LOCATION} "
+    "and try running cmake again.")
 endif()
-
-include(ExternalProject)
 
 ExternalProject_Add(
   Eigen
@@ -48,7 +48,7 @@ ExternalProject_Add(
 ExternalProject_Get_Property(Eigen source_dir)
 set(EIGEN_INCLUDE_DIRS ${source_dir})
 
-
+# Add HDF5 for experimental binary IO
 option(ENABLE_HDF5 "enable HDF5" OFF)
 option(DOWNLOAD_HDF5 "download HDF5" OFF)
 
@@ -80,6 +80,8 @@ if(ENABLE_HDF5)
     
   endif()
 endif()
+
+# Add the CRC32 slicing algorithm
 
 add_subdirectory(lib)
 add_subdirectory(wilson)

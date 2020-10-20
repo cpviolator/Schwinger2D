@@ -19,16 +19,6 @@
 //---------------------------------------------------------------
 int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Complex> *gauge); 
 
-// let dD \equiv (d/dtheta D)
-//
-// d/dtheta (phi^* (DD^dag)^-1 phi) = -((DD^dag)^1 phi)^dag ([dD]*D^dag + D*[dD^dag]) ((DD^dag)^-1 phi)
-//
-// *****  Should optimize this to operate only on EVEN sites. ****
-void forceD(field<double> *fD, field<Complex> *gauge, field<Complex> *phi, field<Complex> *guess);
-
-
-
-
 /*
 //Staggered
 int Ainvpsi(Complex psi[LX][LY], Complex b[LX][LY], Complex psi0[LX][LY], const Complex gauge[LX][LY][2], param_t p) {

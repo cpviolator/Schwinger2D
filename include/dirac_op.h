@@ -11,11 +11,12 @@
 //
 // sigma_1 = | 0  1 |  sigma_2 = | 0 -i | sigma_3 = i*sigma_1*sigma_2 = | 1  0 |
 //           | 1  0 |            | i  0 |                               | 0 -1 |
-void Dpsi(field<Complex> *psi2, field<Complex> *psi1, field<Complex> *gauge);
+void Dpsi(field<Complex> *psi2, const field<Complex> *psi1, const field<Complex> *gauge);
 
-void g3Dpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge);
-void Ddagpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge);
-void DdagDpsi(field<Complex> *out, field<Complex> *in, field<Complex> *gauge);
-void g3psi(field<Complex> *out, field<Complex> *in);
-void g2psi(field<Complex> *out, field<Complex> *in);
-void g1psi(field<Complex> *out, field<Complex> *in);
+void g3Dpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge);
+void Ddagpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge);
+void DdagDpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge);
+
+void g3psi(field<Complex> *out, const field<Complex> *in);
+void g2psi(field<Complex> *out, const field<Complex> *in);
+void g1psi(field<Complex> *out, const field<Complex> *in);
