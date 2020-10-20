@@ -451,9 +451,12 @@ double measFermAction(field<Complex> *gauge, field<Complex> *phi, bool postStep)
   //cout << "Before Fermion force H = " << H << endl;
   Complex action = 0.0;
   
-  if(postStep) Ainvpsi(phi_tmp, phi, phi_tmp, gauge);
+  if(postStep) {
+    inverterCG *inv = new inverterCG(gauge->p);
+    inv->solve(phi_tmp, phi, gauge);
+  }
   else phi_tmp->copy(phi);
-
+  
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
 #pragma	omp parallel for reduction(+:action)

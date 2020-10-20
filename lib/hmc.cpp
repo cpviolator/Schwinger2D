@@ -5,6 +5,10 @@
 //2D HMC Routines
 //---------------------------------------------------------------------
 
+leapfrogHMC::leapfrogHMC(param_t param){
+  inv = new inverterCG(param);
+};
+
 int leapfrogHMC::hmc(field<Complex> *gauge, int iter) {
 
   int accept = 0;
@@ -15,7 +19,7 @@ int leapfrogHMC::hmc(field<Complex> *gauge, int iter) {
   field<Complex> *chi = new field<Complex>(gauge->p);
   field<Complex> *gauge_old = new field<Complex>(gauge->p);  
   gauge_old->copy(gauge);
-
+  
   // init mom[LX][LY][D]  <mom^2> = 1;
   gaussReal(mom); 
   
@@ -62,12 +66,22 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   // Compute a the low spectrum
   if(iter >= 2*gauge->p.therm && inspectrum_bool) inspectrum(gauge, iter);
 
+  // Construct objects for an eigensolver
+  //-------------------------------------
+  eig_param_t eig_param;
+  std::vector<field<Complex>*> kSpace;
+  std::vector<Complex> evals;	
+  prepareKrylovSpace(kSpace, evals, eig_param, gauge->p);
+  
+  // Compute a deflation space using IRAM
+  if(iter >= 2*gauge->p.therm && gauge->p.deflate) iram(gauge, kSpace, evals, eig_param);  
+  
   // Start HMC trajectory
   //----------------------------------------------------------
   //Initial half step.
   //P_{1/2} = P_0 - dtau/2 * (fU - fD)
   forceU(fU, gauge);
-  forceD(fD, gauge, phi);
+  forceD(fD, phi, gauge, kSpace, evals, iter);
   update_mom(fU, fD, mom, 0.5*dtau);  
   
   for(int k=1; k<gauge->p.n_step; k++) {
@@ -80,7 +94,7 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
     
     //P_{k+1/2} = P_{k-1/2} - dtau * (fU - fD)
     forceU(fU, gauge);
-    forceD(fD, gauge, phi);
+    forceD(fD, phi, gauge, kSpace, evals, iter);
     
     update_mom(fU, fD, mom, dtau);
   }
@@ -94,7 +108,7 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   
   //P_{n} = P_{n-1/2} - dtau/2 * (fU - fD)
   forceU(fU, gauge);
-  forceD(fD, gauge, phi);
+  forceD(fD, phi, gauge, kSpace, evals, iter);
   update_mom(fU, fD, mom, 0.5*dtau);
   
   // HMC trajectory complete
@@ -178,13 +192,13 @@ for(int i=0; i<eig_param.n_conv; i++) kSpace[i] = new field<Complex>(gauge->p);
 std::vector<Complex> evals(eig_param.n_conv);
 */
 
-// let dD = (d/dtheta D) :
-// d/dtheta (phi^* (DD^dag)^-1 phi) = -((DD^dag)^1 phi)^dag ([dD]*D^dag + D*[dD^dag]) ((DD^dag)^-1 phi)
+
 // We should optimise this to operate only on a single parity of sites.
 //
 // input 
-void leapfrogHMC::forceD(field<double> *fD, field<Complex> *gauge, field<Complex> *phi){
-  
+void leapfrogHMC::forceD(field<double> *fD, field<Complex> *phi, field<Complex> *gauge,
+			 std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals, int iter)
+{  
   if(gauge->p.dynamic == true) {
 
     blas::zero(fD->data);
@@ -195,11 +209,12 @@ void leapfrogHMC::forceD(field<double> *fD, field<Complex> *gauge, field<Complex
     //Ainvpsi inverts using the DdagD (g3Dg3D) operator, returns
     // phip = (D^-1 * Ddag^-1)
     //  phi = (D^-1 * g3 * D^-1 g3) phi.
-    field<Complex> *guess = new field<Complex>(gauge->p);
-    gaussComplex(guess);
-    blas::ax(10.0, guess->data);
-    Ainvpsi(phip, phi, guess, gauge);
-        
+    if(iter < 2*gauge->p.therm || !gauge->p.deflate) {
+      inv->solve(phip, phi, gauge);
+    } else {
+      inv->solve(phip, phi, kSpace, evals, gauge);
+    }
+    
     //g3Dphi = g3D * phip
     field<Complex> *g3Dphi = new field<Complex>(gauge->p); 
     g3Dpsi(g3Dphi, phip, gauge);
@@ -221,8 +236,7 @@ void leapfrogHMC::forceD(field<double> *fD, field<Complex> *gauge, field<Complex
 	// | 1  r |
 	//lower
 	// | r -1 |
-	// | 1 -r |
-	
+	// | 1 -r |	
 	temp = real(I*((conj(gauge->read(x,y,0)) *
 			 (conj(phip->read(xp1,y,0)) * (r*g3Dphi->read(x,y,0) +   g3Dphi->read(x,y,1)) -
 			  conj(phip->read(xp1,y,1)) * (  g3Dphi->read(x,y,0) + r*g3Dphi->read(x,y,1))))
@@ -255,35 +269,6 @@ void leapfrogHMC::forceD(field<double> *fD, field<Complex> *gauge, field<Complex
 	fD->write(x,y,1,temp);
       }
     }
-
-    /*
-    if(init == false && spline) {
-      guess_exp = new field<Complex>(gauge->p);
-      sol1 = new field<Complex>(gauge->p);
-      sol2 = new field<Complex>(gauge->p);
-      delta_sol = new field<Complex>(gauge->p);
-      init = true;
-    }
-    
-    if(counter == 0 && spline) {
-      sol1->copy(x);
-    }
-    
-    if(counter > 0 && spline) {
-      sol2->copy(x);
-      blas::zero(delta_sol->data);
-      // delta_sol = sol2 - sol1 
-      blas::axpy( 1.0, sol2->data, delta_sol->data);
-      blas::axpy(-1.0, sol1->data, delta_sol->data);
-      // sol1 updated
-      sol1->copy(sol2);
-      // guess updated
-      guess_exp->copy(sol2);
-      blas::axpy(1.0, delta_sol->data, guess_exp->data);
-    }
-    
-    counter++;
-    */
     
     delete phip;
     delete g3Dphi;    
@@ -291,3 +276,26 @@ void leapfrogHMC::forceD(field<double> *fD, field<Complex> *gauge, field<Complex
 }
 //----------------------------------------------------------------------------------
 
+leapfrogHMC::~leapfrogHMC() {
+  
+  evals0.resize(0);
+  for (int i=0; i<kSpace0.size(); i++) {
+    delete kSpace0[i];
+  }
+  
+  evals1.resize(0);
+  for (int i=0; i<kSpace1.size(); i++) {
+    delete kSpace1[i];
+  }
+  
+  evals_delta.resize(0);
+  for (int i=0; i<kSpace_delta.size(); i++) {
+    delete kSpace_delta[i];
+  }
+  
+  evals_prediction.resize(0);
+  for (int i=0; i<kSpace_prediction.size(); i++) {
+    delete kSpace_prediction[i];
+  }
+  
+};

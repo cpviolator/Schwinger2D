@@ -17,7 +17,49 @@
 
 // Wilson g5Dg5D matrix inverter
 //---------------------------------------------------------------
+
+class inverterCG {
+
+private:
+  int success = 0;
+  bool verbose = false;
+  
+  field<Complex> *res;
+  field<Complex> *p;
+  field<Complex> *Ap;
+  field<Complex> *temp;
+  
+  double alpha = 0.0, beta = 0.0, denom = 0.0, rsq = 0.0, rsq_new = 0.0, bsqrt = 0.0, bnorm = 0.0;
+  bool use_init_guess = false;  
+  int iter;
+
+public:
+  
+  inverterCG(param_t param);
+  
+  // With no deflation space
+  int solve(field<Complex> *x, field<Complex> *b, field<Complex> *gauge);
+  
+  // With a deflation space
+  int solve(field<Complex> *x, field<Complex> *b,
+	    std::vector<field<Complex> *> &kSpace, std::vector<Complex> &evals,
+	    field<Complex> *gauge, bool deflate = true);
+  
+  void deflateResidual(field<Complex> *deflated_guess, field<Complex> *residual,
+		       std::vector<field<Complex> *> &kSpace, std::vector<Complex> &evals);
+  
+  ~inverterCG() {
+    delete res;
+    delete p;
+    delete Ap;
+    delete temp;
+  }
+  
+};
+
 int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Complex> *gauge); 
+
+
 
 /*
 //Staggered

@@ -81,7 +81,7 @@ namespace blas {
   }
 
   // axpby
-  void caxpby(const double a, const std::vector<Complex> &x, const double b, std::vector<Complex> &y) {
+  void axpby(const double a, const std::vector<Complex> &x, const double b, std::vector<Complex> &y) {
     assertVectorLength(x,y,__func__);
 #pragma omp parallel for
     for(int i=0; i<(int)x.size(); i++) {

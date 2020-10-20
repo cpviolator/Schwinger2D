@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
   int iter = 0;
   cout << setprecision(16);
   
-  leapfrogHMC *HMCStep = new leapfrogHMC();
+  leapfrogHMC *HMCStep = new leapfrogHMC(p);
   
   if(p.checkpoint_start > 0) {
     
@@ -215,25 +215,13 @@ int main(int argc, char **argv) {
 	// Construct objects for an eigensolver
 	//-------------------------------------
 	eig_param_t eig_param;
-	eig_param.n_ev = gauge->p.n_ev;
-	eig_param.n_kr = gauge->p.n_kr;
-	eig_param.n_conv = gauge->p.n_conv;
-	eig_param.n_deflate = gauge->p.n_deflate;
-	eig_param.max_restarts = gauge->p.eig_max_restarts;
-	eig_param.tol = gauge->p.eig_tol;;
-	eig_param.spectrum = 1;
-	eig_param.verbose = true;
-
-	// Krylov space
-	std::vector<field<Complex>*> kSpace(eig_param.n_conv);
-	for(int i=0; i<eig_param.n_conv; i++) kSpace[i] = new field<Complex>(gauge->p);
-	// eigenvalues
-	std::vector<Complex> evals(eig_param.n_conv);
-
+	std::vector<field<Complex>*> kSpace;
+	std::vector<Complex> evals;	
+	prepareKrylovSpace(kSpace, evals, eig_param, gauge->p);
+	
 	// Compute a deflation space using IRAM
 	iram(gauge, kSpace, evals, eig_param);
-	
-	
+		
 	// Test the block compression
 	//---------------------------
 	int Nx = gauge->p.Nx;
@@ -295,41 +283,29 @@ int main(int argc, char **argv) {
 	
 	// Test deflation with reconstructed space
 	//----------------------------------------
-	field<Complex> *guess = new field<Complex>(gauge->p);
 	field<Complex> *src = new field<Complex>(gauge->p);
 	field<Complex> *sol = new field<Complex>(gauge->p);
 	field<Complex> *check = new field<Complex>(gauge->p);
 
 	// Populate src with rands
 	gaussComplex(src);
-	
-	// test inversion with no guess (guess has zero norm)
-	int undef_iter = Ainvpsi(sol, src, guess, gauge);
-	
-	//deflate the source
-	deflate(guess, src, kSpace_recon, evals_recon, n_deflate);
-	
-	// test inversion with deflated guess (guess has non-zero norm)
-	int def_iter = Ainvpsi(sol, src, guess, gauge);
-	
-	// Check solution
-	double nrm = blas::norm(sol->data);
-	blas::ax(1.0/sqrt(nrm), sol->data);
-	nrm = blas::norm(src->data);
-	blas::ax(1.0/sqrt(nrm), src->data);
 
-	int check_iter = Ainvpsi(check, sol, guess, gauge);
-
-	nrm = blas::norm(check->data);
-	blas::ax(1.0/sqrt(nrm), check->data);
+	// Create inverter
+	inverterCG *inv = new inverterCG(gauge->p);
 	
+	// Inversion with no deflation
+	int undef_iter = inv->solve(sol, src, gauge);
+	
+	// Inversion with deflation
+	blas::zero(sol->data);
+	int def_iter = inv->solve(sol, src, kSpace, evals, gauge);
+	DdagDpsi(check, sol, gauge);
 	blas::axpy(-1.0, src->data, check->data);
-	double check_norm = blas::norm(check->data);	
 	
 	cout << "Deflation efficacy: " << endl;
 	cout << "Undeflated CG iter = " << undef_iter << endl;
 	cout << "Deflated CG iter   = " << def_iter << endl;
-	cout << "Solution fidelity   = " << check_norm << endl;
+	cout << "Solution fidelity  = " << std::scientific << blas::norm2(check->data) << endl;
 #endif 	
       }
       //-------------------------------------------------------------      

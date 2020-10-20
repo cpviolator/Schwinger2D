@@ -90,9 +90,9 @@ void hdf5Example() {
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 6; j++) {
       if(short_data[i][j] == read_short_data[i][j]) {
-	cout << "HDF5 woo hoo" << endl;
+	//cout << "HDF5 woo hoo" << endl;
       } else if(short_data[i][j] != read_short_data[i][j]) {
-	cout << "HDF5 boo boo" << endl;
+	//cout << "HDF5 boo boo" << endl;
       }
     }
   }

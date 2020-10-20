@@ -823,6 +823,6 @@ void prepareKrylovSpace(std::vector<field<Complex>*> &kSpace,
     
   // Krylov space and eigenvalues
   kSpace.reserve(eig_param.n_conv);
-  for(int i=0; i<eig_param.n_conv; i++) kSpace[i] = new field<Complex>(p);
+  for(int i=0; i<eig_param.n_conv; i++) kSpace.push_back(new field<Complex>(p));
   evals.resize(eig_param.n_conv);
 }
