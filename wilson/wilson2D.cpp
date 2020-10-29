@@ -324,7 +324,9 @@ int main(int argc, char **argv) {
       constructName(name, p);
       name += "_traj" + to_string(iter+1) + ".dat";
       writeGauge(gauge, name);
+#ifdef HAVE_HDF5
       hdf5Example();
+#endif
     }
   }
   return 0;

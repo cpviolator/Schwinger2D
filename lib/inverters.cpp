@@ -41,11 +41,11 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
     // temp contains original guess
     temp->copy(x);
     
-    if(verbose) {
-      cout << "using initial guess, |x0| = " << blas::norm(temp->data)
-	   << ", |b| = " << bsqrt
-	   << ", |res| = " << blas::norm(res->data) << endl;
-    }
+    //if(verbose) {
+    //cout << "using initial guess, |x0| = " << blas::norm(temp->data)
+    //<< ", |b| = " << bsqrt
+    //<< ", |res| = " << blas::norm(res->data) << endl;
+    //}
   } else {
     // no initial guess. Initial residual is the source.    
     res->copy(b);
@@ -107,18 +107,18 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
   blas::axpy(1.0, temp->data, x->data);  
   // x now contains the solution to the RHS b.
   
-  //if(verbose) {
-  
-  //// Sanity
-  //cout << "source norm = " << blas::norm(b->data) << endl;
-  //cout << "sol norm = " << blas::norm(x->data) << endl;
-  
-  //DdagDpsi(temp, x, gauge);
-  //blas::axpy(-1.0, temp->data, b->data, res->data);
-  //double truersq = blas::norm2(res->data);
-  //printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", iter+1, rsq, truersq/(bsqrt*bsqrt));
-  //}
-  
+  if(verbose) {
+    
+    //Sanity
+    cout << "source norm = " << blas::norm(b->data) << endl;
+    cout << "sol norm = " << blas::norm(x->data) << endl;
+    
+    DdagDpsi(temp, x, gauge);
+    blas::axpy(-1.0, temp->data, b->data, res->data);
+    double truersq = blas::norm2(res->data);
+    printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", iter+1, rsq, truersq/(bsqrt*bsqrt));
+  }
+  //printf("CG: Converged iter = %d\n", success);  
   return success;  
 }
 

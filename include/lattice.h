@@ -44,6 +44,11 @@ public:
 	  cout << "elem("<<x<<","<<y<<":" << mu << ") = " << data[2*(x + p.Nx * y) + mu] << endl;
 	}
       }
-    }    
-  }  
+    }
+  }
+  
+  void print(int n) {
+    cout << "elem " << n << " = " << data[n] << endl;
+  }
+  
 };

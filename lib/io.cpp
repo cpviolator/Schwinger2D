@@ -43,15 +43,15 @@ void readGauge(field<Complex> *gauge, string name)
   return;
 }
 
+#ifdef HAVE_HDF5
 #include "hdf5.h"
-
 void hdf5Example() {
 
   hid_t       file_id, dataset_id, dataspace_id; // identifiers 
   herr_t      status;
   int         i, j;//, int_data[4][6], read_int_data[4][6];
   hsize_t     dims[2];
-  short       short_data[4][6], read_short_data[4][6];
+  double      short_data[4][6], read_short_data[4][6];
   
   // Initialize some datasets
   for (i = 0; i < 4; i++) {
@@ -69,13 +69,13 @@ void hdf5Example() {
   dataspace_id = H5Screate_simple(2, dims, NULL);
 
   // Create the dataset. 
-  dataset_id = H5Dcreate2(file_id, "/short_data", H5T_STD_B16LE, dataspace_id,
+  dataset_id = H5Dcreate2(file_id, "/short_data", H5T_NATIVE_DOUBLE, dataspace_id,
                           H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   
   // Write the dataset. 
-  status = H5Dwrite(dataset_id, H5T_STD_B16LE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-		    short_data);
-
+  status = H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+		    (void*)&((double*)short_data)[0]);
+  
   // End access to the dataset and release resources used by it. 
   status = H5Dclose(dataset_id);
 
@@ -84,15 +84,15 @@ void hdf5Example() {
   // Open an existing dataset. 
   dataset_id = H5Dopen2(file_id, "/short_data", H5P_DEFAULT);
   
-  status = H5Dread(dataset_id, H5T_STD_B16LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, read_short_data);
+  status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, read_short_data);
   
   // check data set
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 6; j++) {
       if(short_data[i][j] == read_short_data[i][j]) {
-	//cout << "HDF5 woo hoo" << endl;
+	cout << "HDF5 woo hoo" << endl;
       } else if(short_data[i][j] != read_short_data[i][j]) {
-	//cout << "HDF5 boo boo" << endl;
+	cout << "HDF5 boo boo" << endl;
       }
     }
   }
@@ -103,3 +103,4 @@ void hdf5Example() {
   // Close the file. 
   status = H5Fclose(file_id);
 }
+#endif

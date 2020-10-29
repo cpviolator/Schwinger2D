@@ -7,6 +7,14 @@
 
 leapfrogHMC::leapfrogHMC(param_t param){
   inv = new inverterCG(param);
+
+  guess_stack.reserve(4);
+  for(int i=0; i<4; i++) {
+    guess_stack.push_back(new field<Complex>(param));
+  }
+  phip = new field<Complex>(param);
+  g3Dphi = new field<Complex>(param); 
+  
 };
 
 int leapfrogHMC::hmc(field<Complex> *gauge, int iter) {
@@ -29,6 +37,10 @@ int leapfrogHMC::hmc(field<Complex> *gauge, int iter) {
     //Create pseudo fermion field phi = D chi
     g3Dpsi(phi, chi, gauge);
   }
+
+  // Reset the guess counter so that the previous guesses are discarded and new
+  // ones constructed.
+  guess_counter = 0;
   
   if (iter >= gauge->p.therm) H_old = measAction(mom, gauge, chi, false);
   trajectory(mom, gauge, phi, iter);
@@ -40,8 +52,6 @@ int leapfrogHMC::hmc(field<Complex> *gauge, int iter) {
     dH_ave += (H-H_old);
   }
 
-  //cout << "H = " << H << "  H old = " << H_old << " delta = " << H - H_old << endl;
-  
   // Metropolis accept/reject step
   if (iter >= gauge->p.therm) {    
     if ( drand48() > exp(-(H-H_old)) ) gauge->copy(gauge_old);
@@ -57,6 +67,8 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   double H = 0.0;
   //bool inspectrum_bool = true;
   bool inspectrum_bool = false;
+
+  double ave_iter = 0;
   
   //gauge force (U field)
   field<double> *fU = new field<double>(gauge->p);
@@ -81,7 +93,7 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   //Initial half step.
   //P_{1/2} = P_0 - dtau/2 * (fU - fD)
   forceU(fU, gauge);
-  forceD(fD, phi, gauge, kSpace, evals, iter);
+  ave_iter += forceD(fD, phi, gauge, kSpace, evals, iter);
   update_mom(fU, fD, mom, 0.5*dtau);  
   
   for(int k=1; k<gauge->p.n_step; k++) {
@@ -94,7 +106,7 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
     
     //P_{k+1/2} = P_{k-1/2} - dtau * (fU - fD)
     forceU(fU, gauge);
-    forceD(fD, phi, gauge, kSpace, evals, iter);
+    ave_iter += forceD(fD, phi, gauge, kSpace, evals, iter);
     
     update_mom(fU, fD, mom, dtau);
   }
@@ -108,8 +120,10 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   
   //P_{n} = P_{n-1/2} - dtau/2 * (fU - fD)
   forceU(fU, gauge);
-  forceD(fD, phi, gauge, kSpace, evals, iter);
+  ave_iter += forceD(fD, phi, gauge, kSpace, evals, iter);
   update_mom(fU, fD, mom, 0.5*dtau);
+
+  cout << "Average CG = " << ave_iter / (gauge->p.n_step + 1) << endl; 
   
   // HMC trajectory complete
   //----------------------------------------------------------
@@ -174,51 +188,31 @@ void leapfrogHMC::update_gauge(field<Complex> *gauge, field<double> *mom, double
       }
 }
 
-/*
-field<Complex> *guess_exp;
-field<Complex> *sol1;
-field<Complex> *sol2;
-field<Complex> *delta_sol;
 
-bool init = false;
-int counter = 0;
-//bool spline = true;
-bool spline = false;
-
-// Krylov space
-std::vector<field<Complex>*> kSpace(eig_param.n_conv);
-for(int i=0; i<eig_param.n_conv; i++) kSpace[i] = new field<Complex>(gauge->p);
-// eigenvalues
-std::vector<Complex> evals(eig_param.n_conv);
-*/
-
-
-// We should optimise this to operate only on a single parity of sites.
-//
-// input 
-void leapfrogHMC::forceD(field<double> *fD, field<Complex> *phi, field<Complex> *gauge,
-			 std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals, int iter)
-{  
+// Optimise this to operate only on a single parity of sites.
+int leapfrogHMC::forceD(field<double> *fD, field<Complex> *phi, field<Complex> *gauge,
+			std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals, int iter)
+{
+  int cg_iter = 0;
   if(gauge->p.dynamic == true) {
 
     blas::zero(fD->data);
     
-    //phip = (D^dagD)^-1 * phi
-    field<Complex> *phip = new field<Complex>(gauge->p);
-    
     //Ainvpsi inverts using the DdagD (g3Dg3D) operator, returns
     // phip = (D^-1 * Ddag^-1)
     //  phi = (D^-1 * g3 * D^-1 g3) phi.
+
+    // Inspect guess
+    //for(int i=0; i<10; i++) phip->print(i);
     if(iter < 2*gauge->p.therm || !gauge->p.deflate) {
-      inv->solve(phip, phi, gauge);
+      cg_iter += inv->solve(phip, phi, gauge);
     } else {
-      inv->solve(phip, phi, kSpace, evals, gauge);
+      cg_iter += inv->solve(phip, phi, kSpace, evals, gauge);
     }
+    //for(int i=0; i<10; i++) phip->print(i);
     
     //g3Dphi = g3D * phip
-    field<Complex> *g3Dphi = new field<Complex>(gauge->p); 
     g3Dpsi(g3Dphi, phip, gauge);
-    
     
     double r = 1.0;
     int Nx = gauge->p.Nx;
@@ -269,11 +263,30 @@ void leapfrogHMC::forceD(field<double> *fD, field<Complex> *phi, field<Complex> 
 	fD->write(x,y,1,temp);
       }
     }
-    
-    delete phip;
-    delete g3Dphi;    
+    /*
+    // phip and g3phi have now been read and may be used for the next step
+    guess_stack[guess_counter]->copy(phip);
+    if(guess_counter == 1) {
+      //cout << "Shifting " << endl;
+      // guess_delta = guess_{n} - guess_{n-1}
+      blas::axpy(-1.0, guess_stack[0]->data, guess_stack[1]->data, guess_stack[2]->data);
+
+      // guess_{n+1} = solution_{n} + guess_delta
+      blas::axpy(1.0, guess_stack[2]->data, phip->data);
+
+      // shift the stack,
+      guess_stack[0]->copy(guess_stack[1]);
+      
+    } else {
+      //cout << "Incrementing " << endl;
+      guess_counter++;
+    } 
+    */
+    //blas::zero(phip->data);
   }
+  return cg_iter;
 }
+
 //----------------------------------------------------------------------------------
 
 leapfrogHMC::~leapfrogHMC() {

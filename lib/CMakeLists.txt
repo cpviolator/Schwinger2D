@@ -9,6 +9,7 @@ include_directories(${EIGEN_INCLUDE_DIRS})
 if(ENABLE_HDF5)
   target_link_libraries(schwinger2d PUBLIC ${HDF5_CXX_LIBRARIES})
   target_include_directories(schwinger2d PUBLIC ${HDF5_INCLUDE_DIRS})
+  target_compile_definitions(schwinger2d PRIVATE ${HAVE_HDF5})
 endif()
 
 if(ENABLE_OPENMP)

@@ -81,7 +81,5 @@ if(ENABLE_HDF5)
   endif()
 endif()
 
-# Add the CRC32 slicing algorithm
-
 add_subdirectory(lib)
 add_subdirectory(wilson)
