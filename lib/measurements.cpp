@@ -1,7 +1,7 @@
 #include "measurements.h"
 
-void measWilsonLoops(field<Complex> *gauge, double plaq, int iter){
-
+void measWilsonLoops(field<Complex> *gauge, double plaq, int iter)
+{
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
   
@@ -12,7 +12,7 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter){
   int p1, p2, dx, dy, x, y;
   double inv_Lsq = 1.0/(Nx*Ny);  
   int loop_max = gauge->p.loop_max;
-
+  
   //Smear the gauge field
   field<Complex> *smeared = new field<Complex>(gauge->p);  
   smearLink(smeared, gauge);
@@ -47,7 +47,7 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter){
 	}
     }
   }
-  
+
   //Compute string tension
 #pragma	omp parallel for
   for(int size=1; size<loop_max; size++) {
@@ -64,13 +64,13 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter){
   string name;
   char fname[256];
   FILE *fp;
-  
+
   name = "data/creutz/creutz";
   constructName(name, gauge->p);
   name += ".dat";
   sprintf(fname, "%s", name.c_str());
   fp = fopen(fname, "a");
-  fprintf(fp, "%d %.16e ", iter+1, -log(abs(plaq)) );
+  fprintf(fp, "%d %.16e ", iter, -log(abs(plaq)) );
   for(int size=2; size<loop_max; size++)
     fprintf(fp, "%.16e ", sigma[size]);
   fprintf(fp, "\n");
@@ -84,12 +84,234 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter){
       name += ".dat";
       sprintf(fname, "%s", name.c_str());
       fp = fopen(fname, "a");
-      fprintf(fp, "%d %.16e %.16e\n", iter+1, real(wLoops[sizex][sizey]), imag(wLoops[sizex][sizey]));	    
+      fprintf(fp, "%d %.16e %.16e\n", iter, real(wLoops[sizex][sizey]), imag(wLoops[sizex][sizey]));	    
       fclose(fp);
     }
-  
+
   return;
 }
+
+//Pion correlation function
+//                              |----------------|
+//                              |        |-------|---------|
+//  < pi(x) | pi(0) > = < ReTr[dn*(x) g3 up(x) | dn(0) g3 up*(0)] >     
+//                    = < ReTr(g3 Gd[0,x] g3 Gu[x,0]) >  
+//                    = < ReTr(G*[x,0] G[x,0]) >
+//
+// using g3 G[x,0] g3 = G*[x,0] and Gu[x,0] \eq Gd[x,0]
+//
+// if H = Hdag, Tr(H * Hdag) = Sum_{n,m} (H_{n,m}) * (H_{n,m})^*,
+// i.e., the sum of the modulus squared of each element
+
+//void measWilsonLoops(field<Complex> *gauge, double plaq, int iter){
+void measPionCorrelation(field<Complex> *gauge, int iter)
+{
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+
+  field<Complex> *propUp, *propDn, *propGuess, *source, *Dsource;
+
+  propUp = new field<Complex>(gauge->p);
+  propDn = new field<Complex>(gauge->p);
+  propGuess = new field<Complex>(gauge->p);
+  source = new field<Complex>(gauge->p);
+  Dsource = new field<Complex>(gauge->p);
+  
+  //Up type prop
+  blas::zero(source->data);
+  blas::zero(Dsource->data);
+  blas::zero(propUp->data);
+  blas::zero(propGuess->data);
+  source->write(0, 0, 0, cUnit);
+  
+  // up -> (g3Dg3) * up *****
+  // (g3Dg3D)^-1 * (g3Dg3) up = D^-1 * up *****
+  
+  g3psi(Dsource, source);
+  g3Dpsi(source, Dsource, gauge);
+
+  //if (p.deflate) deflate(propGuess, Dsource, defl_evecs, defl_evals, p);
+  Ainvpsi(propUp, source, propGuess, gauge);
+
+  //Down type prop
+  blas::zero(source->data);
+  blas::zero(Dsource->data);
+  blas::zero(propDn->data);
+  blas::zero(propGuess->data);
+  source->write(0, 0, 1, cUnit);
+  
+  // dn -> (g3Dg3) * dn   
+  g3psi(Dsource, source);
+  g3Dpsi(source, Dsource, gauge);
+
+  // (g3Dg3D)^-1 * (g3Dg3) dn = D^-1 * dn 
+  Ainvpsi(propDn, source, propGuess, gauge);
+
+  
+  double pion_corr[Ny];    
+  //Let y be the 'time' dimension
+  double corr = 0.0, tmp = 0.0;
+  for(int y=0; y<Ny; y++) {
+    //initialise
+    pion_corr[y] = 0.0;
+    //Loop over space and spin, fold propagator
+    corr = 0.0;
+    for(int x=0; x<Nx; x++) {
+      tmp = abs((conj(propDn->read(x,y,0)) * propDn->read(x,y,0) +
+      		 conj(propDn->read(x,y,1)) * propDn->read(x,y,1) +
+		 conj(propUp->read(x,y,0)) * propUp->read(x,y,0) +
+      		 conj(propUp->read(x,y,1)) * propUp->read(x,y,1)));
+      
+      corr += tmp;
+    }
+    
+    //Compute folded propagator
+    if ( y < ((Ny/2)+1) ) pion_corr[y] += corr;
+    else {
+      pion_corr[Ny-y] += corr;
+      pion_corr[Ny-y] /= 2.0;
+    }
+  }
+  
+  char fname[256];
+  string name;
+  FILE *fp;
+  
+  //Full pion correlation
+  name = "data/pion/pion";
+  constructName(name, gauge->p);
+  name += ".dat";  
+  sprintf(fname, "%s", name.c_str());
+  fp = fopen(fname, "a");
+  fprintf(fp, "%d ", iter);
+  for(int t=0; t<Ny/2+1; t++)
+    fprintf(fp, "%.16e ", pion_corr[t]);
+  fprintf(fp, "\n");
+  fclose(fp);
+
+}
+
+double measGaugeAction(field<Complex> *gauge) {
+
+  double beta = gauge->p.beta;
+  double action = 0.0;
+  Complex plaq = 0.0;
+
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+#pragma	omp parallel for reduction (+:action)
+  for(int x=0; x<Nx; x++) {
+    int xp1 = (x+1)%Nx;
+    for(int y=0; y<Ny; y++) {
+      int yp1 = (y+1)%Ny;
+      Complex plaq = (gauge->read(x,y,0) * gauge->read(xp1,y,1) *
+		      conj(gauge->read(x,yp1,0)) * conj(gauge->read(x,y,1)));
+      
+      action += beta*real(1.0 - plaq);      
+    }
+  }
+  return action;
+}
+
+double measMomAction(field<double> *mom) {
+  
+  double action = 0.0;
+  double temp = 0.0;
+  int Nx = mom->p.Nx;
+  int Ny = mom->p.Ny;
+#pragma	omp parallel for reduction (+:action)
+  for(int x=0; x<Nx; x++)
+    for(int y=0; y<Ny; y++){
+      for(int mu=0; mu<2; mu++){
+	double temp = mom->read(x,y,mu);
+	action += 0.5 * temp * temp;
+      }
+    }
+  
+  return action;
+}
+
+//Wilson fermion
+double measFermAction(field<Complex> *gauge, field<Complex> *phi, bool postStep) {
+  
+  field<Complex> *phi_tmp = new field<Complex>(gauge->p);  
+  
+  //cout << "Before Fermion force H = " << H << endl;
+  Complex action = 0.0;
+  
+  if(postStep) {
+    inverterCG *inv = new inverterCG(gauge->p);
+    inv->solve(phi_tmp, phi, gauge);
+  }
+  else phi_tmp->copy(phi);
+  
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+#pragma	omp parallel for reduction(+:action)
+  for(int x=0; x<Nx; x++)
+    for(int y=0; y<Ny; y++){
+      for(int mu=0; mu<2; mu++){
+	action += conj(phi->read(x,y,mu))*phi_tmp->read(x,y,mu);
+      }
+    }    
+  
+  return action.real();
+}
+
+//Wilson Action
+double measAction(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, bool postStep) {
+  
+  double action = 0.0;
+  action += measMomAction(mom);
+  //cout << "action mom: " << action << endl;
+  action += measGaugeAction(gauge);
+  //cout << "action gauge: " << action << endl;
+  if (gauge->p.dynamic) action += measFermAction(gauge, phi, postStep);
+  //cout << "action ferm: " << action << endl;
+  
+  return action;
+}
+
+
+Complex measPlaq(field<Complex> *gauge) {
+  Complex plaq = 0.0;
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+  double norm = 1.0/(Nx * Ny);
+
+#pragma	omp parallel for reduction(+:plaq)
+  for(int x=0; x<Nx; x++) {
+    int xp1 = (x+1)%Nx;
+    for(int y=0; y<Ny; y++) {
+      int yp1 = (y+1)%Ny;
+      // Anti-clockwise plaquette, starting at (x,y)
+      plaq += (gauge->read(x,y,0) * gauge->read(xp1,y,1) * conj(gauge->read(x,yp1,0)) * conj(gauge->read(x,y,1)));
+    }
+  }
+  return plaq * norm;
+}
+
+double measTopCharge(field<Complex> *gauge){
+  
+  field<Complex> *smeared = new field<Complex>(gauge->p);
+  smearLink(smeared, gauge);
+
+  double top = 0.0;
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+#pragma	omp parallel for reduction(+:top)
+  for(int x=0; x<Nx; x++) {
+    int xp1 = (x+1)%Nx;
+    for(int y=0; y<Ny; y++){
+      int yp1 = (y+1)%Ny;
+      Complex w = smeared->read(x,y,0) * smeared->read(xp1,y,1) * conj(smeared->read(x,yp1,0)) * conj(smeared->read(x,y,1));
+      top += arg(w);  // -pi < arg(w) < pi  Geometric value is an integer.
+    }
+  }
+  return top/TWO_PI;
+}
+
+//-----------------------------------------------------------------------------------
 
 /*
 //Polyakov loops. x is the spatial dim, y is the temporal dim.
@@ -365,45 +587,6 @@ void measVacuumTrace(Complex gauge[LX][LY][2], int top, int iter, param_t p) {
 
 */
 
-double measGaugeAction(field<Complex> *gauge) {
-
-  double beta = gauge->p.beta;
-  double action = 0.0;
-  Complex plaq = 0.0;
-
-  int Nx = gauge->p.Nx;
-  int Ny = gauge->p.Ny;
-#pragma	omp parallel for reduction (+:action)
-  for(int x=0; x<Nx; x++) {
-    int xp1 = (x+1)%Nx;
-    for(int y=0; y<Ny; y++) {
-      int yp1 = (y+1)%Ny;
-      Complex plaq = (gauge->read(x,y,0) * gauge->read(xp1,y,1) *
-		      conj(gauge->read(x,yp1,0)) * conj(gauge->read(x,y,1)));
-      
-      action += beta*real(1.0 - plaq);      
-    }
-  }
-  return action;
-}
-
-double measMomAction(field<double> *mom) {
-  
-  double action = 0.0;
-  double temp = 0.0;
-  int Nx = mom->p.Nx;
-  int Ny = mom->p.Ny;
-#pragma	omp parallel for reduction (+:action)
-  for(int x=0; x<Nx; x++)
-    for(int y=0; y<Ny; y++){
-      for(int mu=0; mu<2; mu++){
-	double temp = mom->read(x,y,mu);
-	action += 0.5 * temp * temp;
-      }
-    }
-  
-  return action;
-}
 
 //Staggered fermion
 /*
@@ -443,84 +626,3 @@ double measAction(double mom[LX][LY][2], Complex gauge[LX][LY][2],
 }
 */
 
-//Wilson fermion
-double measFermAction(field<Complex> *gauge, field<Complex> *phi, bool postStep) {
-  
-  field<Complex> *phi_tmp = new field<Complex>(gauge->p);  
-  
-  //cout << "Before Fermion force H = " << H << endl;
-  Complex action = 0.0;
-  
-  if(postStep) {
-    inverterCG *inv = new inverterCG(gauge->p);
-    inv->solve(phi_tmp, phi, gauge);
-  }
-  else phi_tmp->copy(phi);
-  
-  int Nx = gauge->p.Nx;
-  int Ny = gauge->p.Ny;
-#pragma	omp parallel for reduction(+:action)
-  for(int x=0; x<Nx; x++)
-    for(int y=0; y<Ny; y++){
-      for(int mu=0; mu<2; mu++){
-	action += conj(phi->read(x,y,mu))*phi_tmp->read(x,y,mu);
-      }
-    }    
-  
-  return action.real();
-}
-
-//Wilson Action
-double measAction(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, bool postStep) {
-  
-  double action = 0.0;
-  action += measMomAction(mom);
-  //cout << "action mom: " << action << endl;
-  action += measGaugeAction(gauge);
-  //cout << "action gauge: " << action << endl;
-  if (gauge->p.dynamic) action += measFermAction(gauge, phi, postStep);
-  //cout << "action ferm: " << action << endl;
-  
-  return action;
-}
-
-
-Complex measPlaq(field<Complex> *gauge) {
-  Complex plaq = 0.0;
-  int Nx = gauge->p.Nx;
-  int Ny = gauge->p.Ny;
-  double norm = 1.0/(Nx * Ny);
-
-#pragma	omp parallel for reduction(+:plaq)
-  for(int x=0; x<Nx; x++) {
-    int xp1 = (x+1)%Nx;
-    for(int y=0; y<Ny; y++) {
-      int yp1 = (y+1)%Ny;
-      // Anti-clockwise plaquette, starting at (x,y)
-      plaq += (gauge->read(x,y,0) * gauge->read(xp1,y,1) * conj(gauge->read(x,yp1,0)) * conj(gauge->read(x,y,1)));
-    }
-  }
-  return plaq * norm;
-}
-
-double measTopCharge(field<Complex> *gauge){
-  
-  field<Complex> *smeared = new field<Complex>(gauge->p);
-  smearLink(smeared, gauge);
-
-  double top = 0.0;
-  int Nx = gauge->p.Nx;
-  int Ny = gauge->p.Ny;
-#pragma	omp parallel for reduction(+:top)
-  for(int x=0; x<Nx; x++) {
-    int xp1 = (x+1)%Nx;
-    for(int y=0; y<Ny; y++){
-      int yp1 = (y+1)%Ny;
-      Complex w = smeared->read(x,y,0) * smeared->read(xp1,y,1) * conj(smeared->read(x,yp1,0)) * conj(smeared->read(x,y,1));
-      top += arg(w);  // -pi < arg(w) < pi  Geometric value is an integer.
-    }
-  }
-  return top/TWO_PI;
-}
-
-//-----------------------------------------------------------------------------------

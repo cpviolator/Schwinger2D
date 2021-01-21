@@ -129,7 +129,8 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
 }
 
 void inverterCG::deflateResidual(field<Complex> *phi_defl, field<Complex> *phi,
-				 std::vector<field<Complex> *> &kSpace, std::vector<Complex> &evals) {
+				 std::vector<field<Complex> *> &kSpace,
+				 std::vector<Complex> &evals) {
   
   Complex scalar;
   //Deflate each converged eigenpair from the phi

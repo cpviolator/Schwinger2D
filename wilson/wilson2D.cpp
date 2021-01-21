@@ -49,13 +49,19 @@ int main(int argc, char **argv) {
   
   //Measurements
   //p.meas_pl = (atoi(argv[22]) == 0 ? false : true);
-  //p.meas_wl = (atoi(argv[23]) == 0 ? false : true);
-  //p.meas_pc = (atoi(argv[24]) == 0 ? false : true);
-  //p.meas_vt = (atoi(argv[25]) == 0 ? false : true);
-
+  p.meas_wl = (atoi(argv[30]) == 0 ? false : true);
+  p.meas_pc = (atoi(argv[31]) == 0 ? false : true);
+  //p.meas_vt = (atoi(argv[25]) == 0 ? false : true); 
+  
   // Lattice size 
-  p.Nx = atoi(argv[30]);
-  p.Ny = atoi(argv[31]);
+  p.Nx = atoi(argv[32]);
+  p.Ny = atoi(argv[33]);
+  
+  if(p.loop_max > std::min(p.Nx/2, p.Ny/2)) {
+    cout << "Warning: requested Wilson loop max " << p.loop_max << " greater than ";
+    cout << min(p.Nx/2, p.Ny/2) << ", truncating." << endl;
+    p.loop_max = std::min(p.Nx/2, p.Ny/2);
+  }
   
   //Pseudo RNG seed
   srand48((long)p.seed);
@@ -197,11 +203,11 @@ int main(int argc, char **argv) {
       //Polyakov Loops      
       //if(p.meas_pl) measPolyakovLoops(gauge, iter, p);
       
-      //Creutz Ratios
-      //if(p.meas_wl) measWilsonLoops(gauge, plaq, iter, p);
+      //Creu<tz Ratios (for string tension)
+      if(p.meas_wl) measWilsonLoops(gauge, plaq, iter);
 
       //Pion Correlation
-      //if(p.meas_pc) measPionCorrelation(gauge, top_old, iter, p);
+      if(p.meas_pc) measPionCorrelation(gauge, iter);
 
       //Vacuum Trace
       //if(p.meas_vt) measVacuumTrace(gauge, top_old, iter, p);
@@ -210,8 +216,7 @@ int main(int argc, char **argv) {
       //Test deflation routines
       //-------------------------------------------------------------
       if(gauge->p.deflate) {
-
-#if 1
+#if 0
 	// Construct objects for an eigensolver
 	//-------------------------------------
 	eig_param_t eig_param;
@@ -306,7 +311,7 @@ int main(int argc, char **argv) {
 	cout << "Undeflated CG iter = " << undef_iter << endl;
 	cout << "Deflated CG iter   = " << def_iter << endl;
 	cout << "Solution fidelity  = " << std::scientific << blas::norm2(check->data) << endl;
-#endif 	
+#endif
       }
       //-------------------------------------------------------------      
     }
@@ -317,7 +322,7 @@ int main(int argc, char **argv) {
     accepted += accept;
     gettimeofday(&end, NULL);  
     t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-
+    
     //Checkpoint the gauge field?
     if((iter+1)%p.chkpt == 0) {	  
       name = "gauge/gauge";
@@ -325,7 +330,7 @@ int main(int argc, char **argv) {
       name += "_traj" + to_string(iter+1) + ".dat";
       writeGauge(gauge, name);
 #ifdef HAVE_HDF5
-      hdf5Example();
+      //hdf5Example();
 #endif
     }
   }

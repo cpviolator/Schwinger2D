@@ -123,7 +123,7 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   ave_iter += forceD(fD, phi, gauge, kSpace, evals, iter);
   update_mom(fU, fD, mom, 0.5*dtau);
 
-  cout << "Average CG = " << ave_iter / (gauge->p.n_step + 1) << endl; 
+  //cout << "Average CG = " << ave_iter / (gauge->p.n_step + 1) << endl; 
   
   // HMC trajectory complete
   //----------------------------------------------------------
