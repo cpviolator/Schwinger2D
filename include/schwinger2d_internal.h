@@ -23,7 +23,7 @@ typedef complex<double> Complex;
 
 using namespace std;
 
-typedef struct{
+typedef struct param {
   
   //HMC
   int n_step = 25;
@@ -78,7 +78,7 @@ typedef struct{
   
 } param_t;
 
-typedef struct {
+typedef struct eig_param {
 
   int n_ev = 0;
   int n_kr = 0;

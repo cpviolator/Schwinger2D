@@ -86,7 +86,7 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   prepareKrylovSpace(kSpace, evals, eig_param, gauge->p);
   
   // Compute a deflation space using IRAM
-  if(iter >= 2*gauge->p.therm && gauge->p.deflate) iram(gauge, kSpace, evals, eig_param);  
+  //if(iter >= 2*gauge->p.therm && gauge->p.deflate) iram(gauge, kSpace, evals, eig_param);  
   
   // Start HMC trajectory
   //----------------------------------------------------------
@@ -94,36 +94,27 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   //P_{1/2} = P_0 - dtau/2 * (fU - fD)
   forceU(fU, gauge);
   ave_iter += forceD(fD, phi, gauge, kSpace, evals, iter);
-  update_mom(fU, fD, mom, 0.5*dtau);  
+  update_mom(fU, fD, mom, 0.5*dtau);
   
   for(int k=1; k<gauge->p.n_step; k++) {
-    
+
     //U_{k} = exp(i dtau P_{k-1/2}) * U_{k-1}
     update_gauge(gauge, mom, dtau);
-    
-    // Compute the low spectrum
-    if(iter >= 2*gauge->p.therm && inspectrum_bool) inspectrum(gauge, iter);
-    
+
     //P_{k+1/2} = P_{k-1/2} - dtau * (fU - fD)
     forceU(fU, gauge);
-    ave_iter += forceD(fD, phi, gauge, kSpace, evals, iter);
-    
+    ave_iter += forceD(fD, phi, gauge, kSpace, evals, iter);    
     update_mom(fU, fD, mom, dtau);
   }
-  
+
   //Final half step.
   //U_{n} = exp(i dtau P_{n-1/2}) * U_{n-1}
   update_gauge(gauge, mom, dtau);
-  
-  // Compute the low spectrum
-  if(iter >= 2*gauge->p.therm && inspectrum_bool) inspectrum(gauge, iter);
   
   //P_{n} = P_{n-1/2} - dtau/2 * (fU - fD)
   forceU(fU, gauge);
   ave_iter += forceD(fD, phi, gauge, kSpace, evals, iter);
   update_mom(fU, fD, mom, 0.5*dtau);
-
-  //cout << "Average CG = " << ave_iter / (gauge->p.n_step + 1) << endl; 
   
   // HMC trajectory complete
   //----------------------------------------------------------
@@ -138,11 +129,12 @@ void leapfrogHMC::forceU(field<double> *fU, field<Complex> *gauge) {
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
   double beta = gauge->p.beta;
-  for(int x=0; x<Nx; x++)
+  for(int x=0; x<Nx; x++) {
+    xp1 = (x+1)%Nx;
+    xm1 = (x-1+Nx)%Nx;
+    
     for(int y=0; y<Ny; y++) {
 
-      xp1 = (x+1)%Nx;
-      xm1 = (x-1+Nx)%Nx;
       yp1 = (y+1)%Ny;
       ym1 = (y-1+Ny)%Ny;
       
@@ -151,13 +143,11 @@ void leapfrogHMC::forceU(field<double> *fU, field<Complex> *gauge) {
       temp = beta*(imag(plaq0) - imag(plaq));
       fU->write(x,y,0, temp);
       
-      plaq =  gauge->read(x,y,1)*conj(gauge->read(xm1,yp1,0))*conj(gauge->read(xm1,y,1))*gauge->read(xm1,y,0);
+      plaq = gauge->read(x,y,1)*conj(gauge->read(xm1,yp1,0))*conj(gauge->read(xm1,y,1))*gauge->read(xm1,y,0);
       temp = beta*(imag(plaq) - imag(plaq0));
       fU->write(x,y,1, temp);
-
-      //This plaquette was aleady computed. We want the conjugate.
-      //fU->read(x,y,1) -= p.beta*imag(plaq0);      
     }
+  }
 }
 
 //P_{k+1/2} = P_{k-1/2} - dtau * (fU + fD)

@@ -5,21 +5,21 @@ export OMP_NUM_THREADS=4
 mkdir -p {gauge,data/{data,plaq,creutz,polyakov,rect,top,pion,vacuum,eig}}
 
 # The value of the coupling in the U(1) 2D theory
-BETA=15.0
+BETA=1.0
 
 # The total number of HMC iterations to perform.
-HMC_ITER=2000
+HMC_ITER=200
 # The number of HMC iterations for thermalisation.
-HMC_THERM=250
+HMC_THERM=100
 
 # The number of HMC iterations to skip bewteen measurements.
-HMC_SKIP=10
+HMC_SKIP=5
 # Dump the gauge field every HMC_CHKPT iterations after thermalisation.
-HMC_CHKPT=20
+HMC_CHKPT=5
 # If non-zero, read in the HMC_CHKPT_START gauge field. 
 HMC_CHKPT_START=0
 # HMC time steps in the integration 
-HMC_NSTEP=20
+HMC_NSTEP=500
 # HMC trajectory time
 HMC_TAU=1.0
 
@@ -32,11 +32,11 @@ APE_ALPHA=0.5
 RNG_SEED=1234
 
 # DYNAMIC (1) or QUENCHED (0)
-DYN_QUENCH=1
+DYN_QUENCH=0
 
 # Dynamic fermion parameters
 # Fermion mass
-MASS=0.01
+MASS=0.1
 # Maximum CG iterations
 MAX_CG_ITER=10000
 # CG tolerance
@@ -74,8 +74,8 @@ MEAS_PC=1
 # Vacuum trace
 MEAS_VT=1
 
-LX=16
-LY=16
+LX=8
+LY=8
 
 command="./wilson2D $BETA $HMC_ITER $HMC_THERM $HMC_SKIP $HMC_CHKPT 
          $HMC_CHKPT_START $HMC_NSTEP $HMC_TAU $APE_ITER $APE_ALPHA $RNG_SEED 

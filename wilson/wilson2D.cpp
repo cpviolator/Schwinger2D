@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
     t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
     
     iter_offset = 2*p.therm;
-  }  
+  }
     
   //Begin thermalised trajectories
   //---------------------------------------------------------------------
@@ -165,11 +165,10 @@ int main(int argc, char **argv) {
       cout << fixed << setprecision(16) << iter << " ";   //Iteration
       cout << t_total << " ";                             //Time
       cout << plaqSum/count << " ";                       //Action
-      cout << (double)top_stuck/(count*p.skip) << " " ;   //P(stuck)
+      cout << 1.0 - (double)top_stuck/(count*p.skip) << " " ;//P(Top transition)
       cout << HMCStep->exp_dH_ave/(count*p.skip) << " ";  //Average exp(-dH)
       cout << HMCStep->dH_ave/(count*p.skip) << " ";      //Average dH
       cout << (double)accepted/(count*p.skip) << " ";     //Acceptance
-      cout << (double)p.beta << " ";                      //Current beta
       cout << top_int << endl;                            //T charge
 	
       //Dump simulation data to file
@@ -216,7 +215,7 @@ int main(int argc, char **argv) {
       //Test deflation routines
       //-------------------------------------------------------------
       if(gauge->p.deflate) {
-#if 0
+#if 1
 	// Construct objects for an eigensolver
 	//-------------------------------------
 	eig_param_t eig_param;
@@ -280,14 +279,14 @@ int main(int argc, char **argv) {
 	int post= n_blocks * n_low * (blk_size + n_conv);
 	cout << "Algorithmic compression: " << endl;
 	cout << "Complex(double) elems pre = " << pre << " Complex(double) elems post = " << post << endl;
-	cout << "Ratio1: " << (100.0 * post)/pre << "% of original data " << endl;
-	cout << "Ratio2: " << 100*((1.0 * n_low)/n_conv + (1.0*n_low*n_blocks)/(Ns*Nx*Ny))<< "% of original data " << endl;
+	cout << "Ratio: " << (100.0 * post)/pre << "% of original data " << endl;
+	//cout << "Ratio2: " << 100*((1.0 * n_low)/n_conv + (1.0*n_low*n_blocks)/(Ns*Nx*Ny))<< "% of original data " << endl;
 	cout << n_low << " low eigenvectors used " << endl;
 	cout << (n_conv - n_low) << " high eigenvectors reconstructed " << endl;
 	cout << "Compress/decompress time = " << ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6 << endl;
 	
-	// Test deflation with reconstructed space
-	//----------------------------------------
+	// Test deflation with true and reconstructed space
+	//-------------------------------------------------
 	field<Complex> *src = new field<Complex>(gauge->p);
 	field<Complex> *sol = new field<Complex>(gauge->p);
 	field<Complex> *check = new field<Complex>(gauge->p);
@@ -301,15 +300,26 @@ int main(int argc, char **argv) {
 	// Inversion with no deflation
 	int undef_iter = inv->solve(sol, src, gauge);
 	
-	// Inversion with deflation
+	// Inversion with true deflation
 	blas::zero(sol->data);
-	int def_iter = inv->solve(sol, src, kSpace, evals, gauge);
+	int true_def_iter = inv->solve(sol, src, kSpace, evals, gauge);
 	DdagDpsi(check, sol, gauge);
 	blas::axpy(-1.0, src->data, check->data);
 	
 	cout << "Deflation efficacy: " << endl;
 	cout << "Undeflated CG iter = " << undef_iter << endl;
-	cout << "Deflated CG iter   = " << def_iter << endl;
+	cout << "True Deflated CG iter   = " << true_def_iter << endl;
+	cout << "Solution fidelity  = " << std::scientific << blas::norm2(check->data) << endl;
+
+	// Inversion with true deflation
+	blas::zero(sol->data);
+	int recon_def_iter = inv->solve(sol, src, kSpace_recon, evals_recon, gauge);
+	DdagDpsi(check, sol, gauge);
+	blas::axpy(-1.0, src->data, check->data);
+	
+	cout << "Deflation efficacy: " << endl;
+	cout << "Undeflated CG iter = " << undef_iter << endl;
+	cout << "Recon Deflated CG iter = " << recon_def_iter << endl;
 	cout << "Solution fidelity  = " << std::scientific << blas::norm2(check->data) << endl;
 #endif
       }

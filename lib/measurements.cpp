@@ -262,9 +262,13 @@ double measFermAction(field<Complex> *gauge, field<Complex> *phi, bool postStep)
 double measAction(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, bool postStep) {
   
   double action = 0.0;
+  double beta = gauge->p.beta;
+  int Ny = gauge->p.Ny;
+  int Nx = gauge->p.Nx;
   action += measMomAction(mom);
   //cout << "action mom: " << action << endl;
-  action += measGaugeAction(gauge);
+  //action += measGaugeAction(gauge);
+  action += (Nx * Ny)*beta*real(1.0 - measPlaq(gauge));
   //cout << "action gauge: " << action << endl;
   if (gauge->p.dynamic) action += measFermAction(gauge, phi, postStep);
   //cout << "action ferm: " << action << endl;
