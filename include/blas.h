@@ -67,6 +67,13 @@ namespace blas {
   
   // ax
   void ax(const double a, std::vector<Complex> &x);
+
+  // cax
+  void cax(const Complex a, std::vector<double> &x);
+  
+  // ax
+  void ax(const double a, std::vector<double> &x);
+
   
   // Print the vector elements
   void printVector(const std::vector<Complex> &x);

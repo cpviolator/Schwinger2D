@@ -44,6 +44,9 @@ public:
   int solve(field<Complex> *x, field<Complex> *b,
 	    std::vector<field<Complex> *> &kSpace, std::vector<Complex> &evals,
 	    field<Complex> *gauge, bool deflate = true);
+
+  // With constant 
+  int solve(field<Complex> *x, field<Complex> *b, field<Complex> *gauge, double offset);
   
   void deflateResidual(field<Complex> *deflated_guess, field<Complex> *residual,
 		       std::vector<field<Complex> *> &kSpace, std::vector<Complex> &evals);

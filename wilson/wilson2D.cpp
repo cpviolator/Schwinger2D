@@ -8,9 +8,9 @@ int main(int argc, char **argv) {
 
   struct timeval start, end, total_start, total_end;
   gettimeofday(&total_start, NULL);
-  double t_hmc =  0.0;
-  double t_meas = 0;
-  double t_total =  0.0;
+  double t_hmc = 0.0;
+  double t_meas = 0.0;
+  double t_total = 0.0;
   
   param_t p;
 
@@ -112,7 +112,6 @@ int main(int argc, char **argv) {
     
     //Thermalise from random start
     //---------------------------------------------------------------------
-
     gettimeofday(&start, NULL);  
     for(iter=0; iter<2*p.therm; iter++){      
       //Perform HMC step
@@ -121,7 +120,24 @@ int main(int argc, char **argv) {
       t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
       cout << fixed << setprecision(16) << iter+1 << " "; //Iteration
       cout << t_total << " " << endl;                     //Time
+
+      // Do a reversibility check
+      if((iter+1)%p.chkpt == 0) {	  
+	
+	field<Complex> *gauge_old = new field<Complex>(p);
+	gauge_old->copy(gauge);
+	bool reverse = HMCStep->hmc_reversibility(gauge_old, iter);
+	if(!reverse) {
+	  cout << "Error in reversibility" << endl;
+	  exit(0);
+	}
+	
+	// gauge_old should now be the same as gauge
+	blas::axpy(-1.0, gauge->data, gauge_old->data);
+	cout << "L2 norm of reversed configuration = " << std::scientific << blas::norm2(gauge_old->data)/(p.Nx * p.Ny * 2) << endl;
+      }
     }
+    
     gettimeofday(&end, NULL);  
     t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
     
@@ -263,7 +279,7 @@ int main(int argc, char **argv) {
 	computeEvals(gauge, kSpace_recon, resid, evals_recon, n_conv);
 	
 	cout << "Compare eigenvalues and residua: " << endl;	
-	for(int i=0; i<eig_param.n_conv; i++) printf("%d: %e %e \n", i, abs(evals[i].real() - evals_recon[i].real())/evals[i].real(), resid[i]);
+	for(int i=0; i<eig_param.n_conv; i++) printf("%d: %e - %e = %e resid %e \n", i, evals[i].real(), evals_recon[i].real(), abs(evals[i].real() - evals_recon[i].real())/evals[i].real(), resid[i]);
 	double delta_eval = 0.0;
 	double delta_resid = 0.0;  
 	for(int i=0; i<n_conv; i++) {
@@ -290,12 +306,44 @@ int main(int argc, char **argv) {
 	field<Complex> *src = new field<Complex>(gauge->p);
 	field<Complex> *sol = new field<Complex>(gauge->p);
 	field<Complex> *check = new field<Complex>(gauge->p);
+	field<Complex> *evec_refine = new field<Complex>(gauge->p);
+	
+	// Create inverter
+	inverterCG *inv = new inverterCG(gauge->p);
+
+	// Refined Krylov space
+	std::vector<field<Complex>*> kSpace_refine(n_conv);
+	for(int i=0; i<n_conv; i++) kSpace_refine[i] = new field<Complex>(gauge->p);
+	std::vector<Complex> evals_refine(n_conv);
+	
+	// Inverse iterate the eigenvectors
+	double mass = gauge->p.m;
+	double tol = gauge->p.eps;
+	gauge->p.eps = 1e-8;
+	for(int i=0; i<eig_param.n_conv; i++) {
+	  
+	  sol->copy(kSpace_recon[i]);
+	  src->copy(kSpace_recon[i]);
+	  for(int k=0; k<50; k++) {
+
+	    //int refine_iter = inv->solve(sol, src, gauge, evals[i].real());
+	    int refine_iter = inv->solve(sol, src, gauge, 0.0);
+	    cout << "Refined eigenvector " << i << " in " << refine_iter << " iterations." << endl;
+	    double norm = blas::norm(sol->data);
+	    blas::ax(1.0/norm, sol->data);
+	    src->copy(sol);
+	  }
+	  kSpace_refine[i]->copy(sol);
+	}
+	gauge->p.eps = tol;
+	
+	computeEvals(gauge, kSpace_refine, resid, evals_refine, n_conv);
+	for (int i = 0; i < n_conv; i++) {
+	  printf("EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals_refine[i].real(), evals_refine[i].imag(), abs(evals_refine[i]), resid[i]);
+	}
 
 	// Populate src with rands
 	gaussComplex(src);
-
-	// Create inverter
-	inverterCG *inv = new inverterCG(gauge->p);
 	
 	// Inversion with no deflation
 	int undef_iter = inv->solve(sol, src, gauge);

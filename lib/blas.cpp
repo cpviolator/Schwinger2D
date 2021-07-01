@@ -141,6 +141,22 @@ namespace blas {
     }
   }
 
+  // (c)ax
+  void cax(const double a, std::vector<double> &x) {
+#pragma omp parallel for
+    for(int i=0; i<(int)x.size(); i++) {
+      x[i] *= a;
+    }
+  }
+
+  void ax(const double a, std::vector<double> &x) {
+#pragma omp parallel for
+    for(int i=0; i<(int)x.size(); i++) {
+      x[i] *= a;
+    }
+  }
+
+  
   // Print the vector elements
   void printVector(const std::vector<Complex> &x){
     for(int i=0; i<(int)x.size(); i++)

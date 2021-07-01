@@ -42,6 +42,7 @@ public:
   
   leapfrogHMC(param_t param);
   int hmc(field<Complex> *gauge, int iter);
+  bool hmc_reversibility(field<Complex> *gauge, int iter);
   void trajectory(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, int iter);
   void forceU(field<double> *fU, field<Complex> *gauge);
   int forceD(field<double> *fD, field<Complex> *gauge, field<Complex> *phi,

@@ -17,6 +17,46 @@ leapfrogHMC::leapfrogHMC(param_t param){
   
 };
 
+bool leapfrogHMC::hmc_reversibility(field<Complex> *gauge, int iter) {
+
+  int accept = 0;
+  double H0, H1, H2;
+  
+  field<double> *mom = new field<double>(gauge->p);
+  field<Complex> *phi = new field<Complex>(gauge->p);
+  field<Complex> *chi = new field<Complex>(gauge->p);
+  field<Complex> *gauge_old = new field<Complex>(gauge->p);  
+  gauge_old->copy(gauge);
+  
+  // init mom[LX][LY][D]  <mom^2> = 1;
+  gaussReal(mom); 
+  
+  if(gauge->p.dynamic) {    
+    //Create gaussian distributed fermion field chi. chi[LX][LY] E exp(-chi^* chi)
+    gaussComplex(chi);
+    //Create pseudo fermion field phi = D chi
+    g3Dpsi(phi, chi, gauge);
+  }
+
+  // Forward trajectory
+  H0 = measAction(mom, gauge, chi, false);
+  trajectory(mom, gauge, phi, iter);
+  H1 = measAction(mom, gauge, phi, true);
+
+  // Reverse the trajectory
+  gauge->p.tau *= -1.0;
+  trajectory(mom, gauge, phi, iter);
+  gauge->p.tau *= -1.0;
+  H2 = measAction(mom, gauge, phi, true);
+
+  // Metrics
+  cout << "H0 = " << H0 << endl;
+  cout << "H1 = " << H1 << endl;
+  cout << "H2 = " << H2 << endl;
+  cout << "H2 - H0 = " << std::scientific << H2 - H0 << endl;
+  return (abs(H2 - H0) < 1e-4 ? true : false);
+}
+
 int leapfrogHMC::hmc(field<Complex> *gauge, int iter) {
 
   int accept = 0;
@@ -195,14 +235,20 @@ int leapfrogHMC::forceD(field<double> *fD, field<Complex> *phi, field<Complex> *
     // Inspect guess
     //for(int i=0; i<10; i++) phip->print(i);
     if(iter < 2*gauge->p.therm || !gauge->p.deflate) {
-      cg_iter += inv->solve(phip, phi, gauge);
+      //cg_iter += inv->solve(phip, phi, gauge);
     } else {
-      cg_iter += inv->solve(phip, phi, kSpace, evals, gauge);
+      //cg_iter += inv->solve(phip, phi, kSpace, evals, gauge);
     }
+    cg_iter += inv->solve(phip, phi, gauge);
     //for(int i=0; i<10; i++) phip->print(i);
     
     //g3Dphi = g3D * phip
     g3Dpsi(g3Dphi, phip, gauge);
+
+    Complex gauge_px, gauge_py, phip0, phip0_px, phip0_py,
+      phip1, phip1_px, phip1_py,
+      g3Dphi0, g3Dphi0_px, g3Dphi0_py,
+      g3Dphi1, g3Dphi1_px, g3Dphi1_py;
     
     double r = 1.0;
     int Nx = gauge->p.Nx;
@@ -213,7 +259,66 @@ int leapfrogHMC::forceD(field<double> *fD, field<Complex> *phi, field<Complex> *
       for(int y=0; y<Ny; y++) {
 	int yp1 = (y+1)%Ny;
 
+	// Collect all data
+	gauge_px = gauge->read(x,y,0);
+	gauge_py = gauge->read(x,y,1);
+	phip0 = conj(phip->read(x,y,0));
+	phip0_px = conj(phip->read(xp1,y,0));
+	phip0_py = conj(phip->read(x,yp1,0));
+	phip1 = conj(phip->read(x,y,1));
+	phip1_px = conj(phip->read(xp1,y,1));
+	phip1_py = conj(phip->read(x,yp1,1));
+	g3Dphi0 = g3Dphi->read(x,y,0);
+	g3Dphi0_px = g3Dphi->read(xp1,y,0);
+	g3Dphi0_py = g3Dphi->read(x,yp1,0);
+	g3Dphi1 = g3Dphi->read(x,y,1);
+	g3Dphi1_px = g3Dphi->read(xp1,y,1);
+	g3Dphi1_py = g3Dphi->read(x,yp1,1);
+
+	
+	// Apply antiperiodic boundary conditions in y direction
+	if (yp1 == 0) {
+	  phip0_py *= -1.0;
+	  phip1_py *= -1.0;
+	  g3Dphi0_py *= -1.0;
+	  g3Dphi1_py *= -1.0;
+	}
+	
 	double temp = 0.0;
+	/*
+	//mu = 0
+	//upper
+	// | r  1 |
+	// | 1  r |
+	//lower
+	// | r -1 |
+	// | 1 -r |
+	temp = real(I*((conj(gauge_px) *
+			(phip0_px * (r*g3Dphi0 +   g3Dphi1) -
+			 phip1_px * (  g3Dphi0 + r*g3Dphi1)))
+		       - (gauge_px *
+			  (phip0 * (r*g3Dphi0_px -   g3Dphi1_px) +
+			   phip1 * (  g3Dphi0_px - r*g3Dphi1_px)))));
+	
+	fD->write(x,y,0,temp);
+	
+	//mu = 1
+	//upper
+	// | r -i |
+	// | i  r |
+	//lower
+	// | r  i |
+	// | i -r |
+	temp = real(I*((conj(gauge_py) *
+			(phip0_py * (r*g3Dphi0 - I*g3Dphi1) -
+			 phip1_py * (I*g3Dphi0 + r*g3Dphi1)))
+		       - (gauge_py *
+			  (phip0 * (r*g3Dphi0_py + I*g3Dphi1_py) +
+			   phip1 * (I*g3Dphi0_py - r*g3Dphi1_py)))));
+	
+	fD->write(x,y,1,temp);
+	*/
+	
 	//mu = 0
 	//upper
 	// | r  1 | 
@@ -251,6 +356,7 @@ int leapfrogHMC::forceD(field<double> *fD, field<Complex> *phi, field<Complex> *
 		     );
 	
 	fD->write(x,y,1,temp);
+	
       }
     }
     /*
