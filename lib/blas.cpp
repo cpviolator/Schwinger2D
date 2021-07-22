@@ -52,7 +52,7 @@ namespace blas {
   Complex cDotProd(const std::vector<Complex> &x, const std::vector<Complex> &y) {
     Complex prod = 0.0;
     assertVectorLength(x,y,__func__);
-#pragma omp parallel for reduction(+:prod)
+    //#pragma omp parallel for reduction(+:prod)
     for(int i=0; i<(int)x.size(); i++) prod += conj(x[i]) * y[i];
     return prod;
   }

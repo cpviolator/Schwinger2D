@@ -95,6 +95,7 @@ void smearLink(field<Complex> *smeared, field<Complex> *gauge){
 
   double alpha = gauge->p.alpha;
   int iter = gauge->p.smear_iter;
+  Complex staple = 0;
   Complex tmp = 0;
   field<Complex> *smeared_tmp = new field<Complex>(gauge->p);
   smeared->copy(gauge);
@@ -111,23 +112,21 @@ void smearLink(field<Complex> *smeared, field<Complex> *gauge){
 	int yp1 = (y+1)%Ny;
 	int ym1 = (y-1+Ny)%Ny;
 		
-	//|->-|   |   |
-	//^   v + v   ^
-	//|   |   |->-|
-	tmp = alpha * (smeared->read(x,y,1) * smeared->read(x,yp1,0) * conj(smeared->read(xp1,y,1)));
-	
-	tmp += alpha * (conj(smeared->read(x,ym1,1)) * smeared->read(x,ym1,0) * smeared->read(xp1,ym1,1));
-			
+	// |->-|   |   |
+	// ^   v + v   ^
+	// |   |   |->-|
+	staple  = (alpha/2.0) * (smeared->read(x,y,1) * smeared->read(x,yp1,0) * conj(smeared->read(xp1,y,1)));	
+	staple += (alpha/2.0) * (conj(smeared->read(x,ym1,1)) * smeared->read(x,ym1,0) * smeared->read(xp1,ym1,1));
+	tmp = (1.0 - alpha) * smeared->read(x,y,0) + staple;	
 	smeared_tmp->write(x,y,0, tmp);
 				
-	//|->-    -<-|
-	//^    +     ^
-	//|-<-    ->-|
-	tmp = alpha * (smeared->read(x,y,0) * smeared->read(xp1,y,1) * conj(smeared->read(x,yp1,0)));
-	
-	tmp += alpha * (conj(smeared->read(xm1,y,0)) * smeared->read(xm1,y,1) * smeared->read(xm1, yp1,01));
-	
-	smeared_tmp->write(x,y,1, tmp);	
+	// |->-    -<-|
+	// ^    +     ^
+	// |-<-    ->-|
+	staple  = (alpha/2.0) * (smeared->read(x,y,0) * smeared->read(xp1,y,1) * conj(smeared->read(x,yp1,0)));	
+	staple += (alpha/2.0) * (conj(smeared->read(xm1,y,0)) * smeared->read(xm1,y,1) * smeared->read(xm1, yp1,01));
+	tmp = (1.0 - alpha) * smeared->read(x,y,1) + staple;	
+	smeared_tmp->write(x,y,1, tmp);
       }
     }
     
