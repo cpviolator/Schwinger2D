@@ -43,3 +43,5 @@ void zsortc(int which, int n, std::vector<double> &x, std::vector<double> &y);
 
 void inspectrum(const field<Complex> *gauge, int iter);
 void prepareKrylovSpace(std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals, eig_param_t &eig_param, const param_t p);
+
+void writeEigenData(std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals, eig_param_t &eig_param, int iter);

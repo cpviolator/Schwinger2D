@@ -43,11 +43,11 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
     // temp contains original guess
     temp->copy(x);
     
-    //if(verbose) {
-    //cout << "using initial guess, |x0| = " << blas::norm(temp->data)
-    //<< ", |b| = " << bsqrt
-    //<< ", |res| = " << blas::norm(res->data) << endl;
-    //}
+    if(verbose) {
+      cout << "using initial guess, |x0| = " << blas::norm(temp->data)
+	   << ", |b| = " << bsqrt
+	   << ", |res| = " << blas::norm(res->data) << endl;
+    }
   } else {
     // no initial guess. Initial residual is the source.    
     res->copy(b);
@@ -81,6 +81,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
     // Exit if new residual is small enough
     rsq_new = blas::norm2(res->data);
     if (verbose) printf("CG iter %d, rsq = %g\n", iter+1, rsq_new);
+    //printf("CG iter %d, rsq = %g\n", iter+1, rsq_new);
     if (rsq_new < gauge->p.eps*bnorm) {
       rsq = rsq_new;
       break;
@@ -355,8 +356,7 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
   
   //printf("CG: Converged iter = %d\n", k+1);
   
-  if(verbose) {
-    
+  if(verbose) {    
     // Sanity
     cout << "Guess norm = " << blas::norm(x0->data) << endl;
     cout << "source norm = " << blas::norm(b->data) << endl;
@@ -368,7 +368,6 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
     printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", k+1, rsq, truersq/(bsqrt*bsqrt));
   }
 
-    
   delete res;
   delete p;
   delete Ap;

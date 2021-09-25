@@ -1,7 +1,7 @@
 #include "iram.h"
 
-#define OPERATOR DdagDpsi
 //#define OPERATOR DdagDpsi
+#define OPERATOR Dpsi
 
 void deflate(field<Complex> *guess, field<Complex> *phi,
 	     std::vector<field<Complex> *> kSpace, std::vector<Complex> &evals,
@@ -100,7 +100,6 @@ void zsortc(int which, int n, std::vector<double> &x, std::vector<double> &y) {
     y[i] = y_tmp[i].real();
   }
 }
-
 
 
 void arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
@@ -472,7 +471,6 @@ void rotateVecsComplex(std::vector<field<Complex> *> vecs, Eigen::MatrixXcd mat,
 	  
 	  //Update the Ritz vector
 	  vecs[i+num_locked]->write(x,y,mu, sum);
-	  //sum = 0.0;
 	}
       }
 }
@@ -525,7 +523,7 @@ void iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
   
   if (!(n_kr > n_ev + 6)) {
     printf("n_kr=%d must be greater than n_ev+6=%d\n", n_kr, n_ev + 6);
-    //exit(0);
+    exit(0);
   }
 
   printf("n_kr = %d\n", n_kr);
@@ -573,16 +571,21 @@ void iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
   //---------------------------------------------------------
   gettimeofday(&start, NULL);  
   // Populate source with randoms.
+  //if(blas::norm2(kSpace[0]->data) != 0) {
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
   for(int x=0; x<Nx; x++) {
     for(int y=0; y<Ny; y++) {
       for(int mu=0; mu<2; mu++) {
 	Complex temp(drand48(), drand48());
-	r->write(x,y,mu, temp);  
+	r->write(x,y,mu, temp);
+	//r->write(x,y,mu, {1.0, 0.0});
       }
     }
   }
+  //} else {
+  //r->copy(kSpace[0]);
+  //}
 
   //Place initial source in range of mat
   OPERATOR(kSpace[0], r, gauge);
@@ -689,7 +692,7 @@ void iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
       //| Do not have all the requested eigenvalues yet.  |
       //| To prevent possible stagnation, adjust the size |
       //| of NEV.                                         |
-      //| If the size of NEV was just increased resort    |
+      //| If the size of NEV was just increased, resort   |
       //| the eigenvalues.                                |
       //%-------------------------------------------------%
 
@@ -697,8 +700,10 @@ void iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
 	gettimeofday(&start, NULL); 
 	// Emulate zngets: sort the unwanted Ritz to the start of the arrays, then
 	// sort the first (n_kr - n_ev) bounds to be first for forward stability	
+
 	// Sort to put unwanted Ritz(evals) first
 	zsortc(spectrum, n_kr, evals, residua);
+	
 	// Sort to put smallest Ritz errors(residua) first
 	zsortc(0, nshifts, residua, evals);
 	gettimeofday(&end, NULL);  
@@ -760,7 +765,7 @@ void iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
     printf("IRAM computed the requested %d vectors with a %d search space and a %d Krylov space in %d restart_steps and %d OPs in %e secs.\n", n_conv, n_ev, n_kr, restart_iter, iter, (t_compute + t_sort + t_EV + t_QR));
 
     for (int i = 0; i < n_conv; i++) {
-      printf("EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), residua[i]);
+      printf("EigValue[%04d]: ||(%+.16e, %+.16e)|| = %+.16e residual %.16e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), residua[i]);
     }
   }
   
@@ -776,33 +781,14 @@ void iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
 }
 
 void inspectrum(const field<Complex> *gauge, int iter) {
-
+  
   eig_param_t eig_param;
   std::vector<field<Complex>*> kSpace;
   std::vector<Complex> evals;
   
   prepareKrylovSpace(kSpace, evals, eig_param, gauge->p);  
   iram(gauge, kSpace, evals, eig_param);
-  
-  string name;
-  char fname[256];
-  FILE *fp;
-  
-  name = "data/eig/eigenvalues_iter" + to_string(iter);
-  constructName(name, gauge->p);
-  name += ".dat";
-  sprintf(fname, "%s", name.c_str());	
-  
-  fp = fopen(fname, "a");
-  for(int i=0; i<eig_param.n_conv; i++) {
-    fprintf(fp, "%d %d %.16e %.16e\n",
-	    0,
-	    i,
-	    evals[i].real(),
-	    evals[i].imag());
-  }
-  fprintf(fp,"\n");
-  fclose(fp);
+  writeEigenData(kSpace, evals, eig_param, iter);
 
   for(int i=0; i<kSpace.size(); i++) delete kSpace[i];
 }
@@ -825,4 +811,32 @@ void prepareKrylovSpace(std::vector<field<Complex>*> &kSpace,
   kSpace.reserve(eig_param.n_conv);
   for(int i=0; i<eig_param.n_conv; i++) kSpace.push_back(new field<Complex>(p));
   evals.resize(eig_param.n_conv);
+}
+
+void writeEigenData(std::vector<field<Complex>*> &kSpace,
+		    std::vector<Complex> &evals,
+		    eig_param_t &eig_param,
+		    int iter) {
+  
+  string name;
+  char fname[256];
+  FILE *fp;
+  
+  name = "data/eig/eigenvalues_iter" + to_string(iter);
+  constructName(name, kSpace[0]->p);
+  name += ".dat";
+  sprintf(fname, "%s", name.c_str());	
+
+  // Append any existing files
+  fp = fopen(fname, "a");
+  for(int i=0; i<eig_param.n_conv; i++) {
+    fprintf(fp, "%d %d %.16e %.16e\n",
+	    0,
+	    i,
+	    evals[i].real(),
+	    evals[i].imag());
+  }
+  
+  fprintf(fp,"\n");
+  fclose(fp);
 }

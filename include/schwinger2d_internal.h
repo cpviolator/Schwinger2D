@@ -26,7 +26,8 @@ using namespace std;
 typedef struct param {
   
   //HMC
-  int n_step = 25;
+  int n_step = 4;
+  int inner_step = 4;
   double tau = 1.0;
   int iter_hmc = 1000;
   int therm = 50;

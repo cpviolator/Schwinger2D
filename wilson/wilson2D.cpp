@@ -56,6 +56,9 @@ int main(int argc, char **argv) {
   // Lattice size 
   p.Nx = atoi(argv[32]);
   p.Ny = atoi(argv[33]);
+
+  // Addended
+  p.inner_step = atoi(argv[34]);
   
   if(p.loop_max > std::min(p.Nx/2, p.Ny/2)) {
     cout << "Warning: requested Wilson loop max " << p.loop_max << " greater than ";
@@ -122,7 +125,7 @@ int main(int argc, char **argv) {
       cout << t_total << " " << endl;                     //Time
 
       // Do a reversibility check
-      if((iter+1)%p.chkpt == 0) {	  
+      if((iter+1)%p.chkpt == 0 && 0) {	  
 	
 	field<Complex> *gauge_old = new field<Complex>(p);
 	gauge_old->copy(gauge);
@@ -231,7 +234,7 @@ int main(int argc, char **argv) {
       //Test deflation routines
       //-------------------------------------------------------------
       if(gauge->p.deflate) {
-#if 1
+#if 0
 	// Construct objects for an eigensolver
 	//-------------------------------------
 	eig_param_t eig_param;

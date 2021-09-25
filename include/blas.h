@@ -61,6 +61,13 @@ namespace blas {
 
   // axpy in result
   void axpy(const double a, const std::vector<Complex> &x, const std::vector<Complex> &y, std::vector<Complex> &z);
+
+  // axpy in place
+  void axpy(const double a, const std::vector<double> &x, std::vector<double> &y);
+  
+  // axpy in result
+  void axpy(const double a, const std::vector<double> &x, const std::vector<double> &y, std::vector<double> &z);
+
   
   // cax
   void cax(const Complex a, std::vector<Complex> &x);

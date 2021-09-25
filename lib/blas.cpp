@@ -8,7 +8,7 @@ namespace blas {
   void assertVectorLength(const std::vector<Complex> &x, const std::vector<Complex> &y,
 			  const char *func){
     if(x.size() != y.size()) {
-      cout << "Error: vector sizes not equal (" << __func__ << ")" << endl;
+      cout << "Error: vector sizes not equal (" << func << ")" << endl;
       exit(0);
     }
   }
@@ -16,7 +16,7 @@ namespace blas {
   void assertVectorLength(const std::vector<double> &x, const std::vector<double> &y,
 			  const char *func){
     if(x.size() != y.size()) {
-      cout << "Error: vector sizes not equal (" << __func__ << ")" << endl;
+      cout << "Error: vector sizes not equal (" << func << ")" << endl;
       exit(0);
     }
   }
@@ -126,6 +126,25 @@ namespace blas {
     }
   }
 
+  // axpy in place
+  void axpy(const double a, const std::vector<double> &x, std::vector<double> &y) {
+    assertVectorLength(x,y,__func__);
+#pragma omp parallel for
+    for(int i=0; i<(int)x.size(); i++) {
+      y[i] += a*x[i];
+    }
+  }
+
+  // axpy in result
+  void axpy(const double a, const std::vector<double> &x, const std::vector<double> &y, std::vector<double> &z) {
+    assertVectorLength(x,y,__func__);
+#pragma omp parallel for
+    for(int i=0; i<(int)x.size(); i++) {
+      z[i] = y[i] + a*x[i];
+    }
+  }
+
+  
   // (c)ax
   void cax(const Complex a, std::vector<Complex> &x) {
 #pragma omp parallel for

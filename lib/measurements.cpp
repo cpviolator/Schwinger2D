@@ -1,5 +1,8 @@
 #include "measurements.h"
 
+//   Creutz     exp[ -sigma L^2] exp[ -sigma(L-1)(L-1)]
+//   ratio:    ---------------------------------------  = exp[ -sigma]
+//              exp[ -sigma (L-1)L] exp[-sigma L(L-1)]
 void measWilsonLoops(field<Complex> *gauge, double plaq, int iter)
 {
   int Nx = gauge->p.Nx;
@@ -18,7 +21,7 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter)
   smearLink(smeared, gauge);
   
   //Loop over all X side sizes of rectangle
-#pragma omp parallel for
+  //#pragma omp parallel for
   for(int Xrect=1; Xrect<loop_max; Xrect++) {
       
     //Loop over all Y side sizes of rectangle
@@ -31,18 +34,18 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter)
 	  Complex w = Complex(1.0,0.0);
 	    
 	  //Move in +x up to p1.
-	  for(int dx=0; dx<Xrect; dx++)     w *= smeared->read(x+dx,y,0);
+	  for(int dx=0; dx<Xrect; dx++)     w *= smeared->read((x+dx)%Nx,y,0);
 	    
 	  //Move in +y up to p2 (p1 constant)
 	  int p1 = (x + Xrect)%Nx;
-	  for(int dy=0; dy<Yrect; dy++)     w *= smeared->read(p1,y+dy,1);
+	  for(int dy=0; dy<Yrect; dy++)     w *= smeared->read(p1,(y+dy)%Ny,1);
 	  
 	  //Move in -x from p1 to (p2 constant)
 	  int p2 = (y + Yrect)%Ny;
-	  for(int dx=Xrect-1; dx>=0; dx--)  w *= conj(smeared->read(x+dx,p2,0));
+	  for(int dx=Xrect-1; dx>=0; dx--)  w *= conj(smeared->read((x+dx)%Nx,p2,0));
 	  
 	  //Move in -y from p2 to y
-	  for(int dy=Yrect-1; dy>=0; dy--)  w *= conj(smeared->read(x,y+dy,1));
+	  for(int dy=Yrect-1; dy>=0; dy--)  w *= conj(smeared->read(x,(y+dy)%Ny,1));
 	  wLoops[Xrect][Yrect] += w*inv_Lsq;
 	}
     }
@@ -57,10 +60,9 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter)
     sigma[size] += -log(abs((real(wLoops[size][size])/real(wLoops[size][size-1]))* 
 			    (real(wLoops[size-1][size-1])/real(wLoops[size-1][size]))));
     
-    sigma[size] *= 0.5;
-    
+    sigma[size] *= 0.5;    
   }
-
+  
   string name;
   char fname[256];
   FILE *fp;
@@ -103,7 +105,6 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter)
 // if H = Hdag, Tr(H * Hdag) = Sum_{n,m} (H_{n,m}) * (H_{n,m})^*,
 // i.e., the sum of the modulus squared of each element
 
-//void measWilsonLoops(field<Complex> *gauge, double plaq, int iter){
 void measPionCorrelation(field<Complex> *gauge, int iter)
 {
   int Nx = gauge->p.Nx;
@@ -309,10 +310,11 @@ double measTopCharge(field<Complex> *gauge){
     for(int y=0; y<Ny; y++){
       int yp1 = (y+1)%Ny;
       Complex w = smeared->read(x,y,0) * smeared->read(xp1,y,1) * conj(smeared->read(x,yp1,0)) * conj(smeared->read(x,y,1));
-      top += arg(w);  // -pi < arg(w) < pi  Geometric value is an integer.
+      top += arg(w)/TWO_PI;  // -pi < arg(w) < pi  Geometric value is an integer.
     }
   }
-  return top/TWO_PI;
+  //return top/TWO_PI;
+  return top;
 }
 
 //-----------------------------------------------------------------------------------

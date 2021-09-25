@@ -48,7 +48,16 @@ public:
   int forceD(field<double> *fD, field<Complex> *gauge, field<Complex> *phi,
 	     std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals, int iter);
   void update_mom(field<double> *fU, field<double> *fD, field<double> *mom, double dtau);
+  void update_mom(field<double> *f, field<double> *mom, double dtau);
   void update_gauge(field<Complex> *gauge, field<double> *mom, double dtau);
+  void forceGradient(field<double> *fU, field<double> *fD, field<double> *mom, field<Complex> *phi, field<Complex> *gauge, double one_minus_2lambda_dt, double xi_dtdt);
+  void forceGradient(field<double> *fU, field<double> *mom, field<Complex> *gauge, double one_minus_2lambda_dt, double xi_dtdt);
+  void innerFGI(field<double> *fU, field<double> *mom, field<Complex> *gauge, double tau, int steps);
+
+
+  
+  void update_deflation(field<Complex> *gauge, field<Complex> *gauge_prior, std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals);
+  void kspace_diff(field<Complex> *gauge, std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals, std::vector<field<Complex>*> &kSpace_prior, std::vector<Complex> &evals_prior, eig_param_t &param, int iter);
   
   ~leapfrogHMC();
   
