@@ -15,3 +15,5 @@ endif()
 if(ENABLE_OPENMP)
   target_link_libraries(schwinger2d PUBLIC OpenMP::OpenMP_CXX)
 endif()
+
+install(TARGETS schwinger2d)

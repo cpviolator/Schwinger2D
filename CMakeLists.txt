@@ -81,5 +81,26 @@ if(ENABLE_HDF5)
   endif()
 endif()
 
+
+ExternalProject_Add(
+  ALG_REMEZ
+  GIT_REPOSITORY https://github.com/maddyscientist/AlgRemez.git
+  GIT_TAG c698211a0f2a6d93f400dd76a1f56b33c080b82a
+  GIT_SHALLOW YES
+  PREFIX ${CMAKE_CURRENT_BINARY_DIR}/externals/AlgRemez
+  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+  CMAKE_GENERATOR "Unix Makefiles")
+
+ExternalProject_Get_Property(ALG_REMEZ INSTALL_DIR)
+add_library(algremez STATIC IMPORTED)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${INSTALL_DIR})
+add_dependencies(algremez ALG_REMEZ)
+
+#ExternalProject_Get_Property(ALG_REMEZ INSTALL_DIR)
+#set(ALG_REMEZ_HOME ${INSTALL_DIR})
+
+#add_dependencies(algremez ALG_REMEZ)
+#set_target_properties(algremez PROPERTIES IMPORTED_LOCATION ${ALG_REMEZ_HOME}/${CMAKE_INSTALL_LIBDIR}/libalgremez.a)
+
 add_subdirectory(lib)
 add_subdirectory(wilson)
