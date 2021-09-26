@@ -5,19 +5,45 @@
 //2D HMC Routines
 //---------------------------------------------------------------------
 
-leapfrogHMC::leapfrogHMC(param_t param){
-  inv = new inverterCG(param);
-
-  guess_stack.reserve(4);
-  for(int i=0; i<4; i++) {
-    guess_stack.push_back(new field<Complex>(param));
-  }
-  phip = new field<Complex>(param);
-  g3Dphi = new field<Complex>(param); 
+HMC::HMC(param_t param) {
   
+  inv = new inverterCG(param);
+  guess_stack.reserve(10);  
+  for(int i=0; i<10; i++) guess_stack.push_back(new field<Complex>(param));
+
+  phip = new field<Complex>(param);
+  g3Dphi = new field<Complex>(param);
+      
+  int n = 10; // The degree of the numerator polynomial
+  int d = 10; // The degree of the denominator polynomial
+  int y = 1;  // The numerator of the exponent
+  int z = 2;  // The denominator of the exponent
+  int precision = 40; // The precision that gmp uses
+  double lambda_low = 0.0004, lambda_high = 64; // The bounds of the approximation
+
+  // The partial fraction expansion takes the form 
+  // r(x) = norm + sum_{k=1}^{n} res[k] / (x + pole[k])
+  pfe.res.resize(n);
+  pfe.pole.resize(d);
+  
+  // Instantiate the Remez class
+  remez = new AlgRemez(lambda_low,lambda_high,precision);  
+
+  // Generate the required approximation
+  remez->generateApprox(n,d,y,z);
+
+  // Find the partial fraction expansion of the approximation 
+  // to the function x^{y/z} (this only works currently for 
+  // the special case that n = d)
+  remez->getPFE(pfe.res.data(),pfe.pole.data(),&pfe.norm);  
+  printf("Inverse PFE:\nalpha[0] = %18.16e\n", pfe.norm);
+  for (int i = 0; i < n; i++) {
+    printf("alpha[%d] = %18.16e, beta[%d] = %18.16e\n", 
+	   i+1, pfe.res[i], i+1, pfe.pole[i]);
+  }
 };
 
-bool leapfrogHMC::hmc_reversibility(field<Complex> *gauge, int iter) {
+bool HMC::hmc_reversibility(field<Complex> *gauge, int iter) {
 
   int accept = 0;
   double H0, H1, H2;
@@ -55,9 +81,14 @@ bool leapfrogHMC::hmc_reversibility(field<Complex> *gauge, int iter) {
   cout << "H2 = " << H2 << endl;
   cout << "H2 - H0 = " << std::scientific << H2 - H0 << endl;
   return (abs(H2 - H0) < 1e-4 ? true : false);
+
+  delete mom;
+  delete phi;
+  delete chi;
+  delete gauge_old;  
 }
 
-int leapfrogHMC::hmc(field<Complex> *gauge, int iter) {
+int HMC::hmc(field<Complex> *gauge, int iter) {
 
   int accept = 0;
   double H = 0.0, H_old = 0.0;
@@ -99,10 +130,15 @@ int leapfrogHMC::hmc(field<Complex> *gauge, int iter) {
   }
   
   return accept;
+
+  delete mom;
+  delete phi;
+  delete chi;
+  delete gauge_old;
 }
 
 #if 0
-void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, int iter){
+void HMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, int iter){
   
   double dtau = gauge->p.tau/gauge->p.n_step;
   double H = 0.0;
@@ -184,7 +220,7 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
 }
 #endif
 
-void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, int iter){
+void HMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, int iter){
   
   double dtau = gauge->p.tau/gauge->p.n_step;
   double H = 0.0;
@@ -194,21 +230,9 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   field<double> *fU = new field<double>(gauge->p);
   // fermion force (D operator)
   field<double> *fD = new field<double>(gauge->p);
-  // total force
-  field<double> *f = new field<double>(gauge->p);
-
-  // Construct objects for an eigensolver
-  //-------------------------------------
-  eig_param_t eig_param;
-  std::vector<field<Complex>*> kSpace;
-  std::vector<field<Complex>*> kSpace_prior;
-  std::vector<Complex> evals;
-  std::vector<Complex> evals_prior;
-  field<Complex> *gauge_prior;
-
-  double lambda = 1.0/6.0;
-  double xi = 1.0/72.0;
   
+  double lambda = 1.0/6.0;
+  double xi = 1.0/72.0;  
   double lambda_dt = dtau*lambda;
   double dtauby2 = dtau / 2.0;
   double one_minus_2lambda_dt = (1-2*lambda)*dtau;
@@ -236,6 +260,10 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   // HMC trajectory complete
   //----------------------------------------------------------
   */
+
+  std::vector<field<Complex>*> phi_array;
+  phi_array.reserve(10);
+  for(int i=0; i<10; i++) phi_array.push_back(new field<Complex>(gauge->p));
   
   // Start FGI trajectory
   //----------------------------------------------------------
@@ -243,36 +271,47 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
 
     if(k == 1) {
       //forceU(fU, gauge);
-      //update_mom(fU, mom, lambda_dt);    
-      ave_iter += forceD(fD, phi, gauge, kSpace, evals, iter);
+      //update_mom(fU, mom, lambda_dt);
+      forceMultiD(fD, phi_array, gauge);
+      exit(0);
+      ave_iter += forceD(fD, phi, gauge);
       update_mom(fD, mom, -lambda_dt);
     }
 
     innerFGI(fU, mom, gauge, dtauby2, gauge->p.inner_step);
     //update_gauge(gauge, mom, dtauby2);
+    forceMultiD(fD, phi_array, gauge);
     forceGradient(fU, fD, mom, phi, gauge, one_minus_2lambda_dt, xi_dtdt);
     innerFGI(fU, mom, gauge, dtauby2, gauge->p.inner_step);
     //update_gauge(gauge, mom, dtauby2);
     
     if(k == gauge->p.n_step) {
       //forceU(fU, gauge);
-      //update_mom(fU, mom, lambda_dt);    
-      ave_iter += forceD(fD, phi, gauge, kSpace, evals, iter);
+      //update_mom(fU, mom, lambda_dt);
+      forceMultiD(fD, phi_array, gauge);
+      ave_iter += forceD(fD, phi, gauge);
       update_mom(fD, mom, -lambda_dt);
     } else {
       //forceU(fU, gauge);
-      //update_mom(fU, mom, two_lambda_dt);    
-      ave_iter += forceD(fD, phi, gauge, kSpace, evals, iter);
+      //update_mom(fU, mom, two_lambda_dt);
+      forceMultiD(fD, phi_array, gauge);
+      ave_iter += forceD(fD, phi, gauge);
       update_mom(fD, mom, -two_lambda_dt);
     }
   }  
-  
   // HMC trajectory complete
   //----------------------------------------------------------
+
+  delete fD;
+  delete fU;
+  for(int i=0; i<10; i++) delete phi_array[i];
+  phi_array.resize(0);
+  
 }
 
-void leapfrogHMC::forceGradient(field<double> *fU, field<double> *fD, field<double> *mom,
-				field<Complex> *phi, field<Complex> *gauge, double one_minus_2lambda_dt, double xi_dtdt) {
+void HMC::forceGradient(field<double> *fU, field<double> *fD, field<double> *mom,
+			field<Complex> *phi, field<Complex> *gauge,
+			double one_minus_2lambda_dt, double xi_dtdt) {
 
   // Construct objects for an eigensolver
   //-------------------------------------
@@ -311,7 +350,7 @@ void leapfrogHMC::forceGradient(field<double> *fU, field<double> *fD, field<doub
   delete mom_copy;
 }
 
-void leapfrogHMC::forceGradient(field<double> *fU, field<double> *mom, field<Complex> *gauge, double one_minus_2lambda_dt, double xi_dtdt) {
+void HMC::forceGradient(field<double> *fU, field<double> *mom, field<Complex> *gauge, double one_minus_2lambda_dt, double xi_dtdt) {
 
   // Construct objects for an eigensolver
   //-------------------------------------
@@ -347,7 +386,7 @@ void leapfrogHMC::forceGradient(field<double> *fU, field<double> *mom, field<Com
 }
 
 
-void leapfrogHMC::innerFGI(field<double> *fU, field<double> *mom, field<Complex> *gauge, double tau, int steps) {
+void HMC::innerFGI(field<double> *fU, field<double> *mom, field<Complex> *gauge, double tau, int steps) {
 
   double lambda = 1.0/6.0;
   double xi = 1.0/72.0;
@@ -377,7 +416,7 @@ void leapfrogHMC::innerFGI(field<double> *fU, field<double> *mom, field<Complex>
   }
 }
 
-void leapfrogHMC::forceU(field<double> *fU, field<Complex> *gauge) {
+void HMC::forceU(field<double> *fU, field<Complex> *gauge) {
   
   Complex plaq0 = 0.0, plaq = 0.0;
   double temp = 0.0;
@@ -408,7 +447,7 @@ void leapfrogHMC::forceU(field<double> *fU, field<Complex> *gauge) {
 }
 
 //P_{k+1/2} = P_{k-1/2} - dtau * (fU + fD)
-void leapfrogHMC::update_mom(field<double> *fU, field<double> *fD, field<double> *mom, double dtau){
+void HMC::update_mom(field<double> *fU, field<double> *fD, field<double> *mom, double dtau){
   
   int Nx = fU->p.Nx;
   int Ny = fU->p.Ny;
@@ -422,7 +461,7 @@ void leapfrogHMC::update_mom(field<double> *fU, field<double> *fD, field<double>
 }
 
 //P_{k+1/2} = P_{k-1/2} - dtau * (f)
-void leapfrogHMC::update_mom(field<double> *f, field<double> *mom, double dtau){
+void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
   
   int Nx = f->p.Nx;
   int Ny = f->p.Ny;
@@ -438,7 +477,7 @@ void leapfrogHMC::update_mom(field<double> *f, field<double> *mom, double dtau){
 
 //U_{k} = exp(i dtau P_{k-1/2}) * U_{k-1}
 // MILC: update_u
-void leapfrogHMC::update_gauge(field<Complex> *gauge, field<double> *mom, double dtau){
+void HMC::update_gauge(field<Complex> *gauge, field<double> *mom, double dtau){
   
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
@@ -451,7 +490,7 @@ void leapfrogHMC::update_gauge(field<Complex> *gauge, field<double> *mom, double
       }
 }
 
-void leapfrogHMC::update_deflation(field<Complex> *gauge, field<Complex> *gauge_prior, std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals){
+void HMC::update_deflation(field<Complex> *gauge, field<Complex> *gauge_prior, std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals){
   
   int n_vecs = evals.size();
   std::vector<field<Complex>*> kSpace_copy;
@@ -505,7 +544,7 @@ void leapfrogHMC::update_deflation(field<Complex> *gauge, field<Complex> *gauge_
   }
 }
 
-void leapfrogHMC::kspace_diff(field<Complex> *gauge, std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals,
+void HMC::kspace_diff(field<Complex> *gauge, std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals,
 			      std::vector<field<Complex>*> &kSpace_prior, std::vector<Complex> &evals_prior, eig_param_t &param, int iter){
   
   int n_vecs = evals.size();
@@ -530,9 +569,15 @@ void leapfrogHMC::kspace_diff(field<Complex> *gauge, std::vector<field<Complex>*
   }
 }
 
+// Optimise this to operate only on a single parity of sites.
+int HMC::forceD(field<double> *fD, field<Complex> *phi, field<Complex> *gauge) {
+  std::vector<field<Complex> *> kSpace;
+  std::vector<Complex> evals;
+  return forceD(fD, phi, gauge, kSpace, evals, 0);
+}
 
 // Optimise this to operate only on a single parity of sites.
-int leapfrogHMC::forceD(field<double> *fD, field<Complex> *phi, field<Complex> *gauge,
+int HMC::forceD(field<double> *fD, field<Complex> *phi, field<Complex> *gauge,
 			std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals, int iter)
 {
   int cg_iter = 0;
@@ -701,11 +746,28 @@ int leapfrogHMC::forceD(field<double> *fD, field<Complex> *phi, field<Complex> *
   return cg_iter;
 }
 
+// Optimise this to operate only on a single parity of sites.
+int HMC::forceMultiD(field<double> *fD, std::vector<field<Complex>*> &phi, field<Complex> *gauge)
+{
+  int cg_iter = 0;
+  if(gauge->p.dynamic == true) {
+    
+    blas::zero(fD->data);
+    
+    //Ainvpsi inverts using the DdagD (g3Dg3D) operator, returns
+    // phip = (D^-1 * Ddag^-1)
+    //  phi = (D^-1 * g3 * D^-1 g3) phi.
+    gaussComplex(guess_stack[0]);  
+    cg_iter += inv->solveMulti(phi, guess_stack, gauge, pfe);
+    
+  }
+  return cg_iter;
+}
 
 
 //----------------------------------------------------------------------------------
 
-leapfrogHMC::~leapfrogHMC() {
+HMC::~HMC() {
   
   evals0.resize(0);
   for (int i=0; i<kSpace0.size(); i++) {
@@ -726,5 +788,7 @@ leapfrogHMC::~leapfrogHMC() {
   for (int i=0; i<kSpace_prediction.size(); i++) {
     delete kSpace_prediction[i];
   }
+
+  delete remez;
   
 };

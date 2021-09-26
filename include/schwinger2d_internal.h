@@ -9,6 +9,8 @@
 #include <complex>
 #include <sys/time.h>
 
+#include "alg_remez.h"
+
 #include <Eigen/Eigenvalues>
 using namespace std;
 using Eigen::MatrixXcd;
@@ -93,3 +95,11 @@ typedef struct eig_param {
   int block_size = 0;
   
 } eig_param_t;
+
+typedef struct PFE {
+  
+  double norm = 0;
+  std::vector<double> res;
+  std::vector<double> pole;
+  
+} PFE_t;

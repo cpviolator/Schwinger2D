@@ -22,7 +22,7 @@ class inverterCG {
 
 private:
   int success = 0;
-  bool verbose = false;
+  bool verbose = true;
   
   field<Complex> *res;
   field<Complex> *p;
@@ -47,6 +47,10 @@ public:
 
   // With constant 
   int solve(field<Complex> *x, field<Complex> *b, field<Complex> *gauge, double offset);
+
+  // Multi RHS for RHMC
+  int solveMulti(std::vector<field<Complex> *> &x, std::vector<field<Complex> *> &b,
+		 field<Complex> *gauge, PFE &pfe);
   
   void deflateResidual(field<Complex> *deflated_guess, field<Complex> *residual,
 		       std::vector<field<Complex> *> &kSpace, std::vector<Complex> &evals);

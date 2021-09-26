@@ -48,7 +48,7 @@ namespace blas {
   void caxpby(const Complex a, const std::vector<Complex> &x, const Complex b, std::vector<Complex> &y);
 
   // axpby
-  void caxpby(const double a, const std::vector<Complex> &x, const double b, std::vector<Complex> &y);
+  void axpby(const double a, const std::vector<Complex> &x, const double b, std::vector<Complex> &y);
 
   // caxpy in place
   void caxpy(const Complex a, const std::vector<Complex> &x, std::vector<Complex> &y);

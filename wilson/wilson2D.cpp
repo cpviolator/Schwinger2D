@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
   int iter = 0;
   cout << setprecision(16);
   
-  leapfrogHMC *HMCStep = new leapfrogHMC(p);
+  HMC *HMCStep = new HMC(p);
   
   if(p.checkpoint_start > 0) {
     

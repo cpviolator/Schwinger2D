@@ -7,11 +7,151 @@ inverterCG::inverterCG(param_t param) {
   res = new field<Complex>(param);
   p = new field<Complex>(param);
   Ap = new field<Complex>(param);
-  temp = new field<Complex>(param);    
+  temp = new field<Complex>(param);
+}
+
+// Get size of shifts from x
+//
+int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
+			   std::vector<field<Complex> *> &b,
+			   field<Complex> *gauge, PFE &pfe) {
+
+  if(x.size() != pfe.res.size() || x.size() != pfe.pole.size()) {
+    printf("Error: x.size() = %lu, res.size() = %lu, pole.size() = %lu\n",
+	   x.size(), pfe.res.size(), pfe.pole.size());
+    exit(0);
+  }
+
+  // Find norm of rhs.
+  bnorm = blas::norm2(b[0]->data);
+  bsqrt = sqrt(bnorm);
+  //cout << "bsqrt = " << bsqrt << endl;
+  // Sanity  
+  if(bsqrt == 0 || bsqrt != bsqrt) {
+    cout << "Warning in inverterCG: inverting on zero source or Nan." << endl;
+    //exit(0);
+  }
+  
+  int n_shifts = x.size();
+  int n_shifts_remaining = n_shifts;
+  std::vector<double> zeta(n_shifts, 1.0);
+  std::vector<double> zeta_old(n_shifts, 1.0);
+  std::vector<double> beta_arr(n_shifts, 0.0);
+  std::vector<double> alpha_arr(n_shifts, 1.0);
+  std::vector<bool> active(n_shifts, true);
+  
+  // compute initial residual
+  //---------------------------------------  
+  res->copy(b[0]);
+  p->copy(b[0]);
+  rsq = blas::norm2(res->data);
+  if(verbose) printf("CG iter 0, rsq = %g\n", rsq);
+  
+  std::vector<field<Complex> *> p_arr(n_shifts);
+  for(int i=0; i<n_shifts; i++) {    
+    blas::zero(x[i]->data);
+    p_arr[i] = new field<Complex>(x[0]->p);
+    p_arr[i]->copy(p);
+  }
+  
+  alpha = 1.0;
+  
+  // Iterate until convergence
+  //---------------------------------------
+  for (iter = 0; iter < gauge->p.max_iter_cg; iter++) {
+    
+    // Compute Ap.
+    DdagDpsi(Ap, p, gauge);
+    denom = (blas::cDotProd(p->data, Ap->data)).real();
+    double alpha_old = alpha;
+    alpha = -rsq/denom;
+    
+    // Compute new alpha and zeta
+    for (int i=0; i<n_shifts_remaining && active[i]; i++) {
+
+      double c0 = zeta[i] * zeta_old[i] * alpha_old; 
+      double c1 = beta * alpha * (zeta_old[i] - zeta[i]);
+      double c2 = zeta_old[i] * alpha_old * (1.0 - pfe.pole[i]*alpha);
+      
+      zeta_old[i] = zeta[i];
+      if(c1 + c2 != 0.0) zeta[i] = c0 / (c1 + c2);
+      else             zeta[i] = 0.0;
+      
+      if(zeta[i] != 0.0) alpha_arr[i] = alpha * zeta[i] / zeta_old[i];
+      else               alpha_arr[i] = 0.0;
+      
+      blas::axpy(-alpha_arr[i], p_arr[i]->data, x[i]->data);
+    }
+    
+    blas::axpy(alpha, Ap->data, res->data);
+    
+    // Exit if new residual on teh lightest vector is small enough
+    rsq_new = blas::norm2(res->data);
+    if(verbose) printf("CG iter %d, rsq = %g\n", iter+1, rsq_new);    
+    if (rsq_new < gauge->p.eps*bnorm) {
+      rsq = rsq_new;
+      break;
+    }
+
+    bool converged = true;
+    for (int i=0; i<n_shifts_remaining && active[i]; i++) {
+      if(zeta[i] * sqrt(rsq_new) < gauge->p.eps*bnorm) {
+	active[i] = false;
+	if(verbose) printf("CG iter %d, shift %d converged: res = %g\n", iter+1, i, zeta[i] * sqrt(rsq_new));
+      } else {
+	converged = false;
+      }
+    }
+
+    if(converged) {
+      rsq = rsq_new;
+      break;
+    }
+    
+    // Update vec using new residual
+    beta = rsq_new/rsq;
+    rsq = rsq_new;
+    
+    for (int i=0; i<n_shifts_remaining && active[i]; i++) {
+      beta_arr[i] = beta * zeta[i] * alpha_arr[i]/(zeta_old[i] * alpha);
+      blas::axpby(zeta[i], res->data, beta_arr[i], p_arr[i]->data);
+    }
+    
+    blas::axpby(1.0, res->data, beta, p->data);
+    
+  } // End loop over iter
+  //---------------------------------------
+
+  if(iter == gauge->p.max_iter_cg) {
+    // Failed convergence 
+    printf("CG: Failed to converge iter = %d, rsq = %.16e\n", iter+1, rsq); 
+    success = 0; 
+  } else {
+    // Convergence 
+    success = iter+1; 
+  }
+
+  if(verbose) {
+    //Sanity
+    cout << "source norm = " << blas::norm(b[0]->data) << endl;
+    for(int i=0; i<n_shifts; i++) {
+      cout << "sol norm = " << blas::norm(x[i]->data) << endl;    
+      DdagDpsi(temp, x[i], gauge);
+      blas::caxpy(pfe.pole[i], x[i]->data, temp->data);
+      
+      blas::axpy(-1.0, temp->data, b[0]->data, res->data);
+      double truersq = blas::norm2(res->data);
+      printf("CG: Converged shift = %d, rsq = %.16e, truersq = %.16e\n", i, sqrt(rsq), sqrt(truersq)/(bsqrt));
+    }
+  }
+  
+  //printf("CG: Converged iter = %d\n", success);  
+  return success;  
 }
 
 int inverterCG::solve(field<Complex> *x, field<Complex> *b,
-		      std::vector<field<Complex> *> &kSpace, std::vector<Complex> &evals,
+		      std::vector<field<Complex> *> &kSpace,
+		      std::vector<Complex> &evals,
 		      field<Complex> *gauge, bool deflate) {
   
   // Find norm of rhs.
