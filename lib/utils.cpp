@@ -6,12 +6,16 @@ void printParams(param_t p) {
   cout << "          YSize = "<< p.Ny << endl;
   cout << "          Beta = "<< p.beta << endl;
   cout << "          Dynamic = " << (p.dynamic == true ? "True" : "False") << endl;
-  if (p.dynamic == true) cout << "          Mass = " << p.m << endl;
+  if (p.dynamic == true) cout << "          Flavours = " << p.flavours << endl;
+  if (p.dynamic == true && p.flavours > 1) cout << "          Mass = " << p.m << endl;
+  if (p.dynamic == true && p.flavours != 2) cout << "          Mass Heavy = " << p.m_heavy << endl;
   cout << "HMC:      Therm Sweeps: (" << p.therm << " accept) (" << p.therm << " accept/reject)" << endl; 
   cout << "          Data Points = " << p.iter_hmc << endl;
+  cout << "          Integrator = " << (p.integrator == LEAPFROG ? "LEAPFROG" : "FGI") << endl;
   cout << "          Time Step = " << p.tau/p.n_step << endl;
-  cout << "          Trajectory Steps " << p.n_step << endl;
-  cout << "          Trajectory Length = " << p.tau << endl;
+  cout << "          Trajectory Steps = " << p.n_step << endl;
+  if(p.integrator == FGI) cout << "          Inner Trajectory Steps = " << p.inner_step << endl;
+  cout << "          Trajectory Length = " << p.tau << endl;  
   cout << "Smearing: APE iter = " << p.smear_iter << endl;
   cout << "          APE alpha = " << p.alpha << endl;
 #ifdef USE_VOATOL
@@ -34,8 +38,9 @@ void gaussStart(field<Complex> *gauge) {
   int Ny = gauge->p.Ny;
   for(int x=0; x<Nx; x++) 
     for(int y=0; y<Ny; y++)
-      for(int mu=0; mu<2; mu++)
-	gauge->write(x, y, mu, polar(1.0,drand48()));  
+      for(int mu=0; mu<2; mu++) {
+	gauge->write(x, y, mu, polar(1.0,drand48()));
+      }
 }  
 
 void coldStart(field<Complex> *gauge) {
@@ -136,7 +141,86 @@ void smearLink(field<Complex> *smeared, field<Complex> *gauge){
 	for(int mu=0; mu<2; mu++)
 	  smeared->write(x,y,mu, polar(1.0,arg(smeared_tmp->read(x,y,mu))));
   }
+
+  delete smeared_tmp;
 }
+
+// staple x is 0th, y is 1st.
+void wilsonFlow(field<Complex> *gauge, double dt) {
+
+  // perform one time step of Runga Kutta integration for the Wilson flow
+  // algorithm.
+
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+
+  field<double> z0(gauge->p);
+  field<double> z1(gauge->p);
+  field<double> z2(gauge->p);
+
+  field<Complex> w0(gauge->p);
+  field<Complex> w1(gauge->p);
+  field<Complex> w2(gauge->p);
+  field<Complex> w3(gauge->p);
+
+  w0.copy(gauge);
+
+  for (int x = 0; x < Nx; x++) {
+    for (int y = 0; y < Ny; y++) {
+      for (int mu = 0; mu < 2; mu++) {
+	Complex s = staple(w0, x, y, mu);
+	double z = -imag(w0.read(x, y, mu) * conj(s));
+	z0.write(x, y, mu, dt * z);
+	w1.write(x, y, mu, polar(1.0, (1.0/4.0) * z0.read(x, y, mu)) * w0.read(x, y, mu));
+      }
+    }
+  }
+
+  for (int x = 0; x < Nx; x++) {
+    for (int y = 0; y < Ny; y++) {
+      for (int mu = 0; mu < 2; mu++) {
+	Complex s = staple(w1, x, y, mu);
+	double z = -imag(w1.read(x, y, mu) * conj(s));
+	z1.write(x, y, mu, dt * z);
+	w2.write(x, y, mu, polar(1.0, (8.0/9.0) * z1.read(x, y, mu) - (17.0/36.0) * z0.read(x, y, mu)) * w1.read(x, y, mu));
+      }
+    }
+  }
+
+  for (int x = 0; x < Nx; x++) {
+    for (int y = 0; y < Ny; y++) {
+      for (int mu = 0; mu < 2; mu++) {
+	Complex s = staple(w2, x, y, mu);
+	double z = -imag(w2.read(x, y, mu) * conj(s));
+	z2.write(x, y, mu, dt * z);
+	w3.write(x, y, mu, polar(1.0, (3.0/4.0) * z2.read(x, y, mu) - (8.0/9.0) * z1.read(x, y, mu) + (17.0/36.0) * z0.read(x, y, mu)) * w2.read(x, y, mu));
+      }
+    }
+  }
+    
+  gauge->copy(&w3);
+}
+
+Complex staple(field<Complex>& gauge, int x, int y, int mu) {
+  
+  // calculate the sum of staples attached to the link at (x,y,mu) in the
+  // reverse direction as compared to the direction of the link
+  
+  int Nx = gauge.p.Nx;
+  int Ny = gauge.p.Ny;
+  int xp1 = (x + 1) % Nx;
+  int xm1 = (x - 1 + Nx) % Nx;
+  int yp1 = (y + 1) % Ny;
+  int ym1 = (y - 1 + Ny) % Ny;
+  if (mu == 0) {
+    return gauge.read(x,y,1) * gauge.read(x,yp1,0) * conj(gauge.read(xp1,y,1))
+      + conj(gauge.read(x,ym1,1)) * gauge.read(x,ym1,0) * gauge.read(xp1,ym1,1);
+  } else {
+    return gauge.read(x,y,0) * gauge.read(xp1,y,1) * conj(gauge.read(x,yp1,0))
+      + conj(gauge.read(xm1,y,0)) * gauge.read(xm1,y,1) * gauge.read(xm1,yp1,0);
+  }
+}
+
 
 void writeBlockToVector(std::vector<field<Complex> *> &kSpace,
 			std::vector<std::vector<Complex>> &block_data_ortho,

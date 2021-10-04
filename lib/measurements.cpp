@@ -52,7 +52,7 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter)
   }
 
   //Compute string tension
-#pragma	omp parallel for
+  //#pragma	omp parallel for
   for(int size=1; size<loop_max; size++) {
     sigma[size]  = -log(abs((real(wLoops[size][size])/real(wLoops[size-1][size]))* 
 			    (real(wLoops[size-1][size-1])/real(wLoops[size][size-1]))));
@@ -89,7 +89,7 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter)
       fprintf(fp, "%d %.16e %.16e\n", iter, real(wLoops[sizex][sizey]), imag(wLoops[sizex][sizey]));	    
       fclose(fp);
     }
-
+  delete smeared;
   return;
 }
 
@@ -190,6 +190,11 @@ void measPionCorrelation(field<Complex> *gauge, int iter)
   fprintf(fp, "\n");
   fclose(fp);
 
+  delete propUp;
+  delete propDn;
+  delete propGuess;
+  delete source;
+  delete Dsource;  
 }
 
 double measGaugeAction(field<Complex> *gauge) {
@@ -200,7 +205,7 @@ double measGaugeAction(field<Complex> *gauge) {
 
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
-#pragma	omp parallel for reduction (+:action)
+  //#pragma	omp parallel for reduction (+:action)
   for(int x=0; x<Nx; x++) {
     int xp1 = (x+1)%Nx;
     for(int y=0; y<Ny; y++) {
@@ -220,7 +225,7 @@ double measMomAction(field<double> *mom) {
   double temp = 0.0;
   int Nx = mom->p.Nx;
   int Ny = mom->p.Ny;
-#pragma	omp parallel for reduction (+:action)
+  //#pragma	omp parallel for reduction (+:action)
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++){
       for(int mu=0; mu<2; mu++){
@@ -233,47 +238,46 @@ double measMomAction(field<double> *mom) {
 }
 
 //Wilson fermion
-double measFermAction(field<Complex> *gauge, field<Complex> *phi, bool postStep) {
+double measFermAction(field<Complex> *gauge, field<Complex> *phi,
+		      PFE &pfe, bool rational) {
+
+  int n_ferm = rational ? pfe.inv_pole.size() : 1;
+  std::vector<field<Complex>*> phi_tmp;
+  phi_tmp.reserve(n_ferm);
+  for(int i=0; i<n_ferm; i++) phi_tmp.push_back(new field<Complex>(gauge->p));  
   
-  field<Complex> *phi_tmp = new field<Complex>(gauge->p);  
-  
-  //cout << "Before Fermion force H = " << H << endl;
   Complex action = 0.0;
+  inverterCG *inv = new inverterCG(gauge->p);
   
-  if(postStep) {
-    inverterCG *inv = new inverterCG(gauge->p);
-    inv->solve(phi_tmp, phi, gauge);
+  if(rational) {
+    inv->solveMulti(phi_tmp, phi, gauge, pfe.inv_pole);
+    action = pfe.inv_norm * blas::cDotProd(phi->data, phi->data);
+    for(int i=0; i<n_ferm; i++) action += pfe.inv_res[i] * blas::cDotProd(phi_tmp[i]->data, phi->data);
+  } else {
+    inv->solve(phi_tmp[0], phi, gauge);
+    action = blas::cDotProd(phi_tmp[0]->data, phi->data);
   }
-  else phi_tmp->copy(phi);
   
-  int Nx = gauge->p.Nx;
-  int Ny = gauge->p.Ny;
-#pragma	omp parallel for reduction(+:action)
-  for(int x=0; x<Nx; x++)
-    for(int y=0; y<Ny; y++){
-      for(int mu=0; mu<2; mu++){
-	action += conj(phi->read(x,y,mu))*phi_tmp->read(x,y,mu);
-      }
-    }    
-  
+  for(int i=0; i<n_ferm; i++) delete phi_tmp[i];
+  delete inv;
   return action.real();
 }
 
 //Wilson Action
-double measAction(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, bool postStep) {
-  
+double measAction(field<double> *mom, field<Complex> *gauge, std::vector<field<Complex>*> &phi, PFE &pfe) {
+
+  int n_ferm = phi.size();
   double action = 0.0;
   double beta = gauge->p.beta;
   int Ny = gauge->p.Ny;
   int Nx = gauge->p.Nx;
-  action += measMomAction(mom);
-  //cout << "action mom: " << action << endl;
-  //action += measGaugeAction(gauge);
-  action += (Nx * Ny)*beta*real(1.0 - measPlaq(gauge));
-  //cout << "action gauge: " << action << endl;
-  if (gauge->p.dynamic) action += measFermAction(gauge, phi, postStep);
-  //cout << "action ferm: " << action << endl;
   
+  action += measMomAction(mom);
+  action += (Nx * Ny)*beta*real(1.0 - measPlaq(gauge));
+  
+  if(gauge->p.flavours > 1)  action += measFermAction(gauge, phi[0], pfe, false);
+  if(gauge->p.flavours != 2) action += measFermAction(gauge, phi[1], pfe, true);
+
   return action;
 }
 
@@ -284,7 +288,7 @@ Complex measPlaq(field<Complex> *gauge) {
   int Ny = gauge->p.Ny;
   double norm = 1.0/(Nx * Ny);
 
-#pragma	omp parallel for reduction(+:plaq)
+  //#pragma	omp parallel for reduction(+:plaq)
   for(int x=0; x<Nx; x++) {
     int xp1 = (x+1)%Nx;
     for(int y=0; y<Ny; y++) {
@@ -304,7 +308,7 @@ double measTopCharge(field<Complex> *gauge){
   double top = 0.0;
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
-#pragma	omp parallel for reduction(+:top)
+  //#pragma	omp parallel for reduction(+:top)
   for(int x=0; x<Nx; x++) {
     int xp1 = (x+1)%Nx;
     for(int y=0; y<Ny; y++){
@@ -313,6 +317,7 @@ double measTopCharge(field<Complex> *gauge){
       top += arg(w)/TWO_PI;  // -pi < arg(w) < pi  Geometric value is an integer.
     }
   }
+  delete smeared;
   //return top/TWO_PI;
   return top;
 }

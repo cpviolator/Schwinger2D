@@ -28,8 +28,8 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter);
 void measPionCorrelation(field<Complex> *gauge, int iter);
 double measGaugeAction(field<Complex> *gauge);
 double measMomAction(field<double> *mom);
-double measFermAction(field<Complex> *gauge, field<Complex> *phi, bool postStep);
-double measAction(field<double> *mom, field<Complex> *gauge, field<Complex> *phi, bool postStep);
+double measFermAction(field<Complex> *gauge, field<Complex> *phi, PFE &pfe, bool rational);
+double measAction(field<double> *mom, field<Complex> *gauge, std::vector<field<Complex>*> &phi, PFE &pfe);
 Complex measPlaq(field<Complex> *gauge);
 double measTopCharge(field<Complex> *gauge);
 

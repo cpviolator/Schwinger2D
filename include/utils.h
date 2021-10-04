@@ -22,6 +22,8 @@ void gaussComplex(field<Complex> *field);
 //APE smearing: project back on U(1)
 // staple x is 0th, y is 1st.
 void smearLink(field<Complex> *smeared, field<Complex> *gauge);
+void wilsonFlow(field<Complex> *gauge, double dt);
+Complex staple(field<Complex>& gauge, int x, int y, int mu);
 
 void measBlockColinearity(std::vector<field<Complex> *> kSpace, int blockScheme[2], int nLow);
 

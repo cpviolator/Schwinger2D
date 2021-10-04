@@ -23,6 +23,8 @@ typedef complex<double> Complex;
 #define I Complex(0,1.0)
 #define cUnit Complex(1.0,0)
 
+enum Integrator { LEAPFROG, FGI};
+  
 using namespace std;
 
 typedef struct param {
@@ -38,7 +40,10 @@ typedef struct param {
   int checkpoint_start = 0;
   int max_iter_cg = 1000;
   double eps = 1e-6;
-
+  Integrator integrator = LEAPFROG;
+  int flavours = 2;
+  int reverse = 100;
+  
   int seed = 1234;
   bool verbosity = true;
   
@@ -46,7 +51,8 @@ typedef struct param {
   int Nx = 32;
   int Ny = 32;
   double beta = 3.0;
-  double m = -0.06;
+  double m = 0.1;
+  double m_heavy = 0.5;
   bool dynamic = true;
   bool deflate = true;
   
@@ -101,5 +107,9 @@ typedef struct PFE {
   double norm = 0;
   std::vector<double> res;
   std::vector<double> pole;
+
+  double inv_norm = 0;
+  std::vector<double> inv_res;
+  std::vector<double> inv_pole;
   
 } PFE_t;

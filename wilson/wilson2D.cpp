@@ -59,6 +59,10 @@ int main(int argc, char **argv) {
 
   // Addended
   p.inner_step = atoi(argv[34]);
+  p.m_heavy = atof(argv[35]);
+  p.integrator = atoi(argv[36]) == 0 ? LEAPFROG : FGI;
+  p.flavours = atoi(argv[37]);
+  p.reverse = atoi(argv[38]);
   
   if(p.loop_max > std::min(p.Nx/2, p.Ny/2)) {
     cout << "Warning: requested Wilson loop max " << p.loop_max << " greater than ";
@@ -117,28 +121,13 @@ int main(int argc, char **argv) {
     //---------------------------------------------------------------------
     gettimeofday(&start, NULL);  
     for(iter=0; iter<2*p.therm; iter++){      
+
       //Perform HMC step
       accept = HMCStep->hmc(gauge, iter);
       gettimeofday(&total_end, NULL);  
       t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
       cout << fixed << setprecision(16) << iter+1 << " "; //Iteration
       cout << t_total << " " << endl;                     //Time
-
-      // Do a reversibility check
-      if((iter+1)%p.chkpt == 0 && 0) {	  
-	
-	field<Complex> *gauge_old = new field<Complex>(p);
-	gauge_old->copy(gauge);
-	bool reverse = HMCStep->hmc_reversibility(gauge_old, iter);
-	if(!reverse) {
-	  cout << "Error in reversibility" << endl;
-	  exit(0);
-	}
-	
-	// gauge_old should now be the same as gauge
-	blas::axpy(-1.0, gauge->data, gauge_old->data);
-	cout << "L2 norm of reversed configuration = " << std::scientific << blas::norm2(gauge_old->data)/(p.Nx * p.Ny * 2) << endl;
-      }
     }
     
     gettimeofday(&end, NULL);  
@@ -170,7 +159,7 @@ int main(int argc, char **argv) {
     
     //Perform Measurements
     //---------------------------------------------------------------------
-    if((iter)%p.skip == 0 && iter > 2*p.therm) {
+    if((iter)%p.skip == 0 && iter > 2*p.therm && iter != p.checkpoint_start) {
       
       count++; //Number of measurements taken
       
@@ -181,29 +170,30 @@ int main(int argc, char **argv) {
       //Dump simulation data to stdout
       gettimeofday(&total_end, NULL);  
       t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
-      cout << fixed << setprecision(16) << iter << " ";   //Iteration
-      cout << t_total << " ";                             //Time
-      cout << plaqSum/count << " ";                       //Action
-      cout << 1.0 - (double)top_stuck/(count*p.skip) << " " ;//P(Top transition)
-      cout << HMCStep->exp_dH_ave/(count*p.skip) << " ";  //Average exp(-dH)
-      cout << HMCStep->dH_ave/(count*p.skip) << " ";      //Average dH
-      cout << (double)accepted/(count*p.skip) << " ";     //Acceptance
-      cout << top_int << endl;                            //T charge
-	
+      cout << fixed << setprecision(16) << iter << " ";   // Iteration
+      cout << t_total << " ";                             // Time
+      cout << plaq << " ";                                // Action
+      cout << plaqSum/(count) << " ";                     // Average Action
+      cout << HMCStep->exp_dH << " ";                     // exp(-dH)
+      cout << HMCStep->exp_dH_ave/(count*p.skip) << " ";  // Average exp(-dH)
+      printf("%+.16f ", HMCStep->dH);                     // dH
+      cout << HMCStep->dH_ave/(count*p.skip) << " ";      // Average dH
+      cout << (double)accepted/(count*p.skip) << " ";     // Average Acceptance
+      cout << top_int << endl;                            // T charge
+      
       //Dump simulation data to file
       name = "data/data/data"; //I cannot make bricks without clay!
       constructName(name, p);
       name += ".dat";	
       sprintf(fname, "%s", name.c_str());	
       fp = fopen(fname, "a");	
-      fprintf(fp, "%d %.16e %.16e %.16e %.16e %.16e %.16e %d\n",
+      fprintf(fp, "%.06d %.16e %.16e %+.16e %+.16e %d %d\n",
 	      iter,
 	      t_total,
-	      plaqSum/count,
-	      (double)top_stuck/(accepted),
-	      HMCStep->exp_dH_ave/(count*p.skip),
-	      HMCStep->dH_ave/(count*p.skip),
-	      (double)accepted/(count*p.skip),
+	      plaq,
+	      HMCStep->exp_dH,
+	      HMCStep->dH,
+	      accept,
 	      top_int);
       fclose(fp);
       
@@ -231,150 +221,6 @@ int main(int argc, char **argv) {
       //if(p.meas_vt) measVacuumTrace(gauge, top_old, iter, p);
       //-------------------------------------------------------------
 
-      //Test deflation routines
-      //-------------------------------------------------------------
-      if(gauge->p.deflate) {
-#if 0
-	// Construct objects for an eigensolver
-	//-------------------------------------
-	eig_param_t eig_param;
-	std::vector<field<Complex>*> kSpace;
-	std::vector<Complex> evals;	
-	prepareKrylovSpace(kSpace, evals, eig_param, gauge->p);
-	
-	// Compute a deflation space using IRAM
-	iram(gauge, kSpace, evals, eig_param);
-		
-	// Test the block compression
-	//---------------------------
-	int Nx = gauge->p.Nx;
-	int Ny = gauge->p.Ny;
-	int Ns = 2;
-	int blk_scheme[2] = {gauge->p.block_scheme[0], gauge->p.block_scheme[1]};
-	int x_block_size = Nx/blk_scheme[0];
-	int y_block_size = Ny/blk_scheme[1];
-	int n_blocks = blk_scheme[0]*blk_scheme[1];
-	int blk_size = Ns * x_block_size * y_block_size; // Complex elems per block
-	int n_low = gauge->p.n_low;
-	int n_conv = eig_param.n_conv;
-	int n_deflate = eig_param.n_deflate;
-	
-	// Object to hold the block orthonormal low mode space
-	std::vector<std::vector<Complex>> block_data_ortho(n_blocks, std::vector<Complex> (n_low * blk_size, 0.0));
-	// Object to hold the projection coeffiecients of the high modes on the ow space
-	std::vector<std::vector<Complex>> block_coef(n_blocks, std::vector<Complex> (n_low * n_conv, 0.0));
-
-	gettimeofday(&start, NULL);
-
-	// Krylov space
-	std::vector<field<Complex>*> kSpace_recon(n_conv);
-	for(int i=0; i<n_conv; i++) kSpace_recon[i] = new field<Complex>(gauge->p);
-	// eigenvalues
-	std::vector<Complex> evals_recon(n_conv);
-	// Compress kSpace into block_data_ortho and block_coeffs...
-	blockCompress(kSpace, block_data_ortho, block_coef, blk_scheme, n_low, n_conv);
-	// ...then expand to into kSpace_recon test the quality
-	blockExpand(kSpace_recon, block_data_ortho, block_coef, blk_scheme, n_low, n_conv);
-	gettimeofday(&end, NULL);  
-	
-	// Compute the eigenvalues and residua using the reconstructed kSpace
-	std::vector<double> resid(n_conv, 0.0);
-	computeEvals(gauge, kSpace_recon, resid, evals_recon, n_conv);
-	
-	cout << "Compare eigenvalues and residua: " << endl;	
-	for(int i=0; i<eig_param.n_conv; i++) printf("%d: %e - %e = %e resid %e \n", i, evals[i].real(), evals_recon[i].real(), abs(evals[i].real() - evals_recon[i].real())/evals[i].real(), resid[i]);
-	double delta_eval = 0.0;
-	double delta_resid = 0.0;  
-	for(int i=0; i<n_conv; i++) {
-	  delta_eval += abs(evals[i].real() - evals_recon[i].real())/evals[i].real();
-	  delta_resid += resid[i];
-	}
-	printf("<delta eval> = %e\n", delta_eval/n_conv);
-	printf("<delta resid> = %e\n", delta_resid/n_conv);
-	cout << endl;
-	
-	// Check compression ratio
-	int pre = n_conv * 2 * Nx * Ny;
-	int post= n_blocks * n_low * (blk_size + n_conv);
-	cout << "Algorithmic compression: " << endl;
-	cout << "Complex(double) elems pre = " << pre << " Complex(double) elems post = " << post << endl;
-	cout << "Ratio: " << (100.0 * post)/pre << "% of original data " << endl;
-	//cout << "Ratio2: " << 100*((1.0 * n_low)/n_conv + (1.0*n_low*n_blocks)/(Ns*Nx*Ny))<< "% of original data " << endl;
-	cout << n_low << " low eigenvectors used " << endl;
-	cout << (n_conv - n_low) << " high eigenvectors reconstructed " << endl;
-	cout << "Compress/decompress time = " << ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6 << endl;
-	
-	// Test deflation with true and reconstructed space
-	//-------------------------------------------------
-	field<Complex> *src = new field<Complex>(gauge->p);
-	field<Complex> *sol = new field<Complex>(gauge->p);
-	field<Complex> *check = new field<Complex>(gauge->p);
-	field<Complex> *evec_refine = new field<Complex>(gauge->p);
-	
-	// Create inverter
-	inverterCG *inv = new inverterCG(gauge->p);
-
-	// Refined Krylov space
-	std::vector<field<Complex>*> kSpace_refine(n_conv);
-	for(int i=0; i<n_conv; i++) kSpace_refine[i] = new field<Complex>(gauge->p);
-	std::vector<Complex> evals_refine(n_conv);
-	
-	// Inverse iterate the eigenvectors
-	double mass = gauge->p.m;
-	double tol = gauge->p.eps;
-	gauge->p.eps = 1e-8;
-	for(int i=0; i<eig_param.n_conv; i++) {
-	  
-	  sol->copy(kSpace_recon[i]);
-	  src->copy(kSpace_recon[i]);
-	  for(int k=0; k<50; k++) {
-
-	    //int refine_iter = inv->solve(sol, src, gauge, evals[i].real());
-	    int refine_iter = inv->solve(sol, src, gauge, 0.0);
-	    cout << "Refined eigenvector " << i << " in " << refine_iter << " iterations." << endl;
-	    double norm = blas::norm(sol->data);
-	    blas::ax(1.0/norm, sol->data);
-	    src->copy(sol);
-	  }
-	  kSpace_refine[i]->copy(sol);
-	}
-	gauge->p.eps = tol;
-	
-	computeEvals(gauge, kSpace_refine, resid, evals_refine, n_conv);
-	for (int i = 0; i < n_conv; i++) {
-	  printf("EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals_refine[i].real(), evals_refine[i].imag(), abs(evals_refine[i]), resid[i]);
-	}
-
-	// Populate src with rands
-	gaussComplex(src);
-	
-	// Inversion with no deflation
-	int undef_iter = inv->solve(sol, src, gauge);
-	
-	// Inversion with true deflation
-	blas::zero(sol->data);
-	int true_def_iter = inv->solve(sol, src, kSpace, evals, gauge);
-	DdagDpsi(check, sol, gauge);
-	blas::axpy(-1.0, src->data, check->data);
-	
-	cout << "Deflation efficacy: " << endl;
-	cout << "Undeflated CG iter = " << undef_iter << endl;
-	cout << "True Deflated CG iter   = " << true_def_iter << endl;
-	cout << "Solution fidelity  = " << std::scientific << blas::norm2(check->data) << endl;
-
-	// Inversion with true deflation
-	blas::zero(sol->data);
-	int recon_def_iter = inv->solve(sol, src, kSpace_recon, evals_recon, gauge);
-	DdagDpsi(check, sol, gauge);
-	blas::axpy(-1.0, src->data, check->data);
-	
-	cout << "Deflation efficacy: " << endl;
-	cout << "Undeflated CG iter = " << undef_iter << endl;
-	cout << "Recon Deflated CG iter = " << recon_def_iter << endl;
-	cout << "Solution fidelity  = " << std::scientific << blas::norm2(check->data) << endl;
-#endif
-      }
-      //-------------------------------------------------------------      
     }
     
     //Perform HMC step
@@ -383,6 +229,33 @@ int main(int argc, char **argv) {
     accepted += accept;
     gettimeofday(&end, NULL);  
     t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+
+      // Do a reversibility check
+    if((iter+1)%p.reverse == 0) {	  
+      
+      field<Complex> *gauge_old = new field<Complex>(p);
+      gauge_old->copy(gauge);
+      bool reverse = HMCStep->hmc_reversibility(gauge_old, iter);
+      if(!reverse) {
+	cout << "Error in reversibility" << endl;
+	exit(0);
+      }
+      
+      // gauge_old should now be the same as gauge
+      blas::axpy(-1.0, gauge->data, gauge_old->data);
+      cout << "L2 norm of gauge(t0) - evolve_gauge(t0->t1->t0) = " << std::scientific << blas::norm2(gauge_old->data)/(p.Nx * p.Ny * 2) << endl;
+      
+      gauge_old->copy(gauge);	
+      double wilson_flow_tau = 1.0;
+      int wilson_flow_steps = 50;
+      double dt = wilson_flow_tau/wilson_flow_steps;
+      for(int i=0; i<wilson_flow_steps; i++) wilsonFlow(gauge_old, dt);
+      for(int i=0; i<wilson_flow_steps; i++) wilsonFlow(gauge_old, -dt);
+
+      // gauge_old should now be the same as gauge
+      blas::axpy(-1.0, gauge->data, gauge_old->data);
+      cout << "L2 norm of gauge(t0) - flowed_gauge(t0->t1->t0) = " << std::scientific << blas::norm2(gauge_old->data)/(p.Nx * p.Ny * 2) << endl;
+    }
     
     //Checkpoint the gauge field?
     if((iter+1)%p.chkpt == 0) {	  

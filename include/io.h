@@ -6,6 +6,12 @@
 
 using namespace std;
 
+// Gauge
 void writeGauge(field<Complex> *gauge, string name);
 void readGauge(field<Complex> *gauge, string name);
+
+// PFE
+void writePFE(PFE &pfe, string name);
+bool readPFE(PFE &pfe, string name);
+
 void hdf5Example();

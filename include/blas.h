@@ -44,6 +44,12 @@ namespace blas {
   // Norm 
   double norm(std::vector<Complex> &a);
 
+  // Norm squared 
+  double norm2(std::vector<double> &x);
+  
+  // Norm 
+  double norm(std::vector<double> &a);
+  
   // caxpby
   void caxpby(const Complex a, const std::vector<Complex> &x, const Complex b, std::vector<Complex> &y);
 

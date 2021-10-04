@@ -20,7 +20,6 @@ namespace blas {
       exit(0);
     }
   }
-
   
   // Zero vector
   void zero(std::vector<Complex> &x) {
@@ -64,10 +63,23 @@ namespace blas {
     for(int i=0; i<(int)x.size(); i++) sum += (conj(x[i]) * x[i]).real();
     return sum;
   }
+
+  // Norm squared
+  double norm2(std::vector<double> &x) { 
+    double sum = 0.0;
+#pragma omp parallel for reduction(+:sum)
+    for(int i=0; i<(int)x.size(); i++) sum += x[i] * x[i];
+    return sum;
+  }
   
   // Norm 
   double norm(std::vector<Complex> &a) { 
     return sqrt(real(blas::norm2(a)));
+  }
+
+  // Norm 
+  double norm(std::vector<double> &a) { 
+    return sqrt(blas::norm2(a));
   }
   
   // caxpby

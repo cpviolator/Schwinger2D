@@ -13,17 +13,19 @@ inverterCG::inverterCG(param_t param) {
 // Get size of shifts from x
 //
 int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
-			   std::vector<field<Complex> *> &b,
-			   field<Complex> *gauge, PFE &pfe) {
+			   field<Complex> *b,
+			   field<Complex> *gauge, std::vector<double> shifts) {
 
-  if(x.size() != pfe.res.size() || x.size() != pfe.pole.size()) {
-    printf("Error: x.size() = %lu, res.size() = %lu, pole.size() = %lu\n",
-	   x.size(), pfe.res.size(), pfe.pole.size());
+  double mass_light = gauge->p.m;
+  gauge->p.m = gauge->p.m_heavy;
+  if(x.size() != shifts.size()) {
+    printf("Error: x.size() = %lu, shifts.size() = %lu\n",
+	   x.size(), shifts.size());
     exit(0);
   }
 
   // Find norm of rhs.
-  bnorm = blas::norm2(b[0]->data);
+  bnorm = blas::norm2(b->data);
   bsqrt = sqrt(bnorm);
   //cout << "bsqrt = " << bsqrt << endl;
   // Sanity  
@@ -42,8 +44,8 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
   
   // compute initial residual
   //---------------------------------------  
-  res->copy(b[0]);
-  p->copy(b[0]);
+  res->copy(b);
+  p->copy(b);
   rsq = blas::norm2(res->data);
   if(verbose) printf("CG iter 0, rsq = %g\n", rsq);
   
@@ -58,10 +60,11 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
   
   // Iterate until convergence
   //---------------------------------------
-  for (iter = 0; iter < gauge->p.max_iter_cg; iter++) {
+  bool convergence = false;
+  for (iter = 0; iter < gauge->p.max_iter_cg && !convergence; iter++) {
     
     // Compute Ap.
-    DdagDpsi(Ap, p, gauge);
+    OPERATOR(Ap, p, gauge);
     denom = (blas::cDotProd(p->data, Ap->data)).real();
     double alpha_old = alpha;
     alpha = -rsq/denom;
@@ -71,7 +74,7 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
 
       double c0 = zeta[i] * zeta_old[i] * alpha_old; 
       double c1 = beta * alpha * (zeta_old[i] - zeta[i]);
-      double c2 = zeta_old[i] * alpha_old * (1.0 - pfe.pole[i]*alpha);
+      double c2 = zeta_old[i] * alpha_old * (1.0 - shifts[i]*alpha);
       
       zeta_old[i] = zeta[i];
       if(c1 + c2 != 0.0) zeta[i] = c0 / (c1 + c2);
@@ -83,16 +86,12 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
       blas::axpy(-alpha_arr[i], p_arr[i]->data, x[i]->data);
     }
     
-    blas::axpy(alpha, Ap->data, res->data);
-    
-    // Exit if new residual on teh lightest vector is small enough
-    rsq_new = blas::norm2(res->data);
-    if(verbose) printf("CG iter %d, rsq = %g\n", iter+1, rsq_new);    
-    if (rsq_new < gauge->p.eps*bnorm) {
-      rsq = rsq_new;
-      break;
-    }
+    blas::axpy(alpha, Ap->data, res->data);    
 
+    rsq_new = blas::norm2(res->data);
+    if(verbose) printf("CG iter %d, rsq = %g\n", iter+1, rsq_new);
+
+    // Exit if new residual on the lightest vector is small enough
     bool converged = true;
     for (int i=0; i<n_shifts_remaining && active[i]; i++) {
       if(zeta[i] * sqrt(rsq_new) < gauge->p.eps*bnorm) {
@@ -102,10 +101,10 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
 	converged = false;
       }
     }
-
+    
     if(converged) {
       rsq = rsq_new;
-      break;
+      convergence = true;
     }
     
     // Update vec using new residual
@@ -133,19 +132,20 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
 
   if(verbose) {
     //Sanity
-    cout << "source norm = " << blas::norm(b[0]->data) << endl;
+    cout << "source norm = " << blas::norm(b->data) << endl;
     for(int i=0; i<n_shifts; i++) {
       cout << "sol norm = " << blas::norm(x[i]->data) << endl;    
-      DdagDpsi(temp, x[i], gauge);
-      blas::caxpy(pfe.pole[i], x[i]->data, temp->data);
+      OPERATOR(temp, x[i], gauge);
+      blas::caxpy(shifts[i], x[i]->data, temp->data);
       
-      blas::axpy(-1.0, temp->data, b[0]->data, res->data);
+      blas::axpy(-1.0, temp->data, b->data, res->data);
       double truersq = blas::norm2(res->data);
       printf("CG: Converged shift = %d, rsq = %.16e, truersq = %.16e\n", i, sqrt(rsq), sqrt(truersq)/(bsqrt));
     }
   }
   
-  //printf("CG: Converged iter = %d\n", success);  
+  //printf("CG: Converged iter = %d\n", success);
+  gauge->p.m = mass_light;
   return success;  
 }
 
@@ -160,7 +160,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
 
   // Sanity  
   if(bsqrt == 0 || bsqrt != bsqrt) {
-    cout << "Warning in inverterCG: inverting on zero source or (Nan!" << endl;
+    cout << "Warning in inverterCG: inverting on zero source or Nan!" << endl;
     //exit(0);
   }
 
@@ -173,7 +173,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
 
     // initial guess supplied: res = b - A*x0
     use_init_guess = true;
-    DdagDpsi(temp, x, gauge);    
+    OPERATOR(temp, x, gauge);    
     blas::axpy(-1.0, temp->data, b->data, res->data);
     
     // Update bnorm
@@ -196,7 +196,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
   
   if (deflate) {
     deflateResidual(temp, res, kSpace, evals);
-    DdagDpsi(res, temp, gauge);
+    OPERATOR(res, temp, gauge);
     blas::axpy(-1.0, res->data, b->data, res->data);
   }
   
@@ -207,7 +207,8 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
   
   // Iterate until convergence
   //---------------------------------------
-  for (iter = 0; iter < gauge->p.max_iter_cg; iter++) {
+  bool convergence = false;
+  for (iter = 0; iter < gauge->p.max_iter_cg && !convergence; iter++) {
     
     // Compute Ap.
     DdagDpsi(Ap, p, gauge);
@@ -224,7 +225,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
     //printf("CG iter %d, rsq = %g\n", iter+1, rsq_new);
     if (rsq_new < gauge->p.eps*bnorm) {
       rsq = rsq_new;
-      break;
+      convergence = true;
     }
     
     // Update vec using new residual
@@ -256,7 +257,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
     cout << "source norm = " << blas::norm(b->data) << endl;
     cout << "sol norm = " << blas::norm(x->data) << endl;
     
-    DdagDpsi(temp, x, gauge);
+    OPERATOR(temp, x, gauge);
     blas::axpy(-1.0, temp->data, b->data, res->data);
     double truersq = blas::norm2(res->data);
     printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", iter+1, rsq, truersq/(bsqrt*bsqrt));
@@ -295,7 +296,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
 
     // initial guess supplied: res = b - A*x0
     use_init_guess = true;
-    DdagDpsi(temp, x, gauge);
+    OPERATOR(temp, x, gauge);
     blas::axpy(-offset, x->data, temp->data);
     
     blas::axpy(-1.0, temp->data, b->data, res->data);
@@ -374,7 +375,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
     cout << "source norm = " << blas::norm(b->data) << endl;
     cout << "sol norm = " << blas::norm(x->data) << endl;
     
-    DdagDpsi(temp, x, gauge);
+    OPERATOR(temp, x, gauge);
     blas::axpy(-offset, x->data, temp->data);
     
     blas::axpy(-1.0, temp->data, b->data, res->data);
@@ -431,7 +432,7 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
   if (blas::norm2(x0->data) > 0.0) {    
     
     use_init_guess = true;
-    DdagDpsi(temp, x0, gauge);    
+    OPERATOR(temp, x0, gauge);    
     blas::axpy(-1.0, temp->data, res->data);
 
     // Update bnorm
@@ -454,7 +455,7 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
   for (k=0; k<gauge->p.max_iter_cg; k++) {
     
     // Compute Ap.
-    DdagDpsi(Ap, p, gauge);
+    OPERATOR(Ap, p, gauge);
     
     denom = (blas::cDotProd(p->data, Ap->data)).real();
     alpha = rsq/denom;
@@ -502,7 +503,7 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
     cout << "source norm = " << blas::norm(b->data) << endl;
     cout << "sol norm = " << blas::norm(x->data) << endl;
     
-    DdagDpsi(temp, x, gauge);
+    OPERATOR(temp, x, gauge);
     blas::axpy(-1.0, temp->data, b->data, res->data);
     double truersq = blas::norm2(res->data);
     printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", k+1, rsq, truersq/(bsqrt*bsqrt));

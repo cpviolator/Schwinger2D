@@ -43,6 +43,77 @@ void readGauge(field<Complex> *gauge, string name)
   return;
 }
 
+void writePFE(PFE &pfe, string name){
+
+  fstream outputFile;
+  outputFile.open(name,ios::in|ios::out|ios::trunc);  
+  outputFile.setf(ios_base::scientific); 
+
+  int degree = pfe.res.size();
+
+  // PFE
+  outputFile << setprecision(16) <<  setw(20) << pfe.norm << endl;
+  for(int i=0; i<degree; i++) {
+    outputFile << setprecision(16) <<  setw(20) << pfe.res[i] << endl;
+  }
+  for(int i=0; i<degree; i++) {
+    outputFile << setprecision(16) <<  setw(20) << pfe.pole[i] << endl;
+  }
+
+  // Inverse PFE
+  outputFile << setprecision(16) <<  setw(20) << pfe.inv_norm << endl;
+  for(int i=0; i<degree; i++) {
+    outputFile << setprecision(16) <<  setw(20) << pfe.inv_res[i] << endl;
+  }
+  for(int i=0; i<degree; i++) {
+    outputFile << setprecision(16) <<  setw(20) << pfe.inv_pole[i] << endl;
+  }
+    
+  outputFile.close();
+  return;  
+}
+
+bool readPFE(PFE &pfe, string name)
+{
+  fstream inputFile;
+  inputFile.open(name);
+  string val;
+  if(!inputFile.is_open()) {
+    cout << "No Remez PFE wisdom found for " << name << endl;
+    return false;
+  } else {
+    cout << "Remez PFE wisdom found for " << name << endl;
+    int degree = pfe.res.size();
+
+    // PFE
+    getline(inputFile, val);
+    pfe.norm = stod(val);
+    for(int i=0; i<degree; i++) {
+      getline(inputFile, val);
+      pfe.res[i] = stod(val);    
+    }
+    for(int i=0; i<degree; i++) {
+      getline(inputFile, val);
+      pfe.pole[i] = stod(val);    
+    }
+
+    // Inverse PFE
+    getline(inputFile, val);
+    pfe.inv_norm = stod(val);
+    for(int i=0; i<degree; i++) {
+      getline(inputFile, val);
+      pfe.inv_res[i] = stod(val);    
+    }
+    for(int i=0; i<degree; i++) {
+      getline(inputFile, val);
+      pfe.inv_pole[i] = stod(val);    
+    }
+    
+    inputFile.close();
+    return true;
+  }
+}
+
 #ifdef HAVE_HDF5
 #include "hdf5.h"
 void hdf5Example() {
