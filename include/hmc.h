@@ -3,7 +3,6 @@
 #include "schwinger2d_internal.h"
 #include "utils.h"
 #include "dirac_op.h"
-#include "iram.h"
 #include "measurements.h"
 
 class HMC {

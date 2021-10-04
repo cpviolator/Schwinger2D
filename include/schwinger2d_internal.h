@@ -11,11 +11,7 @@
 
 #include "alg_remez.h"
 
-#include <Eigen/Eigenvalues>
 using namespace std;
-using Eigen::MatrixXcd;
-using Eigen::MatrixXd;
-
 typedef complex<double> Complex;
 
 #define PI 3.141592653589793

@@ -1,6 +1,5 @@
 #include "hmc.h"
 #include "inverters.h"
-#include "iram.h"
 #include "io.h"
 
 //2D HMC Routines
