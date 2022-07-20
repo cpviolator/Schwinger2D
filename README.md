@@ -7,3 +7,7 @@ Make a build directory and enter it. Then invoke the CMake CL, configure the bui
 2. cmake /path/to/Schwinger2D/
 3. make -j
 ```
+
+# Running
+
+Inside the `wilson` 
