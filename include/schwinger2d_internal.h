@@ -62,6 +62,7 @@ typedef struct param {
   double amax = -1.0;
   double amin = -1.0;
   int poly_deg = 0;
+  int inspect_spectrum = false;
 
   //Eigensolver compression
   int block_scheme[2];

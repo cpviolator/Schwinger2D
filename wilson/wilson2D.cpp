@@ -45,17 +45,18 @@ int main(int argc, char **argv) {
   p.block_scheme[0] = atoi(argv[26]);
   p.block_scheme[1] = atoi(argv[27]);
   p.n_low = atoi(argv[28]);
-  p.n_deflate = atoi(argv[29]); 
+  p.n_deflate = atoi(argv[29]);
+  p.inspect_spectrum = (atoi(argv[30]) == 0 ? false : true);
   
   //Measurements
   //p.meas_pl = (atoi(argv[22]) == 0 ? false : true);
-  p.meas_wl = (atoi(argv[30]) == 0 ? false : true);
-  p.meas_pc = (atoi(argv[31]) == 0 ? false : true);
+  p.meas_wl = (atoi(argv[31]) == 0 ? false : true);
+  p.meas_pc = (atoi(argv[32]) == 0 ? false : true);
   //p.meas_vt = (atoi(argv[25]) == 0 ? false : true); 
   
   // Lattice size 
-  p.Nx = atoi(argv[32]);
-  p.Ny = atoi(argv[33]);
+  p.Nx = atoi(argv[33]);
+  p.Ny = atoi(argv[34]);
   
   if(p.loop_max > std::min(p.Nx/2, p.Ny/2)) {
     cout << "Warning: requested Wilson loop max " << p.loop_max << " greater than ";
@@ -310,38 +311,7 @@ int main(int argc, char **argv) {
 	
 	// Create inverter
 	inverterCG *inv = new inverterCG(gauge->p);
-
-	// Refined Krylov space
-	std::vector<field<Complex>*> kSpace_refine(n_conv);
-	for(int i=0; i<n_conv; i++) kSpace_refine[i] = new field<Complex>(gauge->p);
-	std::vector<Complex> evals_refine(n_conv);
 	
-	// Inverse iterate the eigenvectors
-	double mass = gauge->p.m;
-	double tol = gauge->p.eps;
-	gauge->p.eps = 1e-8;
-	for(int i=0; i<eig_param.n_conv; i++) {
-	  
-	  sol->copy(kSpace_recon[i]);
-	  src->copy(kSpace_recon[i]);
-	  for(int k=0; k<50; k++) {
-
-	    //int refine_iter = inv->solve(sol, src, gauge, evals[i].real());
-	    int refine_iter = inv->solve(sol, src, gauge, 0.0);
-	    cout << "Refined eigenvector " << i << " in " << refine_iter << " iterations." << endl;
-	    double norm = blas::norm(sol->data);
-	    blas::ax(1.0/norm, sol->data);
-	    src->copy(sol);
-	  }
-	  kSpace_refine[i]->copy(sol);
-	}
-	gauge->p.eps = tol;
-	
-	computeEvals(gauge, kSpace_refine, resid, evals_refine, n_conv);
-	for (int i = 0; i < n_conv; i++) {
-	  printf("EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals_refine[i].real(), evals_refine[i].imag(), abs(evals_refine[i]), resid[i]);
-	}
-
 	// Populate src with rands
 	gaussComplex(src);
 	
@@ -356,19 +326,17 @@ int main(int argc, char **argv) {
 	
 	cout << "Deflation efficacy: " << endl;
 	cout << "Undeflated CG iter = " << undef_iter << endl;
-	cout << "True Deflated CG iter   = " << true_def_iter << endl;
+	cout << "Deflated CG iter   = " << true_def_iter << endl;
 	cout << "Solution fidelity  = " << std::scientific << blas::norm2(check->data) << endl;
 
-	// Inversion with true deflation
+	// Inversion with compressed deflation
 	blas::zero(sol->data);
 	int recon_def_iter = inv->solve(sol, src, kSpace_recon, evals_recon, gauge);
 	DdagDpsi(check, sol, gauge);
 	blas::axpy(-1.0, src->data, check->data);
 	
-	cout << "Deflation efficacy: " << endl;
-	cout << "Undeflated CG iter = " << undef_iter << endl;
 	cout << "Recon Deflated CG iter = " << recon_def_iter << endl;
-	cout << "Solution fidelity  = " << std::scientific << blas::norm2(check->data) << endl;
+	cout << "Solution fidelity      = " << std::scientific << blas::norm2(check->data) << endl;
 #endif
       }
       //-------------------------------------------------------------      

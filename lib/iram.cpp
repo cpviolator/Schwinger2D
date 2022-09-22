@@ -1,7 +1,7 @@
 #include "iram.h"
 
+//#define OPERATOR Dpsi
 #define OPERATOR DdagDpsi
-//#define OPERATOR DdagDpsi
 
 void deflate(field<Complex> *guess, field<Complex> *phi,
 	     std::vector<field<Complex> *> kSpace, std::vector<Complex> &evals,
@@ -775,11 +775,18 @@ void iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
   
 }
 
+std::vector<field<Complex>*> kSpace_pre;
+
 void inspectrum(const field<Complex> *gauge, int iter) {
 
   eig_param_t eig_param;
   std::vector<field<Complex>*> kSpace;
   std::vector<Complex> evals;
+
+  if(kSpace_pre.size() == 0) {
+    // Allocate space to hold the previous kSpace
+    prepareKrylovSpace(kSpace_pre, evals, eig_param, gauge->p);  
+  }
   
   prepareKrylovSpace(kSpace, evals, eig_param, gauge->p);  
   iram(gauge, kSpace, evals, eig_param);
@@ -787,12 +794,12 @@ void inspectrum(const field<Complex> *gauge, int iter) {
   string name;
   char fname[256];
   FILE *fp;
-  
+
+  // Dump eigenvalue data
   name = "data/eig/eigenvalues_iter" + to_string(iter);
   constructName(name, gauge->p);
   name += ".dat";
-  sprintf(fname, "%s", name.c_str());	
-  
+  sprintf(fname, "%s", name.c_str());	  
   fp = fopen(fname, "a");
   for(int i=0; i<eig_param.n_conv; i++) {
     fprintf(fp, "%d %d %.16e %.16e\n",
@@ -804,6 +811,53 @@ void inspectrum(const field<Complex> *gauge, int iter) {
   fprintf(fp,"\n");
   fclose(fp);
 
+  // Measure the inner products
+  std::vector<Complex> inner_products(eig_param.n_conv * eig_param.n_conv);
+  for(int i=0; i<eig_param.n_conv; i++) {
+    for(int j=0; j<eig_param.n_conv; j++) inner_products[i + eig_param.n_conv * j] = blas::cDotProd(kSpace_pre[j]->data, kSpace[i]->data);
+  }
+
+  // Measure overlaps
+  std::vector<double> overlaps(eig_param.n_conv, 0.0);
+  for(int i=0; i<eig_param.n_conv; i++) 
+    for(int j=0; j<eig_param.n_conv; j++) overlaps[i] += (inner_products[i + eig_param.n_conv * j] * conj(inner_products[i + eig_param.n_conv * j])).real();
+  
+  // Dump inner product data
+  name = "data/eig/inner_products" + to_string(iter);
+  constructName(name, gauge->p);
+  name += ".dat";
+  sprintf(fname, "%s", name.c_str());	  
+  fp = fopen(fname, "a");
+  for(int i=0; i<eig_param.n_conv; i++) {
+    for(int j=0; j<eig_param.n_conv; j++) {
+      fprintf(fp, "%d %d %.16e %.16e\n",
+	      i,
+	      j,
+	      inner_products[i + eig_param.n_conv * j].real(),
+	      inner_products[i + eig_param.n_conv * j].imag());
+    }
+  }
+  fprintf(fp,"\n");
+  fclose(fp);
+
+  // Dump overlap data
+  name = "data/eig/overlap" + to_string(iter);
+  constructName(name, gauge->p);
+  name += ".dat";
+  sprintf(fname, "%s", name.c_str());	  
+  fp = fopen(fname, "a");
+  for(int i=0; i<eig_param.n_conv; i++) {
+    fprintf(fp, "%d %.16e\n",
+	    i,
+	    overlaps[i]);
+  }
+  fprintf(fp,"\n");
+  fclose(fp);
+  
+  // Copy the space
+  for(int i=0; i<eig_param.n_conv; i++) blas::copy(kSpace_pre[i]->data, kSpace[i]->data);
+  
+  // Clean up
   for(int i=0; i<kSpace.size(); i++) delete kSpace[i];
 }
 

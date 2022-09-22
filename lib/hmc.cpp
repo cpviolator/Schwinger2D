@@ -105,8 +105,7 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   
   double dtau = gauge->p.tau/gauge->p.n_step;
   double H = 0.0;
-  //bool inspectrum_bool = true;
-  bool inspectrum_bool = false;
+  bool inspectrum_bool = gauge->p.inspect_spectrum;
 
   double ave_iter = 0;
   
@@ -115,7 +114,7 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   //fermion force (D operator)
   field<double> *fD = new field<double>(gauge->p);
 
-  // Compute a the low spectrum
+  // Compute the low spectrum
   if(iter >= 2*gauge->p.therm && inspectrum_bool) inspectrum(gauge, iter);
 
   // Construct objects for an eigensolver
@@ -141,6 +140,9 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
     //U_{k} = exp(i dtau P_{k-1/2}) * U_{k-1}
     update_gauge(gauge, mom, dtau);
 
+    // Compute the low spectrum
+    if(iter >= 2*gauge->p.therm && inspectrum_bool) inspectrum(gauge, iter);
+    
     //P_{k+1/2} = P_{k-1/2} - dtau * (fU - fD)
     forceU(fU, gauge);
     ave_iter += forceD(fD, phi, gauge, kSpace, evals, iter);    
@@ -150,6 +152,9 @@ void leapfrogHMC::trajectory(field<double> *mom, field<Complex> *gauge, field<Co
   //Final half step.
   //U_{n} = exp(i dtau P_{n-1/2}) * U_{n-1}
   update_gauge(gauge, mom, dtau);
+
+  // Compute the low spectrum
+  if(iter >= 2*gauge->p.therm && inspectrum_bool) inspectrum(gauge, iter);
   
   //P_{n} = P_{n-1/2} - dtau/2 * (fU - fD)
   forceU(fU, gauge);
