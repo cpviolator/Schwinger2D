@@ -16,6 +16,7 @@ option(ENABLE_OPENMP "enable OpenMP" ON)
 if(ENABLE_OPENMP)
   find_package(OpenMP)
 endif()
+
 find_package(GMP REQUIRED)
 find_package(MPFR REQUIRED)
 
@@ -55,7 +56,7 @@ endif()
 ExternalProject_Add(
   ALG_REMEZ
   GIT_REPOSITORY https://github.com/maddyscientist/AlgRemez.git
-  GIT_TAG 92390db36b1a4b6d0e30adf72fdb48fa5ea32dc9
+  GIT_TAG ceee4425139bc507ed3ae34ced847c544a8e851f
   GIT_SHALLOW YES
   PREFIX ${CMAKE_CURRENT_BINARY_DIR}/externals/AlgRemez
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
