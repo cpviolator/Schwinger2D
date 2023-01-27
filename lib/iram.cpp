@@ -21,14 +21,15 @@ void IRAM::deflate(field<Complex> *guess, field<Complex> *phi,
   
   blas::zero(guess->data);
   Complex scalar;
-  //Deflate each converged eigenpair from the guess
+  
+  // Deflate each converged eigenpair from the guess  
   // guess_defl = (v * lambda^-1 * v^dag) * guess
   for(int i=0; i<n_deflate; i++) {
     
-    //Compute scalar part: s = (lambda)^-1 * (v^dag * phi)
+    // Compute scalar part: s = (lambda)^-1 * (v^dag * phi)
     scalar = blas::cDotProd(kSpace[i]->data, phi->data);
     scalar /= real(evals[i]);
-    //Accumulate in guess defl_guess: defl_guess = defl_guess + v * s
+    // Accumulate in guess defl_guess: defl_guess = defl_guess + v * s
     blas::caxpy(scalar, kSpace[i]->data, guess->data);
   }
 }
@@ -772,7 +773,6 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   } else {
     printf("IRAM computed the requested %d vectors with a %d search space and a %d Krylov space in %d restart_steps and %d OPs in %e secs.\n", n_conv, n_ev, n_kr, restart_iter, iter, (t_compute + t_sort + t_EV + t_QR));
 
-    //reorder(kSpace, evals, residua, n_conv, spectrum);    
     for (int i = 0; i < n_conv; i++) {
       printf("EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), residua[i]);
     }
@@ -784,10 +784,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   cout << "sort = " << t_sort << endl;
   cout << "EV = " << t_EV << endl;
   cout << "QR = " << t_QR << endl;
-  cout << "missing = " << (t_total) << " - " << (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen) << " = " << (t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen)) << " ("<<(100*((t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen))))/t_total<<"%)" << endl;
-
-  
-  
+  cout << "missing = " << (t_total) << " - " << (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen) << " = " << (t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen)) << " ("<<(100*((t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen))))/t_total<<"%)" << endl;  
 }
 
 void IRAM::inspectrum(const field<Complex> *gauge, int iter) {
@@ -812,7 +809,7 @@ void IRAM::inspectrum(const field<Complex> *gauge, int iter) {
   name = "data/eig/eigenvalues_iter" + to_string(iter);
   constructName(name, gauge->p);
   name += ".dat";
-  sprintf(fname, "%s", name.c_str());	  
+  snprintf(fname, 100, "%s", name.c_str());	  
   fp = fopen(fname, "a");
   for(int i=0; i<eig_param.n_conv; i++) {
     fprintf(fp, "%d %d %.16e %.16e\n",

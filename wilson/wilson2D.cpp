@@ -151,7 +151,7 @@ int main(int argc, char **argv) {
     name = "data/top/top_charge";
     constructName(name, p);
     name += ".dat";
-    sprintf(fname, "%s", name.c_str());
+    snprintf(fname, 100, "%s", name.c_str());
     fp = fopen(fname, "a");
     fprintf(fp, "%d %d\n", iter, top_int);
     fclose(fp);
@@ -172,7 +172,7 @@ int main(int argc, char **argv) {
     name = "data/data/data"; //I cannot make bricks without clay!
     constructName(name, p);
     name += ".dat";	
-    sprintf(fname, "%s", name.c_str());	
+    snprintf(fname, 100, "%s", name.c_str());	
     fp = fopen(fname, "a");	
     fprintf(fp, "%.06d %.16e %.16e %+.16e %+.16e %d %d\n",
 	    iter,
@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
     name = "data/top/top_hist";
     constructName(name, p);
     name += ".dat";
-    sprintf(fname, "%s", name.c_str());
+    snprintf(fname, 100, "%s", name.c_str());
     fp = fopen(fname, "w");
     for(int i=0; i<histL; i++) fprintf(fp, "%d %d\n", i - (histL-1)/2, histQ[i]);
     fclose(fp);    

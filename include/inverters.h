@@ -3,6 +3,7 @@
 #include "schwinger2d_internal.h"
 #include "utils.h"
 #include "dirac_op.h"
+#include "iram.h"
 #include "blas.h"
 
 //===============================================================
@@ -17,7 +18,6 @@
 
 // Wilson g5Dg5D matrix inverter
 //---------------------------------------------------------------
-
 class inverterCG {
 
 private:
@@ -34,6 +34,8 @@ private:
   int iter;
 
   Operator op = MdagM;
+
+  IRAM *eig;
   
 public:
 
