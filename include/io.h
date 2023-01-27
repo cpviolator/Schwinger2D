@@ -2,7 +2,9 @@
 
 #include "schwinger2d_internal.h"
 #include "blas.h"
+#ifdef ENABLE_HDF5
 #include "hdf5.h"
+#endif
 
 using namespace std;
 

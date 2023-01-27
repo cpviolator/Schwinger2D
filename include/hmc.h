@@ -9,7 +9,7 @@ class HMC {
   
 private:
 
-  // The inverter
+  /// The inverter
   inverterCG *inv;
 
   // Objects for fermion force and guess tracking

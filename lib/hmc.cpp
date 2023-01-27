@@ -8,7 +8,7 @@
 #define DEGREE 15
 
 HMC::HMC(param_t param) {
-  
+
   inv = new inverterCG(param);
   guess_stack.reserve(10);  
   for(int i=0; i<10; i++) guess_stack.push_back(new field<Complex>(param));
@@ -16,7 +16,7 @@ HMC::HMC(param_t param) {
   phip = new field<Complex>(param);
   g3Dphi = new field<Complex>(param);
 
-  if(param.flavours != 2) {
+  if(param.flavours == 3) {
     int n = DEGREE; // The degree of the numerator polynomial
     int d = DEGREE; // The degree of the denominator polynomial
     int y = 1;  // The numerator of the exponent
@@ -91,6 +91,9 @@ HMC::HMC(param_t param) {
       printf("alpha[%d] = %18.16e, beta[%d] = %18.16e\n", 
 	     i+1, force_pfe.res[i], i+1, force_pfe.pole[i]);
     }
+  } else if(!(param.flavours == 2 || param.flavours == 3)) {
+    cout << "Error: flavours must be 2 or 3: flavours passed = " << param.flavours << endl;
+    exit(0);
   }
 };
 
@@ -115,12 +118,12 @@ bool HMC::hmc_reversibility(field<Complex> *gauge, int iter) {
 
   if(gauge->p.dynamic) {    
     //Create gaussian distributed fermion field chi
-    if(gauge->p.flavours > 1) gaussComplex(chi[0]);
-    if(gauge->p.flavours != 2) gaussComplex(chi[1]);
+    gaussComplex(chi[0]);
+    if(gauge->p.flavours == 3) gaussComplex(chi[1]);
     
     //Create pseudo fermion field phi = g3Ddag chi
-    if(gauge->p.flavours > 1) g3Dpsi(phi[0], chi[0], gauge);
-    if(gauge->p.flavours != 2) {
+    g3Dpsi(phi[0], chi[0], gauge);
+    if(gauge->p.flavours == 3) {
       //Create a rational pseudo fermion field phi = (g3 D g3 D)^-1/4 chi
       std::vector<field<Complex>*> phi_arr;
       for(int i=0; i<DEGREE; i++) phi_arr.push_back(new field<Complex>(gauge->p));    
@@ -181,12 +184,12 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   
   if(gauge->p.dynamic) {    
     //Create gaussian distributed fermion field chi
-    if(gauge->p.flavours > 1) gaussComplex(chi[0]);
-    if(gauge->p.flavours != 2) gaussComplex(chi[1]);
+    gaussComplex(chi[0]);
+    if(gauge->p.flavours == 3) gaussComplex(chi[1]);
     
     //Create pseudo fermion field phi = g3Ddag chi
-    if(gauge->p.flavours > 1) g3Dpsi(phi[0], chi[0], gauge);
-    if(gauge->p.flavours != 2) {
+    g3Dpsi(phi[0], chi[0], gauge);
+    if(gauge->p.flavours == 3) {
       //Create a rational pseudo fermion field phi = (g3 D g3 D)^-1/4 chi
       std::vector<field<Complex>*> phi_arr;
       for(int i=0; i<DEGREE; i++) phi_arr.push_back(new field<Complex>(gauge->p));    
@@ -237,13 +240,13 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
       dH_ave += dH;
     }
   }
-  
-  return accept;
 
   delete mom;
   delete phi[0]; delete phi[1];
   delete chi[0]; delete chi[1];
   delete gauge_old;
+
+  return accept;
 }
 
 void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<field<Complex>*> &phi, int iter){
@@ -281,8 +284,8 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       //P_{k+1/2} = P_{k-1/2} - dtau * (fU - fD)
       forceU(fU, gauge);
       blas::zero(fD->data);
-      if(gauge->p.flavours > 1) ave_iter += forceD(fD, phi[0], gauge);
-      if(gauge->p.flavours != 2) {
+      ave_iter += forceD(fD, phi[0], gauge);
+      if(gauge->p.flavours == 3) {
 	ave_iter += forceMultiD(fD_rat, phi[1], gauge);
 	blas::axpy(1.0, fD_rat->data, fD->data);
       }
@@ -303,8 +306,8 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       
       if(k == 1) {
 	blas::zero(fD->data);
-	if(gauge->p.flavours > 1) ave_iter += forceD(fD, phi[0], gauge);
-	if(gauge->p.flavours != 2) {
+	ave_iter += forceD(fD, phi[0], gauge);
+	if(gauge->p.flavours == 3) {
 	  ave_iter += forceMultiD(fD_rat, phi[1], gauge);
 	  blas::axpy(1.0, fD_rat->data, fD->data);
 	}
@@ -317,16 +320,16 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       
       if(k == gauge->p.n_step) {
 	blas::zero(fD->data);
-	if(gauge->p.flavours > 1) ave_iter += forceD(fD, phi[0], gauge);
-	if(gauge->p.flavours != 2) {	 
+	ave_iter += forceD(fD, phi[0], gauge);
+	if(gauge->p.flavours == 3) {	 
 	  ave_iter += forceMultiD(fD_rat, phi[1], gauge);
 	  blas::axpy(1.0, fD_rat->data, fD->data);
 	}
 	update_mom(fD, mom, -lambda_dt);
       } else {
 	blas::zero(fD->data);
-	if(gauge->p.flavours > 1) ave_iter += forceD(fD, phi[0], gauge);
-	if(gauge->p.flavours != 2) {	 
+	ave_iter += forceD(fD, phi[0], gauge);
+	if(gauge->p.flavours == 3) {	 
 	  ave_iter += forceMultiD(fD_rat, phi[1], gauge);
 	  blas::axpy(1.0, fD_rat->data, fD->data);
 	}
@@ -359,8 +362,8 @@ void HMC::forceGradient(field<double> *mom, std::vector<field<Complex>*> phi, fi
 
   // Compute the forces
   blas::zero(fD->data);
-  if(gauge->p.flavours > 1) forceD(fD, phi[0], gauge);
-  if(gauge->p.flavours != 2) {	 
+  forceD(fD, phi[0], gauge);
+  if(gauge->p.flavours == 3) {	 
     forceMultiD(fD_rat, phi[1], gauge);
     blas::axpy(1.0, fD_rat->data, fD->data);
   }
@@ -374,8 +377,8 @@ void HMC::forceGradient(field<double> *mom, std::vector<field<Complex>*> phi, fi
 
   // Add our kick to the momentum
   blas::zero(fD->data);
-  if(gauge->p.flavours > 1) forceD(fD, phi[0], gauge);
-  if(gauge->p.flavours != 2) {	 
+  forceD(fD, phi[0], gauge);
+  if(gauge->p.flavours == 3) {	 
     forceMultiD(fD_rat, phi[1], gauge);
     blas::axpy(1.0, fD_rat->data, fD->data);
   }

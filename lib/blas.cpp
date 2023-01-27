@@ -49,11 +49,16 @@ namespace blas {
 
   // Inner product
   Complex cDotProd(const std::vector<Complex> &x, const std::vector<Complex> &y) {
-    Complex prod = 0.0;
+    double re_prod = 0.0;
+    double im_prod = 0.0;
     assertVectorLength(x,y,__func__);
-#pragma omp parallel for reduction(+:prod)
-    for(int i=0; i<(int)x.size(); i++) prod += conj(x[i]) * y[i];
-    return prod;
+#pragma omp parallel for reduction(+:re_prod, im_prod)
+    for(int i=0; i<(int)x.size(); i++) {
+      Complex prod = conj(x[i]) * y[i];
+      re_prod += prod.real();
+      im_prod += prod.imag();
+    }
+    return Complex(re_prod, im_prod);
   }
   
   // Norm squared

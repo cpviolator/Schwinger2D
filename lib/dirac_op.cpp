@@ -140,3 +140,14 @@ void DdagDpsi(field<Complex> *out, const field<Complex> *in, const field<Complex
   g3psi(out, temp);
   delete temp;
 }
+
+void DDdagpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge) {
+  
+  field<Complex> *temp = new field<Complex>(in->p);
+  g3psi(temp, in);
+  Dpsi(out, temp, gauge);
+  g3psi(temp, out);
+  Dpsi(out, temp, gauge);
+  delete temp;
+}
+

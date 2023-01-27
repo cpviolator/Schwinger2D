@@ -107,6 +107,7 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter)
 
 void measPionCorrelation(field<Complex> *gauge, int iter)
 {
+  /*
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
 
@@ -195,6 +196,7 @@ void measPionCorrelation(field<Complex> *gauge, int iter)
   delete propGuess;
   delete source;
   delete Dsource;  
+  */
 }
 
 double measGaugeAction(field<Complex> *gauge) {

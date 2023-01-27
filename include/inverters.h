@@ -33,9 +33,15 @@ private:
   bool use_init_guess = false;  
   int iter;
 
-public:
+  Operator op = MdagM;
   
+public:
+
+  // Class instance constructor  
   inverterCG(param_t param);
+
+  // Operator to solve
+  void OPERATOR(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge);
   
   // With no deflation space
   int solve(field<Complex> *x, field<Complex> *b, field<Complex> *gauge);
@@ -64,7 +70,7 @@ public:
   
 };
 
-int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Complex> *gauge); 
+//int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Complex> *gauge); 
 
 
 

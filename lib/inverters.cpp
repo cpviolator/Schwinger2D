@@ -1,16 +1,28 @@
 #include "inverters.h"
 
-#define OPERATOR DdagDpsi
+//#define OPERATOR DdagDpsi
 
 inverterCG::inverterCG(param_t param) {
   res = new field<Complex>(param);
   p = new field<Complex>(param);
   Ap = new field<Complex>(param);
   temp = new field<Complex>(param);
+  op = MdagM;
+}
+
+
+void inverterCG::OPERATOR(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge){
+  switch(op) {
+  case M: Dpsi(out, in, gauge); break;
+  case Mdag: Ddagpsi(out, in, gauge); break;
+  case MdagM: DdagDpsi(out, in, gauge); break;
+  case MMdag: DDdagpsi(out, in, gauge); break;
+  default: cout << "Undefined operator type requested:" << op << endl;
+    exit(0);
+  }
 }
 
 // Get size of shifts from x
-//
 int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
 			   field<Complex> *b,
 			   field<Complex> *gauge, std::vector<double> shifts) {
@@ -26,11 +38,11 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
   // Find norm of rhs.
   bnorm = blas::norm2(b->data);
   bsqrt = sqrt(bnorm);
-  //cout << "bsqrt = " << bsqrt << endl;
+  if(verbose) cout << "bsqrt = " << bsqrt << endl;
   // Sanity  
   if(bsqrt == 0 || bsqrt != bsqrt) {
     cout << "Warning in inverterCG: inverting on zero source or Nan." << endl;
-    //exit(0);
+    exit(0);
   }
   
   int n_shifts = x.size();
@@ -172,7 +184,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
 
     // initial guess supplied: res = b - A*x0
     use_init_guess = true;
-    OPERATOR(temp, x, gauge);    
+    OPERATOR(temp, x, gauge);
     blas::axpy(-1.0, temp->data, b->data, res->data);
     
     // Update bnorm
@@ -210,8 +222,8 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
   for (iter = 0; iter < gauge->p.max_iter_cg && !convergence; iter++) {
     
     // Compute Ap.
-    DdagDpsi(Ap, p, gauge);
-    
+    OPERATOR(Ap, p, gauge);
+ 
     denom = (blas::cDotProd(p->data, Ap->data)).real();
     alpha = rsq/denom;
     
@@ -297,7 +309,6 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
     use_init_guess = true;
     OPERATOR(temp, x, gauge);
     blas::axpy(-offset, x->data, temp->data);
-    
     blas::axpy(-1.0, temp->data, b->data, res->data);
     
     // Update bnorm
@@ -317,7 +328,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
     res->copy(b);
     blas::zero(temp->data);
   }
-  
+
   blas::zero(x->data);
   p->copy(res);  
   rsq = blas::norm2(res->data);
@@ -328,7 +339,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
   for (iter = 0; iter < gauge->p.max_iter_cg; iter++) {
     
     // Compute Ap.
-    DdagDpsi(Ap, p, gauge);
+    OPERATOR(Ap, p, gauge);
     blas::axpy(-offset, p->data, Ap->data);
     
     denom = (blas::cDotProd(p->data, Ap->data)).real();
@@ -375,8 +386,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
     cout << "sol norm = " << blas::norm(x->data) << endl;
     
     OPERATOR(temp, x, gauge);
-    blas::axpy(-offset, x->data, temp->data);
-    
+    blas::axpy(-offset, x->data, temp->data);    
     blas::axpy(-1.0, temp->data, b->data, res->data);
     double truersq = blas::norm2(res->data);
     printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", iter+1, rsq, truersq/(bsqrt*bsqrt));
@@ -401,6 +411,7 @@ void inverterCG::deflateResidual(field<Complex> *phi_defl, field<Complex> *phi,
   }
 }
 
+/*
 int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Complex> *gauge) {
   
   int success = 0;
@@ -515,3 +526,4 @@ int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Comp
   
   return success;  
 }
+*/

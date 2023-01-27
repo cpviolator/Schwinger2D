@@ -8,4 +8,4 @@ Make a build directory and enter it. Then invoke the CMake CL, configure the bui
 3. make -j
 ```
 
-There is a launcher script in the `wilson` directory. Ignore the eigensolver params.
+There is a launcher script in the `wilson` directory.

@@ -16,6 +16,7 @@ void Dpsi(field<Complex> *psi2, const field<Complex> *psi1, const field<Complex>
 void g3Dpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge);
 void Ddagpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge);
 void DdagDpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge);
+void DDdagpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge);
 
 void g3psi(field<Complex> *out, const field<Complex> *in);
 void g2psi(field<Complex> *out, const field<Complex> *in);

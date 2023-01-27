@@ -1,5 +1,6 @@
 #pragma once
 
+//C++ standard
 #include <vector>
 #include <iostream>
 #include <fstream>
@@ -9,9 +10,14 @@
 #include <complex>
 #include <sys/time.h>
 
+//Externals
 #include "alg_remez.h"
-
+#include <Eigen/Eigenvalues>
 using namespace std;
+using Eigen::MatrixXcd;
+using Eigen::MatrixXd;
+
+//Convenient typedef for complex double
 typedef complex<double> Complex;
 
 #define PI 3.141592653589793
@@ -19,7 +25,8 @@ typedef complex<double> Complex;
 #define I Complex(0,1.0)
 #define cUnit Complex(1.0,0)
 
-enum Integrator { LEAPFROG, FGI};
+enum Integrator { LEAPFROG = 0, FGI = 1};
+enum Operator { M = 0, Mdag = 1, MMdag = 2, MdagM = 3};
   
 using namespace std;
 
@@ -93,7 +100,8 @@ typedef struct eig_param {
   double tol = 0.0;
   int spectrum = 0;
   bool verbose = false;
-
+  Operator op = M;
+  
   int block_size = 0;
   
 } eig_param_t;
