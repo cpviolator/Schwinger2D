@@ -160,6 +160,38 @@ int main(int argc, char **argv) {
     histQ[index]++;
     if(top_old == top_int) top_stuck++;
     top_old = top_int;      
+
+    //Plaquette action
+    double plaq = measPlaq(gauge).real();
+    plaqSum += plaq;
+
+    gettimeofday(&total_end, NULL);
+    t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
+    
+    //Dump simulation data to file
+    name = "data/data/data"; //I cannot make bricks without clay!
+    constructName(name, p);
+    name += ".dat";	
+    sprintf(fname, "%s", name.c_str());	
+    fp = fopen(fname, "a");	
+    fprintf(fp, "%.06d %.16e %.16e %+.16e %+.16e %d %d\n",
+	    iter,
+	    t_total,
+	    plaq,
+	    HMCStep->exp_dH,
+	    HMCStep->dH,
+	    accept,
+	    top_int);
+    fclose(fp);
+      
+    //Update topoligical charge histogram
+    name = "data/top/top_hist";
+    constructName(name, p);
+    name += ".dat";
+    sprintf(fname, "%s", name.c_str());
+    fp = fopen(fname, "w");
+    for(int i=0; i<histL; i++) fprintf(fp, "%d %d\n", i - (histL-1)/2, histQ[i]);
+    fclose(fp);    
     
     //Perform Measurements
     //---------------------------------------------------------------------
@@ -167,13 +199,8 @@ int main(int argc, char **argv) {
       
       count++; //Number of measurements taken
       
-      //Plaquette action
-      double plaq = measPlaq(gauge).real();
-      plaqSum += plaq;
-
       //Dump simulation data to stdout
       gettimeofday(&total_end, NULL);  
-      t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
       cout << fixed << setprecision(16) << iter << " ";   // Iteration
       cout << t_total << " ";                             // Time
       cout << plaq << " ";                                // Action
@@ -185,31 +212,6 @@ int main(int argc, char **argv) {
       cout << (double)accepted/(count*p.skip) << " ";     // Average Acceptance
       cout << top_int << endl;                            // T charge
       
-      //Dump simulation data to file
-      name = "data/data/data"; //I cannot make bricks without clay!
-      constructName(name, p);
-      name += ".dat";	
-      sprintf(fname, "%s", name.c_str());	
-      fp = fopen(fname, "a");	
-      fprintf(fp, "%.06d %.16e %.16e %+.16e %+.16e %d %d\n",
-	      iter,
-	      t_total,
-	      plaq,
-	      HMCStep->exp_dH,
-	      HMCStep->dH,
-	      accept,
-	      top_int);
-      fclose(fp);
-      
-      //Update topoligical charge histogram
-      name = "data/top/top_hist";
-      constructName(name, p);
-      name += ".dat";
-      sprintf(fname, "%s", name.c_str());
-      fp = fopen(fname, "w");
-      for(int i=0; i<histL; i++) fprintf(fp, "%d %d\n", i - (histL-1)/2, histQ[i]);
-      fclose(fp);
-
       //Physical observables
       //-------------------------------------------------------------      
       //Polyakov Loops      
