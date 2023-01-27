@@ -1,12 +1,12 @@
 #!/bin/bash
 
-export OMP_NUM_THREADS=4
+export OMP_NUM_THREADS=1
 
 mkdir -p {gauge,data/{data,plaq,creutz,polyakov,rect,top,pion,vacuum,eig}}
 
 # Lattice dims
-LX=16
-LY=16
+LX=8
+LY=8
 
 # The value of the coupling in the U(1) 2D theory
 BETA=3.0
@@ -14,7 +14,7 @@ BETA=3.0
 # The total number of thermalised HMC iterations to perform.
 HMC_ITER=1000
 # The number of HMC iterations for thermalisation (accept + accept/reject).
-HMC_THERM=50
+HMC_THERM=10
 # The number of HMC iterations to skip bewteen measurements.
 HMC_SKIP=5
 # Dump the gauge field every HMC_CHKPT iterations after thermalisation.
@@ -25,9 +25,9 @@ HMC_REVERSE=100
 HMC_CHKPT_START=0
 
 # HMC time steps in the integration 
-HMC_NSTEP=4
+HMC_NSTEP=3
 # HMC inner time steps in the integration 
-HMC_INNER_NSTEP=2
+HMC_INNER_NSTEP=1
 # Degree of polynomial for AlgRemez
 HMC_AR_DEGREE=12
 # Precision for AlgRemez (GMP)
@@ -36,6 +36,8 @@ HMC_AR_GMP_PREC=40
 # HMC trajectory time
 HMC_TAU=1.0
 # Integrator type: leapfrog = 0, fgi = 1
+# FYI, aim for 70% acceptance with Leapfrog
+# and 90% with FGI for optimal FLOP usage
 INTEGRATOR=1
 
 # Number of APE smearing hits to perform when measuring topology
@@ -50,10 +52,12 @@ RNG_SEED=1234
 DYN_QUENCH=1
 
 # Dynamic fermion parameters
-# Fermion mass
+FLAVOURS=2
+# Light Fermions (degenerate) mass
 MASS=0.1
+# Heavy Fermion mass
 MASS_HEAVY=0.6
-FLAVOURS=3
+
 
 # Maximum CG iterations
 MAX_CG_ITER=10000
@@ -61,10 +65,11 @@ MAX_CG_ITER=10000
 CG_EPS=1e-18
 
 # Eigensolver parameters
+INSPECT_SPECTRUM=0
 DEFLATE=0
-NKR=128
-NEV=96
-NCONV=96
+NKR=56
+NEV=24
+NCONV=24
 
 # Tolerance on the residual
 EIG_TOL=1e-10
@@ -97,7 +102,7 @@ command="./wilson2D $BETA $HMC_ITER $HMC_THERM $HMC_SKIP $HMC_CHKPT
 	 $DYN_QUENCH $MASS $MAX_CG_ITER $CG_EPS $DEFLATE $NKR $NEV $NCONV 
 	 $EIG_TOL $MAXITER $USE_ACC $AMAX $AMIN $N_POLY $X_BLK $Y_BLK $N_LOW $NDEFL 
 	 $MEAS_PC $MEAS_WL $LX $LY $HMC_INNER_NSTEP $MASS_HEAVY $INTEGRATOR $FLAVOURS
-	 $HMC_REVERSE $HMC_AR_DEGREE $HMC_AR_GMP_PREC"
+	 $HMC_REVERSE $HMC_AR_DEGREE $HMC_AR_GMP_PREC $INSPECT_SPECTRUM"
 
 echo $command
 
