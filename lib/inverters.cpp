@@ -292,8 +292,8 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
 
   // Sanity  
   if(bsqrt == 0 || bsqrt != bsqrt) {
-    cout << "Warning in inverterCG: inverting on zero source or (Nan!" << endl;
-    //exit(0);
+    cout << "Warning in inverterCG: inverting on zero source or Nan!" << endl;
+    exit(0);
   }
 
   blas::zero(temp->data);
@@ -316,11 +316,11 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
     // temp contains original guess
     temp->copy(x);
     
-    //if(verbose) {
-    //cout << "using initial guess, |x0| = " << blas::norm(temp->data)
-    //<< ", |b| = " << bsqrt
-    //<< ", |res| = " << blas::norm(res->data) << endl;
-    //}
+    if(verbose) {
+      cout << "using initial guess, |x0| = " << blas::norm(temp->data)
+	   << ", |b| = " << bsqrt
+	   << ", |res| = " << blas::norm(res->data) << endl;
+    }
   } else {
     // no initial guess. Initial residual is the source.    
     res->copy(b);

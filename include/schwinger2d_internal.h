@@ -11,7 +11,10 @@
 #include <sys/time.h>
 
 //Externals
+#ifdef ENABLE_ALG_REMEZ
 #include "alg_remez.h"
+#endif
+
 #include <Eigen/Eigenvalues>
 using namespace std;
 using Eigen::MatrixXcd;

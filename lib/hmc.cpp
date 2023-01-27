@@ -4,7 +4,6 @@
 
 //2D HMC Routines
 //---------------------------------------------------------------------
-
 HMC::HMC(param_t param) {
 
   inv = new inverterCG(param);
@@ -15,6 +14,7 @@ HMC::HMC(param_t param) {
   g3Dphi = new field<Complex>(param);
 
   if(param.flavours == 3) {
+#ifdef ENABLE_ALG_REMEZ
     int n = param.degree; // The degree of the numerator polynomial
     int d = param.degree; // The degree of the denominator polynomial
     int y = 1;  // The numerator of the exponent
@@ -89,9 +89,13 @@ HMC::HMC(param_t param) {
       printf("alpha[%d] = %18.16e, beta[%d] = %18.16e\n", 
 	     i+1, force_pfe.res[i], i+1, force_pfe.pole[i]);
     }
+#else
+    cout << "Error: AlgRemez not installed. Please recompile with ENABLE_ALG_REMEZ = ON: flavours passed = " << param.flavours << endl;
+    exit(0);
+#endif
   } else if(!(param.flavours == 2 || param.flavours == 3)) {
     cout << "Error: flavours must be 2 or 3: flavours passed = " << param.flavours << endl;
-    exit(0);
+    exit(0);    
   }
 };
 
@@ -704,8 +708,10 @@ int HMC::forceMultiD(field<double> *fD, field<Complex> *phi, field<Complex> *gau
 //----------------------------------------------------------------------------------
 
 HMC::~HMC() {
-  
+
+#ifdef ENABLE_ALG_REMEZ
   delete remez;
+#endif
   delete inv;
   for(int i=0; i<10; i++) delete guess_stack[i];
   delete phip;

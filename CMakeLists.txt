@@ -84,21 +84,24 @@ if(ENABLE_HDF5)
   endif()
 endif()
 
-ExternalProject_Add(
-  ALG_REMEZ
-  GIT_REPOSITORY https://github.com/maddyscientist/AlgRemez.git
-  GIT_TAG ceee4425139bc507ed3ae34ced847c544a8e851f
-  GIT_SHALLOW YES
-  PREFIX ${CMAKE_CURRENT_BINARY_DIR}/externals/AlgRemez
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-  CMAKE_GENERATOR "Unix Makefiles")
-
-add_library(algremez STATIC IMPORTED)
-add_dependencies(algremez ALG_REMEZ)
-set_target_properties(algremez PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/externals/AlgRemez/lib/libalgremez.a)
-
-ExternalProject_Get_Property(ALG_REMEZ source_dir)
-set(ALG_REMEZ_INCLUDE_DIRS ${source_dir}/include)
+option(ENABLE_ALG_REMEZ "enable AlgRemez" OFF)
+if(ENABLE_ALG_REMEZ)
+  ExternalProject_Add(
+    ALG_REMEZ
+    GIT_REPOSITORY https://github.com/maddyscientist/AlgRemez.git
+    GIT_TAG ceee4425139bc507ed3ae34ced847c544a8e851f
+    GIT_SHALLOW YES
+    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/externals/AlgRemez
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+    CMAKE_GENERATOR "Unix Makefiles")
+  
+  add_library(algremez STATIC IMPORTED)
+  add_dependencies(algremez ALG_REMEZ)
+  set_target_properties(algremez PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/externals/AlgRemez/lib/libalgremez.a)
+  
+  ExternalProject_Get_Property(ALG_REMEZ source_dir)
+  set(ALG_REMEZ_INCLUDE_DIRS ${source_dir}/include)
+endif()
 
 add_subdirectory(lib)
 add_subdirectory(wilson)
