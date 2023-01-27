@@ -1,7 +1,9 @@
 #include "schwinger2d_internal.h"
 #include "utils.h"
 #include "hmc.h"
+#include "iram.h"
 #include "io.h"
+
 
 int main(int argc, char **argv) {
 
@@ -64,6 +66,7 @@ int main(int argc, char **argv) {
   p.reverse = atoi(argv[38]);
   p.degree = atoi(argv[39]);
   p.pfe_prec = atoi(argv[40]);
+  p.inspect_spectrum = (atoi(argv[41]) == 0 ? false : true);
   
   if(p.loop_max > std::min(p.Nx/2, p.Ny/2)) {
     cout << "Warning: requested Wilson loop max " << p.loop_max << " greater than ";
@@ -222,6 +225,117 @@ int main(int argc, char **argv) {
       //if(p.meas_vt) measVacuumTrace(gauge, top_old, iter, p);
       //-------------------------------------------------------------
 
+      //Test compressed deflation routines
+      //-------------------------------------------------------------
+      if(gauge->p.deflate) {
+	// Construct objects for an eigensolver
+	//-------------------------------------	
+	eig_param_t eig_param;
+	eig_param.op = MdagM;
+	std::vector<field<Complex>*> kSpace;
+	std::vector<Complex> evals;
+	IRAM *eig = new IRAM(eig_param);
+	
+	eig->prepareKrylovSpace(kSpace, evals, eig_param, gauge->p);
+	
+	// Compute a deflation space using IRAM
+	eig->iram(gauge, kSpace, evals, eig_param);
+		
+	// Test the block compression
+	//---------------------------
+	int Nx = gauge->p.Nx;
+	int Ny = gauge->p.Ny;
+	int Ns = 2;
+	int blk_scheme[2] = {gauge->p.block_scheme[0], gauge->p.block_scheme[1]};
+	int x_block_size = Nx/blk_scheme[0];
+	int y_block_size = Ny/blk_scheme[1];
+	int n_blocks = blk_scheme[0]*blk_scheme[1];
+	int blk_size = Ns * x_block_size * y_block_size; // Complex elems per block
+	int n_low = gauge->p.n_low;
+	int n_conv = eig_param.n_conv;
+	int n_deflate = eig_param.n_deflate;
+	
+	// Object to hold the block orthonormal low mode space
+	std::vector<std::vector<Complex>> block_data_ortho(n_blocks, std::vector<Complex> (n_low * blk_size, 0.0));
+	// Object to hold the projection coeffiecients of the high modes on the ow space
+	std::vector<std::vector<Complex>> block_coef(n_blocks, std::vector<Complex> (n_low * n_conv, 0.0));
+
+	gettimeofday(&start, NULL);
+
+	// Krylov space
+	std::vector<field<Complex>*> kSpace_recon(n_conv);
+	for(int i=0; i<n_conv; i++) kSpace_recon[i] = new field<Complex>(gauge->p);
+	// eigenvalues
+	std::vector<Complex> evals_recon(n_conv);
+	// Compress kSpace into block_data_ortho and block_coeffs...
+	blockCompress(kSpace, block_data_ortho, block_coef, blk_scheme, n_low, n_conv);
+	// ...then expand to into kSpace_recon test the quality
+	blockExpand(kSpace_recon, block_data_ortho, block_coef, blk_scheme, n_low, n_conv);
+	gettimeofday(&end, NULL);  
+	
+	// Compute the eigenvalues and residua using the reconstructed kSpace
+	std::vector<double> resid(n_conv, 0.0);
+	eig->computeEvals(gauge, kSpace_recon, resid, evals_recon, n_conv);
+	
+	cout << "Compare eigenvalues and residua: " << endl;	
+	for(int i=0; i<eig_param.n_conv; i++) printf("%d: %e - %e = %e resid %e \n", i, evals[i].real(), evals_recon[i].real(), abs(evals[i].real() - evals_recon[i].real())/evals[i].real(), resid[i]);
+	double delta_eval = 0.0;
+	double delta_resid = 0.0;  
+	for(int i=0; i<n_conv; i++) {
+	  delta_eval += abs(evals[i].real() - evals_recon[i].real())/evals[i].real();
+	  delta_resid += resid[i];
+	}
+	printf("<delta eval> = %e\n", delta_eval/n_conv);
+	printf("<delta resid> = %e\n", delta_resid/n_conv);
+	cout << endl;
+	
+	// Check compression ratio
+	int pre = n_conv * 2 * Nx * Ny;
+	int post= n_blocks * n_low * (blk_size + n_conv);
+	cout << "Algorithmic compression: " << endl;
+	cout << "Complex(double) elems pre = " << pre << " Complex(double) elems post = " << post << endl;
+	cout << "Ratio: " << (100.0 * post)/pre << "% of original data " << endl;
+	//cout << "Ratio2: " << 100*((1.0 * n_low)/n_conv + (1.0*n_low*n_blocks)/(Ns*Nx*Ny))<< "% of original data " << endl;
+	cout << n_low << " low eigenvectors used " << endl;
+	cout << (n_conv - n_low) << " high eigenvectors reconstructed " << endl;
+	cout << "Compress/decompress time = " << ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6 << endl;
+	
+	// Test deflation with true and reconstructed space
+	//-------------------------------------------------
+	field<Complex> *src = new field<Complex>(gauge->p);
+	field<Complex> *sol = new field<Complex>(gauge->p);
+	field<Complex> *check = new field<Complex>(gauge->p);
+	field<Complex> *evec_refine = new field<Complex>(gauge->p);
+	
+	// Create inverter
+	inverterCG *inv = new inverterCG(gauge->p);
+	
+	// Populate src with rands
+	gaussComplex(src);
+	
+	// Inversion with no deflation
+	int undef_iter = inv->solve(sol, src, gauge);
+	
+	// Inversion with true deflation
+	blas::zero(sol->data);
+	int true_def_iter = inv->solve(sol, src, kSpace, evals, gauge);
+	DdagDpsi(check, sol, gauge);
+	blas::axpy(-1.0, src->data, check->data);
+	
+	cout << "Deflation efficacy: " << endl;
+	cout << "Undeflated CG iter = " << undef_iter << endl;
+	cout << "Deflated CG iter   = " << true_def_iter << endl;
+	cout << "Solution fidelity  = " << std::scientific << blas::norm2(check->data) << endl;
+
+	// Inversion with compressed deflation
+	blas::zero(sol->data);
+	int recon_def_iter = inv->solve(sol, src, kSpace_recon, evals_recon, gauge);
+	DdagDpsi(check, sol, gauge);
+	blas::axpy(-1.0, src->data, check->data);
+	
+	cout << "Recon Deflated CG iter = " << recon_def_iter << endl;
+	cout << "Solution fidelity      = " << std::scientific << blas::norm2(check->data) << endl;
+      }      
     }
     
     //Perform HMC step
@@ -231,7 +345,7 @@ int main(int argc, char **argv) {
     gettimeofday(&end, NULL);  
     t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
 
-      // Do a reversibility check
+    // Do a reversibility check
     if((iter+1)%p.reverse == 0) {	  
       
       field<Complex> *gauge_old = new field<Complex>(p);

@@ -6,11 +6,11 @@ IRAM::IRAM(eig_param_t param) {
 
 void IRAM::OPERATOR(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge){
   switch(op) {
-  case M: Dpsi(out, in, gauge);
-  case Mdag: Ddagpsi(out, in, gauge);
-  case MdagM: DdagDpsi(out, in, gauge);
-  case MMdag: DdagDpsi(out, in, gauge);
-  default: cout << "Undefined operator type requested" << endl;
+  case M: Dpsi(out, in, gauge); break;
+  case Mdag: Ddagpsi(out, in, gauge); break;
+  case MdagM: DdagDpsi(out, in, gauge); break;
+  case MMdag: DdagDpsi(out, in, gauge); break;
+  default: cout << "Undefined operator type requested: " << op << endl;
     exit(0);
   }
 }
@@ -33,38 +33,38 @@ void IRAM::deflate(field<Complex> *guess, field<Complex> *phi,
   }
 }
 
-void IRAM::zsortc(int which, int n, std::vector<Complex> &x, std::vector<Complex> &y) {
+void IRAM::zsortc(Spectrum which, int n, std::vector<Complex> &x, std::vector<Complex> &y) {
   
   std::vector<std::pair<Complex, Complex>> array(n);
   for(int i=0; i<n; i++) array[i] = std::make_pair(x[i], y[i]);
   
   switch(which) {
-  case 0: std::sort(array.begin(), array.begin()+n,
+  case LM: std::sort(array.begin(), array.begin()+n,
 		    [] (const pair<Complex,Complex> &a,
 			const pair<Complex,Complex> &b) {
 		      return (abs(a.first) < abs(b.first)); } );
     break;
-  case 1: std::sort(array.begin(), array.begin()+n,
+  case SM: std::sort(array.begin(), array.begin()+n,
 		    [] (const pair<Complex,Complex> &a,
 			const pair<Complex,Complex> &b) {
 		      return (abs(a.first) > abs(b.first)); } );
     break;
-  case 2: std::sort(array.begin(), array.begin()+n,
+  case LR: std::sort(array.begin(), array.begin()+n,
 		    [] (const pair<Complex,Complex> &a,
 			const pair<Complex,Complex> &b) {
 		      return (a.first).real() < (b.first).real(); } );
     break;
-  case 3: std::sort(array.begin(), array.begin()+n,
+  case SR: std::sort(array.begin(), array.begin()+n,
 		    [] (const pair<Complex,Complex> &a,
 			const pair<Complex,Complex> &b) {
 		      return (a.first).real() > (b.first).real(); } );
     break;
-  case 4: std::sort(array.begin(), array.begin()+n,
+  case LI: std::sort(array.begin(), array.begin()+n,
 		    [] (const pair<Complex,Complex> &a,
 			const pair<Complex,Complex> &b) {
 		      return (a.first).imag() < (b.first).imag(); } );
     break;
-  case 5: std::sort(array.begin(), array.begin()+n,
+  case SI: std::sort(array.begin(), array.begin()+n,
 		    [] (const pair<Complex,Complex> &a,
 			const pair<Complex,Complex> &b) {
 		      return (a.first).imag() > (b.first).imag(); } );
@@ -80,7 +80,7 @@ void IRAM::zsortc(int which, int n, std::vector<Complex> &x, std::vector<Complex
 }
 
 // Overloaded version of zsortc to deal with real y array.
-void IRAM::zsortc(int which, int n, std::vector<Complex> &x, std::vector<double> &y) {
+void IRAM::zsortc(Spectrum which, int n, std::vector<Complex> &x, std::vector<double> &y) {
 
   std::vector<Complex> y_tmp(n,0.0);
   for(int i=0; i<n; i++) y_tmp[i].real(y[i]);
@@ -89,7 +89,7 @@ void IRAM::zsortc(int which, int n, std::vector<Complex> &x, std::vector<double>
 }
 
 // Overloaded version of zsortc to deal with real x array.
-void IRAM::zsortc(int which, int n, std::vector<double> &x, std::vector<Complex> &y) {
+void IRAM::zsortc(Spectrum which, int n, std::vector<double> &x, std::vector<Complex> &y) {
 
   std::vector<Complex> x_tmp(n,0.0);
   for(int i=0; i<n; i++) x_tmp[i].real(x[i]);
@@ -98,7 +98,7 @@ void IRAM::zsortc(int which, int n, std::vector<double> &x, std::vector<Complex>
 }
 
 // Overloaded version of zsortc to deal with real x and y array.
-void IRAM::zsortc(int which, int n, std::vector<double> &x, std::vector<double> &y) {
+void IRAM::zsortc(Spectrum which, int n, std::vector<double> &x, std::vector<double> &y) {
 
   std::vector<Complex> x_tmp(n,0.0);
   std::vector<Complex> y_tmp(n,0.0);
@@ -242,44 +242,44 @@ void IRAM::arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *
   }
 }
 
-void IRAM::reorder(std::vector<field<Complex> *> kSpace, std::vector<Complex> evals, std::vector<double> residua, int n_kr, int spectrum) {
+void IRAM::reorder(std::vector<field<Complex> *> kSpace, std::vector<Complex> evals, std::vector<double> residua, int n_kr, Spectrum spectrum) {
 
   int n = n_kr;
   std::vector<std::tuple<Complex, double, field<Complex>* >> array(n);
   for(int i=0; i<n; i++) array[i] = std::make_tuple(evals[i], residua[i], kSpace[i]);
   
   switch(spectrum) {
-  case 0:
+  case LM:
     std::sort(array.begin(), array.begin() + n,
 	      [] (const std::tuple<Complex, double, field<Complex>*> &a,
 		  const std::tuple<Complex, double, field<Complex>*> &b) {
 		return (abs(std::get<0>(a)) > abs(std::get<0>(b))); } );
     break;
-  case 1:
+  case SM:
     std::sort(array.begin(), array.begin() + n,
 	      [] (const std::tuple<Complex, double, field<Complex>*> &a,
 		  const std::tuple<Complex, double, field<Complex>*> &b) {
 		return (abs(std::get<0>(a)) < abs(std::get<0>(b))); } );
     break;
-  case 2:
+  case LR:
     std::sort(array.begin(), array.begin() + n,
 	      [] (const std::tuple<Complex, double, field<Complex>*> &a,
 		  const std::tuple<Complex, double, field<Complex>*> &b) {
 		return (std::get<0>(a).real() > std::get<0>(b).real()); } );
     break;
-  case 3:
+  case SR:
     std::sort(array.begin(), array.begin() + n,
 	      [] (const std::tuple<Complex, double, field<Complex>*> &a,
 		  const std::tuple<Complex, double, field<Complex>*> &b) {
 		return (std::get<0>(a).real() < std::get<0>(b).real()); } );
     break;
-  case 4:
+  case LI:
     std::sort(array.begin(), array.begin() + n,
 	      [] (const std::tuple<Complex, double, field<Complex>*> &a,
 		  const std::tuple<Complex, double, field<Complex>*> &b) {
 		return (std::get<0>(a).imag() > std::get<0>(b).imag()); } );
     break;
-  case 5:
+  case SI:
     std::sort(array.begin(), array.begin() + n,
 	      [] (const std::tuple<Complex, double, field<Complex>*> &a,
 		  const std::tuple<Complex, double, field<Complex>*> &b) {
@@ -532,7 +532,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   int n_conv = param.n_conv;
   int max_restarts = param.max_restarts;
   double tol = param.tol;
-  int spectrum = param.spectrum;
+  Spectrum spectrum = param.spectrum;
   bool verbose = param.verbose;
   Operator op = param.op;
   
@@ -598,7 +598,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   }
 
   //Place initial source in range of mat
-  OPERATOR(r, kSpace[0], gauge);
+  OPERATOR(kSpace[0], r, gauge);
   r->copy(kSpace[0]);
   
   // START IRAM
@@ -631,7 +631,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
     // Sort to put unwanted Ritz(evals) first
     zsortc(spectrum, n_kr, evals, residua);    
     // Sort to put smallest Ritz errors(residua) first
-    zsortc(0, nshifts, residua, evals);
+    zsortc(LM, nshifts, residua, evals);
     
     // Convergence test
     iter_converged = 0;
@@ -713,7 +713,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
 	// Sort to put unwanted Ritz(evals) first
 	zsortc(spectrum, n_kr, evals, residua);
 	// Sort to put smallest Ritz errors(residua) first
-	zsortc(0, nshifts, residua, evals);
+	zsortc(LM, nshifts, residua, evals);
 	gettimeofday(&end, NULL);  
 	t_sort += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
       }
@@ -772,6 +772,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   } else {
     printf("IRAM computed the requested %d vectors with a %d search space and a %d Krylov space in %d restart_steps and %d OPs in %e secs.\n", n_conv, n_ev, n_kr, restart_iter, iter, (t_compute + t_sort + t_EV + t_QR));
 
+    //reorder(kSpace, evals, residua, n_conv, spectrum);    
     for (int i = 0; i < n_conv; i++) {
       printf("EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), residua[i]);
     }
@@ -786,9 +787,8 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   cout << "missing = " << (t_total) << " - " << (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen) << " = " << (t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen)) << " ("<<(100*((t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen))))/t_total<<"%)" << endl;
 
   
+  
 }
-
-std::vector<field<Complex>*> kSpace_pre;
 
 void IRAM::inspectrum(const field<Complex> *gauge, int iter) {
 
@@ -884,8 +884,8 @@ void IRAM::prepareKrylovSpace(std::vector<field<Complex>*> &kSpace,
   eig_param.n_conv = p.n_conv;
   eig_param.n_deflate = p.n_deflate;
   eig_param.max_restarts = p.eig_max_restarts;
-  eig_param.tol = p.eig_tol;;
-  eig_param.spectrum = 1;
+  eig_param.tol = p.eig_tol;
+  eig_param.spectrum = SM;
   eig_param.verbose = false;
     
   // Krylov space and eigenvalues

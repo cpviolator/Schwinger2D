@@ -30,7 +30,9 @@ typedef complex<double> Complex;
 
 enum Integrator { LEAPFROG = 0, FGI = 1};
 enum Operator { M = 0, Mdag = 1, MMdag = 2, MdagM = 3};
-  
+// (L)argest (S)mallest (R)eal (I)maginary
+enum Spectrum { LM = 0, SM = 1, LR = 2, SR = 3, LI = 4, SI = 6};
+
 using namespace std;
 
 typedef struct param {
@@ -79,7 +81,8 @@ typedef struct param {
   double amax = -1.0;
   double amin = -1.0;
   int poly_deg = 0;
-
+  bool inspect_spectrum = true;
+  
   //Eigensolver compression
   int block_scheme[2];
   int n_low = 4;
@@ -103,9 +106,9 @@ typedef struct eig_param {
   int n_deflate = 0;
   int max_restarts = 0;
   double tol = 0.0;
-  int spectrum = 0;
+  Spectrum spectrum = SM;
   bool verbose = false;
-  Operator op = M;
+  Operator op = MdagM;
   
   int block_size = 0;
   

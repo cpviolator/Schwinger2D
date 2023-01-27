@@ -256,6 +256,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
   double dtau = gauge->p.tau/gauge->p.n_step;
   double H = 0.0;
   double ave_iter = 0;
+  bool inspectrum_bool = gauge->p.inspect_spectrum;
   
   // gauge force (U field)
   field<double> *fU = new field<double>(gauge->p);
@@ -271,7 +272,6 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
   double one_minus_2lambda_dt = (1-2*lambda)*dtau;
   double two_lambda_dt = lambda_dt*2;
   double xi_dtdt = 2*dtau*dtau*dtau*xi;
-
 
   switch(gauge->p.integrator) {
   case LEAPFROG:

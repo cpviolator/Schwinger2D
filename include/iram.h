@@ -9,7 +9,8 @@ class IRAM {
   
 private:
 
-  Operator op;
+  Operator op = MdagM;
+  std::vector<field<Complex>*> kSpace_pre;
   
 public:
 
@@ -39,19 +40,19 @@ public:
 		   Eigen::MatrixXcd &upperHessEigen,
 		   field<Complex> *r, double &beta, int j);
   
-  void reorder(std::vector<field<Complex> *> kSpace, std::vector<Complex> evals, std::vector<double> residua, int nKr, int spectrum);
+  void reorder(std::vector<field<Complex> *> kSpace, std::vector<Complex> evals, std::vector<double> residua, int nKr, Spectrum spectrum);
   
   void computeEvals(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace, std::vector<double> &residua, std::vector<Complex> &evals, int nEv);
   
   void rotateVecsComplex(std::vector<field<Complex> *> vecs, Eigen::MatrixXcd mat, int num_locked, int iter_keep, int dim);
   
-  void zsortc(int which, int n, std::vector<Complex> &x, std::vector<Complex> &y);
+  void zsortc(Spectrum which, int n, std::vector<Complex> &x, std::vector<Complex> &y);
   // Overloaded version of zsortc to deal with real y array.
-  void zsortc(int which, int n, std::vector<Complex> &x, std::vector<double> &y);
+  void zsortc(Spectrum which, int n, std::vector<Complex> &x, std::vector<double> &y);
   // Overloaded version of zsortc to deal with real x array.
-  void zsortc(int which, int n, std::vector<double> &x, std::vector<Complex> &y);
+  void zsortc(Spectrum which, int n, std::vector<double> &x, std::vector<Complex> &y);
   // Overloaded version of zsortc to deal with real x and y array.
-  void zsortc(int which, int n, std::vector<double> &x, std::vector<double> &y);
+  void zsortc(Spectrum which, int n, std::vector<double> &x, std::vector<double> &y);
   
   void inspectrum(const field<Complex> *gauge, int iter);
   void prepareKrylovSpace(std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals, eig_param_t &eig_param, const param_t p);
