@@ -114,7 +114,7 @@ bool readPFE(PFE &pfe, string name)
   }
 }
 
-#ifdef HAVE_HDF5
+#ifdef ENABLE_HDF5
 #include "hdf5.h"
 void hdf5Example() {
 
