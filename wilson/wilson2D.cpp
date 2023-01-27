@@ -56,12 +56,14 @@ int main(int argc, char **argv) {
   p.Nx = atoi(argv[32]);
   p.Ny = atoi(argv[33]);
 
-  // Addended
+  // Addended data inputs
   p.inner_step = atoi(argv[34]);
   p.m_heavy = atof(argv[35]);
   p.integrator = atoi(argv[36]) == 0 ? LEAPFROG : FGI;
   p.flavours = atoi(argv[37]);
   p.reverse = atoi(argv[38]);
+  p.degree = atoi(argv[39]);
+  p.pfe_prec = atoi(argv[40]);
   
   if(p.loop_max > std::min(p.Nx/2, p.Ny/2)) {
     cout << "Warning: requested Wilson loop max " << p.loop_max << " greater than ";

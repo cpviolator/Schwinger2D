@@ -9,13 +9,12 @@ LX=16
 LY=16
 
 # The value of the coupling in the U(1) 2D theory
-BETA=5.0
+BETA=3.0
 
 # The total number of thermalised HMC iterations to perform.
 HMC_ITER=1000
 # The number of HMC iterations for thermalisation (accept + accept/reject).
 HMC_THERM=50
-
 # The number of HMC iterations to skip bewteen measurements.
 HMC_SKIP=5
 # Dump the gauge field every HMC_CHKPT iterations after thermalisation.
@@ -24,10 +23,16 @@ HMC_CHKPT=50
 HMC_REVERSE=100
 # If non-zero, read in the HMC_CHKPT_START gauge field. 
 HMC_CHKPT_START=0
+
 # HMC time steps in the integration 
-HMC_NSTEP=24
+HMC_NSTEP=4
 # HMC inner time steps in the integration 
-HMC_INNER_NSTEP=6
+HMC_INNER_NSTEP=2
+# Degree of polynomial for AlgRemez
+HMC_AR_DEGREE=12
+# Precision for AlgRemez (GMP)
+HMC_AR_GMP_PREC=40
+
 # HMC trajectory time
 HMC_TAU=1.0
 # Integrator type: leapfrog = 0, fgi = 1
@@ -53,7 +58,7 @@ FLAVOURS=3
 # Maximum CG iterations
 MAX_CG_ITER=10000
 # CG eps (tolerance)^2
-CG_EPS=1e-20
+CG_EPS=1e-18
 
 # Eigensolver parameters
 DEFLATE=0
@@ -92,7 +97,7 @@ command="./wilson2D $BETA $HMC_ITER $HMC_THERM $HMC_SKIP $HMC_CHKPT
 	 $DYN_QUENCH $MASS $MAX_CG_ITER $CG_EPS $DEFLATE $NKR $NEV $NCONV 
 	 $EIG_TOL $MAXITER $USE_ACC $AMAX $AMIN $N_POLY $X_BLK $Y_BLK $N_LOW $NDEFL 
 	 $MEAS_PC $MEAS_WL $LX $LY $HMC_INNER_NSTEP $MASS_HEAVY $INTEGRATOR $FLAVOURS
-	 $HMC_REVERSE"
+	 $HMC_REVERSE $HMC_AR_DEGREE $HMC_AR_GMP_PREC"
 
 echo $command
 

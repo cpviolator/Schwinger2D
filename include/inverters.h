@@ -60,7 +60,7 @@ public:
   
   void deflateResidual(field<Complex> *deflated_guess, field<Complex> *residual,
 		       std::vector<field<Complex> *> &kSpace, std::vector<Complex> &evals);
-  
+
   ~inverterCG() {
     delete res;
     delete p;
@@ -69,8 +69,6 @@ public:
   }
   
 };
-
-//int Ainvpsi(field<Complex> *x, field<Complex> *b, field<Complex> *x0, field<Complex> *gauge); 
 
 
 

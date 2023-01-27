@@ -5,8 +5,6 @@
 //2D HMC Routines
 //---------------------------------------------------------------------
 
-#define DEGREE 15
-
 HMC::HMC(param_t param) {
 
   inv = new inverterCG(param);
@@ -17,11 +15,11 @@ HMC::HMC(param_t param) {
   g3Dphi = new field<Complex>(param);
 
   if(param.flavours == 3) {
-    int n = DEGREE; // The degree of the numerator polynomial
-    int d = DEGREE; // The degree of the denominator polynomial
+    int n = param.degree; // The degree of the numerator polynomial
+    int d = param.degree; // The degree of the denominator polynomial
     int y = 1;  // The numerator of the exponent
     int z = 4;  // The denominator of the exponent
-    int precision = 50; // The precision that gmp uses
+    int precision = param.pfe_prec; // The precision that gmp uses
     double lambda_low = 0.0001, lambda_high = 32; // The bounds of the approximation
     
     // Instantiate the Remez class
@@ -126,14 +124,14 @@ bool HMC::hmc_reversibility(field<Complex> *gauge, int iter) {
     if(gauge->p.flavours == 3) {
       //Create a rational pseudo fermion field phi = (g3 D g3 D)^-1/4 chi
       std::vector<field<Complex>*> phi_arr;
-      for(int i=0; i<DEGREE; i++) phi_arr.push_back(new field<Complex>(gauge->p));    
+      for(int i=0; i<gauge->p.degree; i++) phi_arr.push_back(new field<Complex>(gauge->p));    
       inv->solveMulti(phi_arr, chi[1], gauge, heatbath_pfe.pole);
       blas::zero(phi[1]->data);
       // Accumulate the norm
       blas::axpy(heatbath_pfe.norm, chi[1]->data, phi[1]->data);
       // Continue accumulation
-      for(int i=0; i<DEGREE; i++) blas::axpy(heatbath_pfe.res[i], phi_arr[i]->data, phi[1]->data);
-      for(int i=0; i<DEGREE; i++) delete phi_arr[i];        
+      for(int i=0; i<gauge->p.degree; i++) blas::axpy(heatbath_pfe.res[i], phi_arr[i]->data, phi[1]->data);
+      for(int i=0; i<gauge->p.degree; i++) delete phi_arr[i];        
     }
   }
 
@@ -192,14 +190,14 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
     if(gauge->p.flavours == 3) {
       //Create a rational pseudo fermion field phi = (g3 D g3 D)^-1/4 chi
       std::vector<field<Complex>*> phi_arr;
-      for(int i=0; i<DEGREE; i++) phi_arr.push_back(new field<Complex>(gauge->p));    
+      for(int i=0; i<gauge->p.degree; i++) phi_arr.push_back(new field<Complex>(gauge->p));    
       inv->solveMulti(phi_arr, chi[1], gauge, heatbath_pfe.pole);
       blas::zero(phi[1]->data);
       // Accumulate the norm
       blas::axpy(heatbath_pfe.norm, chi[1]->data, phi[1]->data);
       // Continue accumulation
-      for(int i=0; i<DEGREE; i++) blas::axpy(heatbath_pfe.res[i], phi_arr[i]->data, phi[1]->data);
-      for(int i=0; i<DEGREE; i++) delete phi_arr[i];        
+      for(int i=0; i<gauge->p.degree; i++) blas::axpy(heatbath_pfe.res[i], phi_arr[i]->data, phi[1]->data);
+      for(int i=0; i<gauge->p.degree; i++) delete phi_arr[i];        
     }
   }
 

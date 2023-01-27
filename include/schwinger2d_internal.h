@@ -35,6 +35,8 @@ typedef struct param {
   //HMC
   int n_step = 4;
   int inner_step = 4;
+  int degree = 15;
+  int pfe_prec = 50;
   double tau = 1.0;
   int iter_hmc = 1000;
   int therm = 50;

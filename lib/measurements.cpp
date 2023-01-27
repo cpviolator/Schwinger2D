@@ -106,16 +106,15 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter)
 // i.e., the sum of the modulus squared of each element
 
 void measPionCorrelation(field<Complex> *gauge, int iter)
-{
-  /*
+{  
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
 
-  field<Complex> *propUp, *propDn, *propGuess, *source, *Dsource;
-
+  field<Complex> *propUp, *propDn, *source, *Dsource;
+  inverterCG *inv = new inverterCG(gauge->p);  
+  
   propUp = new field<Complex>(gauge->p);
   propDn = new field<Complex>(gauge->p);
-  propGuess = new field<Complex>(gauge->p);
   source = new field<Complex>(gauge->p);
   Dsource = new field<Complex>(gauge->p);
   
@@ -123,7 +122,6 @@ void measPionCorrelation(field<Complex> *gauge, int iter)
   blas::zero(source->data);
   blas::zero(Dsource->data);
   blas::zero(propUp->data);
-  blas::zero(propGuess->data);
   source->write(0, 0, 0, cUnit);
   
   // up -> (g3Dg3) * up *****
@@ -131,15 +129,12 @@ void measPionCorrelation(field<Complex> *gauge, int iter)
   
   g3psi(Dsource, source);
   g3Dpsi(source, Dsource, gauge);
-
-  //if (p.deflate) deflate(propGuess, Dsource, defl_evecs, defl_evals, p);
-  Ainvpsi(propUp, source, propGuess, gauge);
+  inv->solve(propUp, source, gauge);
 
   //Down type prop
   blas::zero(source->data);
   blas::zero(Dsource->data);
   blas::zero(propDn->data);
-  blas::zero(propGuess->data);
   source->write(0, 0, 1, cUnit);
   
   // dn -> (g3Dg3) * dn   
@@ -147,8 +142,7 @@ void measPionCorrelation(field<Complex> *gauge, int iter)
   g3Dpsi(source, Dsource, gauge);
 
   // (g3Dg3D)^-1 * (g3Dg3) dn = D^-1 * dn 
-  Ainvpsi(propDn, source, propGuess, gauge);
-
+  inv->solve(propDn, source, gauge);
   
   double pion_corr[Ny];    
   //Let y be the 'time' dimension
@@ -193,10 +187,9 @@ void measPionCorrelation(field<Complex> *gauge, int iter)
 
   delete propUp;
   delete propDn;
-  delete propGuess;
   delete source;
-  delete Dsource;  
-  */
+  delete Dsource;
+  delete inv;
 }
 
 double measGaugeAction(field<Complex> *gauge) {
@@ -276,10 +269,12 @@ double measAction(field<double> *mom, field<Complex> *gauge, std::vector<field<C
   
   action += measMomAction(mom);
   action += (Nx * Ny)*beta*real(1.0 - measPlaq(gauge));
-  
-  if(gauge->p.flavours > 1)  action += measFermAction(gauge, phi[0], pfe, false);
-  if(gauge->p.flavours != 2) action += measFermAction(gauge, phi[1], pfe, true);
 
+  if(gauge->p.dynamic) {
+    action += measFermAction(gauge, phi[0], pfe, false);
+    if(gauge->p.flavours == 3) action += measFermAction(gauge, phi[1], pfe, true);
+  }
+  
   return action;
 }
 

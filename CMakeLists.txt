@@ -17,7 +17,6 @@ if(ENABLE_OPENMP)
   find_package(OpenMP)
 endif()
 
-find_package(GMP REQUIRED)
 find_package(MPFR REQUIRED)
 
 # Add Eigen for small, dense algebra
