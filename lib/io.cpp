@@ -115,6 +115,7 @@ bool readPFE(PFE &pfe, string name)
 }
 
 #ifdef ENABLE_HDF5
+#include "hdf5.h"
 void hdf5Example() {
 
   hid_t       file_id, dataset_id, dataspace_id; // identifiers 

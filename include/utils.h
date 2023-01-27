@@ -3,7 +3,6 @@
 #include "schwinger2d_internal.h"
 #include "lattice.h"
 #include "blas.h"
-
 #ifdef ENABLE_HDF5
 #include "hdf5.h"
 #endif
