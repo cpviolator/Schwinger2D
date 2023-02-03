@@ -63,6 +63,7 @@ public:
     deflate = false;
     inspect_spectrum = false;
   };
+  
   void switchOnDeflation() {
     if(verbosity) cout << "CG: Switching on deflation" << endl;
     deflate = true;

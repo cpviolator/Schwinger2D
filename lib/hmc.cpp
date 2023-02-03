@@ -217,19 +217,23 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
     }
   }
 
-  // Temporarily swich off deflation and inspection
-  inv->switchOffDeflation();  
-  // H_old = P^2 + S(U) + <chi|chi>
-  H_old = measAction(mom, gauge, phi, heatbath_pfe);
-  if(iter >= gauge->p.therm && gauge->p.eig_param.n_deflate > 0) inv->switchOnDeflation();
+  if(iter >= gauge->p.therm) {    
+    // Temporarily swich off deflation and inspection
+    inv->switchOffDeflation();      
+    // H_old = P^2 + S(U) + <chi|chi>
+    H_old = measAction(mom, gauge, phi, heatbath_pfe);
+    if(gauge->p.eig_param.n_deflate > 0) inv->switchOnDeflation();
+  }
   
   // Perfrom trajectory
   trajectory(mom, gauge, phi, iter);
   
-  // H_evolved = P^2 + S(U) + <phi| (Ddag D)^-1 |phi>
-  inv->switchOffDeflation();  
-  H = measAction(mom, gauge, phi, heatbath_pfe);
-  if(iter >= gauge->p.therm && gauge->p.eig_param.n_deflate > 0) inv->switchOnDeflation();  
+  if(iter >= gauge->p.therm) {
+    // H_evolved = P^2 + S(U) + <phi| (Ddag D)^-1 |phi>
+    inv->switchOffDeflation();  
+    H = measAction(mom, gauge, phi, heatbath_pfe);
+    if(gauge->p.eig_param.n_deflate > 0) inv->switchOnDeflation();  
+  }
   
   if (iter >= gauge->p.therm) {      
     hmc_count++;

@@ -32,7 +32,7 @@ MASS_HEAVY=0.5
 # The total number of thermalised HMC iterations to perform.
 HMC_ITER=1000
 # The number of HMC iterations for thermalisation (accept + accept/reject).
-HMC_THERM=10
+HMC_THERM=100
 # The number of HMC iterations to skip bewteen measurements.
 HMC_SKIP=10
 # Dump the gauge field every HMC_CHKPT iterations after thermalisation.
@@ -42,7 +42,7 @@ HMC_CHKPT_START=000
 # Reverse the gauge fields for ergodicity check
 HMC_REVERSE=100
 # HMC time steps in the integration 
-HMC_NSTEP=20
+HMC_NSTEP=4
 # HMC inner time steps in the integration 
 HMC_INNER_NSTEP=1
 # Degree of polynomial for AlgRemez
@@ -54,11 +54,11 @@ HMC_TAU=1.0
 # Integrator type: leapfrog = 0, fgi = 1
 # FYI, aim for 70% acceptance with Leapfrog
 # and 90% with FGI for optimal FLOP usage
-HMC_INTEGRATOR=0
+HMC_INTEGRATOR=1
 # Maximum CG iterations
 MAX_CG_ITER=10000
 # CG residual tolerance 
-CG_TOL=1e-7
+CG_TOL=1e-9
 # CG verbosity
 CG_VERBOSITY=false
 
@@ -69,9 +69,9 @@ NEV=128
 NCONV=128
 NDEFL=128
 # IRAM MG projector
-X_BLK=2
+X_BLK=4
 Y_BLK=4
-N_LOW=16
+N_LOW=8
 # Tolerance on eigenvector residua
 EIG_TOL=1e-10
 # Maximum restart iterations
@@ -83,9 +83,9 @@ EIG_SPEC=SR
 # IRAM verbosity
 EIG_VERBOSITY=false
 # Inspect spectrum
-EIG_INSPECTION=true
+EIG_INSPECTION=false
 # When deflating, use the compressed space
-EIG_USE_COMP_SPACE=true
+EIG_USE_COMP_SPACE=false
 
 # Measurements
 #-----------------------------------------------

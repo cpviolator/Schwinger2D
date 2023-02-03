@@ -89,8 +89,8 @@ int main(int argc, char **argv) {
       gettimeofday(&total_end, NULL);  
       t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
       cout << fixed << setprecision(16) << iter+1 << " "; //Iteration
-      cout << t_total << " " << HMCStep->dH << endl;      //Time, dH
-
+      cout << t_total << " " << endl;                     //Time
+      
       // Write thermalised gauge
       if((iter+1)%p.chkpt == 0 && p.checkpoint_start == 0) {	  
 	name = "gauge/gauge";

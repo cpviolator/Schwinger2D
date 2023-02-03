@@ -902,10 +902,12 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
 	for(int mu=0; mu<2; mu++) {
 	  int glo_idx = 2*((y * gauge->p.Nx) + x) + mu; // Global index
 	  
-	  fprintf(fp, "%d   %d %d %d %d %.16e %.16e\n",
+	  fprintf(fp, "%d   %d %d %d %d %.16e %.16e %.16e %.16e\n",
 		  inspection_counter, i, x, y, mu,
 		  kSpace[i]->data[glo_idx].real(),
-		  kSpace[i]->data[glo_idx].imag());
+		  kSpace[i]->data[glo_idx].imag(),
+		  abs(kSpace[i]->data[glo_idx]),
+		  atan2(kSpace[i]->data[glo_idx].imag(), kSpace[i]->data[glo_idx].real()));
 	}
       }
     }
@@ -974,10 +976,12 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
       int blk_idx = by * block_scheme[0] + bx;
       for(int i=0; i<n_low; i++) {
 	for(int j=0; j<block_size; j++) {
-	  fprintf(fp, "%d   %d %d %d %d %.16e %.16e\n",
+	  fprintf(fp, "%d   %d %d %d %d %.16e %.16e %.16e %.16e\n",
 		  inspection_counter, bx, by, i, j,
 		  block_data_ortho[blk_idx][block_size * i + j].real(),
-		  block_data_ortho[blk_idx][block_size * i + j].imag());
+		  block_data_ortho[blk_idx][block_size * i + j].imag(),
+		  abs(block_data_ortho[blk_idx][block_size * i + j]),
+		  atan2(block_data_ortho[blk_idx][block_size * i + j].imag(), block_data_ortho[blk_idx][block_size * i + j].real()));
 	}
       }    
     }
@@ -996,10 +1000,12 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
       int blk_idx = by * block_scheme[0] + bx;
       for(int i=0; i<n_conv; i++) {
 	for(int j=0; j<n_low; j++) {
-	  fprintf(fp, "%d   %d %d %d %d %.16e %.16e\n",
+	  fprintf(fp, "%d   %d %d %d %d %.16e %.16e %.16e %.16e\n",
 		  inspection_counter, bx, by, i, j,
 		  block_coeffs[blk_idx][n_low * i + j].real(),
-		  block_coeffs[blk_idx][n_low * i + j].imag());
+		  block_coeffs[blk_idx][n_low * i + j].imag(),
+		  abs(block_coeffs[blk_idx][n_low * i + j]),
+		  atan2(block_coeffs[blk_idx][n_low * i + j].imag(), block_coeffs[blk_idx][n_low * i + j].real()));
 	}
       }    
     }
