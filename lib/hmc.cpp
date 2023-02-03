@@ -142,10 +142,17 @@ bool HMC::hmc_reversibility(field<Complex> *gauge, int iter) {
   }
 
   // Forward trajectory
+  // Temporarily swich off deflation and inspection
+  inv->switchOffDeflation();  
   H0 = measAction(mom, gauge, phi, heatbath_pfe);
+  if(iter >= gauge->p.therm && gauge->p.eig_param.n_deflate > 0) inv->switchOnDeflation();
+  
   trajectory(mom, gauge, phi, iter);
-  H1 = measAction(mom, gauge, phi, heatbath_pfe);
 
+  inv->switchOffDeflation();  
+  H1 = measAction(mom, gauge, phi, heatbath_pfe);  
+  if(iter >= gauge->p.therm && gauge->p.eig_param.n_deflate > 0) inv->switchOnDeflation();
+  
   // Reverse the trajectory
   gauge->p.tau *= -1.0;
   trajectory(mom, gauge, phi, iter);
@@ -210,20 +217,26 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
     }
   }
 
+  // Temporarily swich off deflation and inspection
+  inv->switchOffDeflation();  
   // H_old = P^2 + S(U) + <chi|chi>
-  if (iter >= gauge->p.therm) H_old = measAction(mom, gauge, phi, heatbath_pfe);
-
+  H_old = measAction(mom, gauge, phi, heatbath_pfe);
+  if(iter >= gauge->p.therm && gauge->p.eig_param.n_deflate > 0) inv->switchOnDeflation();
+  
   // Perfrom trajectory
   trajectory(mom, gauge, phi, iter);
   
   // H_evolved = P^2 + S(U) + <phi| (Ddag D)^-1 |phi>
-  if (iter >= gauge->p.therm) H = measAction(mom, gauge, phi, heatbath_pfe);
-
+  inv->switchOffDeflation();  
+  H = measAction(mom, gauge, phi, heatbath_pfe);
+  if(iter >= gauge->p.therm && gauge->p.eig_param.n_deflate > 0) inv->switchOnDeflation();  
+  
   if (iter >= gauge->p.therm) {      
-    hmc_count++;    
-    exp_dH = exp(-(H-H_old));
-    dH = (H-H_old);
+    hmc_count++;
   }
+  
+  exp_dH = exp(-(H-H_old));
+  dH = (H-H_old);
 
   // Metropolis accept/reject step
   if (iter >= gauge->p.therm) {    
@@ -758,8 +771,6 @@ double HMC::measFermAction(field<Complex> *gauge, field<Complex> *phi,
   
   Complex action = 0.0;
 
-  // Temporarily swich off deflation and inspection
-  inv->switchOffDeflation();  
   if(rational) {
     inv->solveMulti(phi_tmp, phi, gauge, pfe.inv_pole);
     action = pfe.inv_norm * blas::cDotProd(phi->data, phi->data);
@@ -768,7 +779,6 @@ double HMC::measFermAction(field<Complex> *gauge, field<Complex> *phi,
     inv->solve(phi_tmp[0], phi, gauge);
     action = blas::cDotProd(phi_tmp[0]->data, phi->data);
   }
-  inv->switchOnDeflation();
   
   for(int i=0; i<n_ferm; i++) delete phi_tmp[i];
   return action.real();

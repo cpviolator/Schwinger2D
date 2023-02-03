@@ -53,6 +53,7 @@ typedef struct EigParam {
   Spectrum spectrum = SR;
   bool verbosity = false;
   bool iram_verbose = false;
+  bool use_comp_space = false;
   Operator op = MdagM;  
   int block_scheme[2];
   int n_low = 16;

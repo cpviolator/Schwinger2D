@@ -55,6 +55,7 @@ void Param::usage(char **argv) {
   printf("--eig-low-modes <N>              Number of low eigenmodes used to construct MG projector (16).\n");
   printf("--eig-verbosity <bool>           Sets IRAM verbosity as verbose or quiet (false).\n");
   printf("--eig-inspection <bool>          Inspect the eigenspectrum at each call of CG (false).\n");
+  printf("--eig-use-comp-space <bool>      Use the compressed space for deflation (false).\n");
   printf("\nMEASUREMENT PARAMS\n");
   printf("--ape-alpha <float>              Projection coefficient for APE smearing (0.5).\n");
   printf("--ape-iter <N>                   Number of APE smearing hits (1).\n");
@@ -544,6 +545,31 @@ int Param::init(int argc, char **argv, int *idx) {
     goto out;
   } 
 
+  // USe compressed space for deflation
+  if( strcmp(argv[i], "--eig-use-comp-space") == 0){
+    if (i+1 >= argc){
+      usage(argv);
+    }  
+    std::string eig_ucs(argv[i+1]);
+    if (eig_ucs == "yes" || eig_ucs == "YES" ||
+	eig_ucs == "true" || eig_ucs == "TRUE" ||
+	eig_ucs == "1") {
+      eig_param.use_comp_space = true;
+    }
+    else if (eig_ucs == "no" || eig_ucs == "NO" ||
+	     eig_ucs == "false" || eig_ucs == "FALSE" ||
+	     eig_ucs == "0") {
+      eig_param.use_comp_space = false;
+    } else {
+      cout<<"Invalid Use Compressed Space condition ("<< eig_ucs<< ") given. Use true/false"<<endl;
+      exit(0);
+    }
+    i++;
+    ret = 0;
+    goto out;
+  } 
+
+  
   
   // Measurement params
   //-------------------------------------

@@ -29,7 +29,7 @@ private:
   
   EigParam eig_param; 
   bool verbosity;
-  bool use_compressed_space = true;
+  bool use_compressed_space;
   int inspection_counter;
 
   int Nx;
@@ -68,7 +68,8 @@ public:
 
   void computeDeflationSpace(const field<Complex> *gauge);
 
-  void computeMGDeflationSpace(const field<Complex> *gauge);
+  void computeMGDeflationSpace(std::vector<field<Complex> *> &kSpace_out, const std::vector<field<Complex> *> &kSpace_in,
+			       const field<Complex> *gauge);
   
   void deflate(field<Complex> *guess, field<Complex> *phi);
   
@@ -105,11 +106,11 @@ public:
   void prepareKrylovSpace(std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals, const Param p);
 
   // Read the block data from the (iEig)th vector in kSpace 
-  void readVectorToBlock(std::vector<std::vector<Complex>> &block_data);
+  void readVectorToBlock(const std::vector<field<Complex>*> &kSpace, std::vector<std::vector<Complex>> &block_data);
   
-  void blockCompress();
+  void blockCompress(const std::vector<field<Complex>*> &kSpace);
   
-  void blockExpand();
+  void blockExpand(std::vector<field<Complex>*> &kSpace);
   
   ~IRAM() {
     for (int i=0; i<kSpace_pre.size(); i++) delete kSpace_pre[i];
@@ -121,6 +122,14 @@ public:
     evals_pre.resize(0);    
     evals_defl.resize(0);
     evals_mg.resize(0);
+
+    for(int i=0; i<n_blocks; i++) {
+      block_data_ortho[i].resize(0);
+      block_coeffs[i].resize(0);
+    }
+    block_data_ortho.resize(0);
+    block_coeffs.resize(0);;
+    
   };
   
 };

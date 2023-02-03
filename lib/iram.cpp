@@ -4,8 +4,10 @@ IRAM::IRAM(EigParam eig_param_in) {
   
   eig_param = eig_param_in;
   verbosity = eig_param.verbosity;
-  inspection_counter = 0;
+  use_compressed_space = eig_param.use_comp_space;
 
+  inspection_counter = 0;
+  
   Nx = eig_param.Nx;
   Ny = eig_param.Ny;
   
@@ -29,14 +31,16 @@ IRAM::IRAM(EigParam eig_param_in) {
 
   if(Nx%block_scheme[0] != 0) {
     cout << "IRAM: Error: x block_scheme = " << block_scheme[0] << " does not divide Nx = " << Nx << endl;
+    exit(0);
   }
   if(Ny%block_scheme[1] != 0) {
     cout << "IRAM: Error: y block_scheme = " << block_scheme[1] << " does not divide Ny = " << Ny << endl;
+    exit(0);
   }
 
   // n_blocks * n_conv * (block_size + l_low) complex elems
   for(int i=0; i<n_blocks; i++) {
-    block_data_ortho.push_back(std::vector<Complex> (n_conv * block_size, 0.0));
+    block_data_ortho.push_back(std::vector<Complex> (n_low * block_size, 0.0));
     block_coeffs.push_back(std::vector<Complex> (n_low * n_conv, 0.0));
   }
 }
@@ -840,10 +844,11 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
 void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
   
   std::vector<field<Complex>*> kSpace;
+  std::vector<field<Complex>*> kSpace_aux;
   std::vector<Complex> evals;
 
   // Allocate space to hold the previous kSpace
-  if(kSpace_pre.size() == 0) prepareKrylovSpace(kSpace_pre, evals, gauge->p);  
+  if(kSpace_pre.size() == 0) prepareKrylovSpace(kSpace_pre, evals_pre, gauge->p);  
 
   // Allocate space for this inspection
   prepareKrylovSpace(kSpace, evals, gauge->p);
@@ -851,20 +856,24 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
   // Compute eigenspectrum of this gauge.
   if(inspection_counter == 0) {
     // A deflation space was just constructed, copy it to the
-    // kSpace_pre container and save data.
+    // kSpace container and save.
     cout << "IRAM: First inspection call, copy deflation space" << endl;
-    for(int i=0; i<n_conv; i++) blas::copy(kSpace_pre[i]->data, kSpace_defl[i]->data);
+    for(int i=0; i<n_conv; i++) {
+      blas::copy(kSpace[i]->data, kSpace_defl[i]->data);
+      evals[i] = evals_defl[i];
+    }
+    
   } else {
     // If inspection_counter > 0, the gauge field has changed and
     // we need to recompute the space for inspecton
     cout << "IRAM: Computing new spectrum" << endl;
     iram(gauge, kSpace, evals);
   }
-  
+    
   string name;
   char fname[256];
   FILE *fp;
-
+  
   // Dump eigenvalue data
   name = "data/eig/eigenvalues" + to_string(iter);
   constructName(name, gauge->p);
@@ -885,7 +894,7 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
   constructName(name, gauge->p);
   name += ".dat";
   snprintf(fname, 100, "%s", name.c_str());	  
-  fp = fopen(fname, "a");
+  fp = fopen(fname, "a");  
   for(int i=0; i<n_conv; i++) {
     // Data to the ith eigenvector
     for(int x=0; x<gauge->p.Nx; x++) {
@@ -893,7 +902,7 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
 	for(int mu=0; mu<2; mu++) {
 	  int glo_idx = 2*((y * gauge->p.Nx) + x) + mu; // Global index
 	  
-	  fprintf(fp, "%d %d %d %d %d %.16e %.16e\n",
+	  fprintf(fp, "%d   %d %d %d %d %.16e %.16e\n",
 		  inspection_counter, i, x, y, mu,
 		  kSpace[i]->data[glo_idx].real(),
 		  kSpace[i]->data[glo_idx].imag());
@@ -903,54 +912,110 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
   }
   fclose(fp);
   
-  // Measure the inner products
-  std::vector<Complex> inner_products(n_conv * n_conv);
-  for(int i=0; i<n_conv; i++) {
-    for(int j=0; j<n_conv; j++) inner_products[i + n_conv * j] = blas::cDotProd(kSpace_pre[j]->data, kSpace[i]->data);
+  if(inspection_counter > 0) {
+    // Measure the kSpace inner products
+    std::vector<Complex> inner_products(n_conv * n_conv);
+    for(int i=0; i<n_conv; i++) {
+      for(int j=0; j<n_conv; j++) inner_products[i + n_conv * j] = blas::cDotProd(kSpace_pre[j]->data, kSpace[i]->data);
+    }
+    
+    // Measure kSpace overlaps
+    std::vector<double> overlaps(n_conv, 0.0);
+    for(int i=0; i<n_conv; i++) 
+      for(int j=0; j<n_conv; j++) overlaps[i] += (inner_products[i + n_conv * j] * conj(inner_products[i + n_conv * j])).real();
+    
+    // Dump inner product data
+    name = "data/eig/inner_products" + to_string(iter);
+    constructName(name, gauge->p);
+    name += ".dat";
+    snprintf(fname, 100, "%s", name.c_str());	  
+    fp = fopen(fname, "a");
+    for(int i=0; i<n_conv; i++) {
+      for(int j=0; j<n_conv; j++) {
+	fprintf(fp, "%d   %d %d %.16e %.16e\n",
+		inspection_counter, i, j,
+		inner_products[i + n_conv * j].real(),
+		inner_products[i + n_conv * j].imag());
+      }
+    }
+    fprintf(fp,"\n");
+    fclose(fp);
+    
+    // Dump overlap data
+    name = "data/eig/overlap" + to_string(iter);
+    constructName(name, gauge->p);
+    name += ".dat";
+    snprintf(fname, 100, "%s", name.c_str());	  
+    fp = fopen(fname, "a");
+    for(int i=0; i<n_conv; i++) {
+      fprintf(fp, "%d   %d %.16e\n",
+	      inspection_counter, i,
+	      overlaps[i]);
+    }
+    fprintf(fp,"\n");
+    fclose(fp);
   }
-
-  // Measure overlaps
-  std::vector<double> overlaps(n_conv, 0.0);
-  for(int i=0; i<n_conv; i++) 
-    for(int j=0; j<n_conv; j++) overlaps[i] += (inner_products[i + n_conv * j] * conj(inner_products[i + n_conv * j])).real();
   
-  // Dump inner product data
-  name = "data/eig/inner_products" + to_string(iter);
+  // Compute an new MG deflation space 
+  if(inspection_counter > 0) {
+    prepareKrylovSpace(kSpace_aux, evals, gauge->p);
+    computeMGDeflationSpace(kSpace_aux, kSpace, gauge);
+  }
+  
+  // Dump block data
+  name = "data/eig/block_data_orth" + to_string(iter);
   constructName(name, gauge->p);
   name += ".dat";
   snprintf(fname, 100, "%s", name.c_str());	  
   fp = fopen(fname, "a");
-  for(int i=0; i<n_conv; i++) {
-    for(int j=0; j<n_conv; j++) {
-      fprintf(fp, "%d %d %.16e %.16e\n",
-	      i,
-	      j,
-	      inner_products[i + n_conv * j].real(),
-	      inner_products[i + n_conv * j].imag());
+  
+  for(int by=0; by<block_scheme[1]; by++) {
+    for(int bx=0; bx<block_scheme[0]; bx++) {
+      int blk_idx = by * block_scheme[0] + bx;
+      for(int i=0; i<n_low; i++) {
+	for(int j=0; j<block_size; j++) {
+	  fprintf(fp, "%d   %d %d %d %d %.16e %.16e\n",
+		  inspection_counter, bx, by, i, j,
+		  block_data_ortho[blk_idx][block_size * i + j].real(),
+		  block_data_ortho[blk_idx][block_size * i + j].imag());
+	}
+      }    
     }
   }
-  fprintf(fp,"\n");
   fclose(fp);
-
-  // Dump overlap data
-  name = "data/eig/overlap" + to_string(iter);
+  
+  // Dump block coeffs
+  name = "data/eig/block_data_coef" + to_string(iter);
   constructName(name, gauge->p);
   name += ".dat";
   snprintf(fname, 100, "%s", name.c_str());	  
   fp = fopen(fname, "a");
-  for(int i=0; i<n_conv; i++) {
-    fprintf(fp, "%d %.16e\n",
-	    i,
-	    overlaps[i]);
+  
+  for(int by=0; by<block_scheme[1]; by++) {
+    for(int bx=0; bx<block_scheme[0]; bx++) {
+      int blk_idx = by * block_scheme[0] + bx;
+      for(int i=0; i<n_conv; i++) {
+	for(int j=0; j<n_low; j++) {
+	  fprintf(fp, "%d   %d %d %d %d %.16e %.16e\n",
+		  inspection_counter, bx, by, i, j,
+		  block_coeffs[blk_idx][n_low * i + j].real(),
+		  block_coeffs[blk_idx][n_low * i + j].imag());
+	}
+      }    
+    }
   }
-  fprintf(fp,"\n");
   fclose(fp);
   
-  // Copy the space
-  for(int i=0; i<n_conv; i++) blas::copy(kSpace_pre[i]->data, kSpace[i]->data);
+  // Copy the new space into the old space for overlap comparision.
+  for(int i=0; i<n_conv; i++) {
+    blas::copy(kSpace_pre[i]->data, kSpace[i]->data);
+    evals_pre[i] = evals[i];
+  }
   
   // Clean up
   for(int i=0; i<kSpace.size(); i++) delete kSpace[i];
+  for(int i=0; i<kSpace_aux.size(); i++) delete kSpace_aux[i];
+  
   inspection_counter++;
 }
 
@@ -959,23 +1024,24 @@ void IRAM::computeDeflationSpace(const field<Complex> *gauge){
   iram(gauge, kSpace_defl, evals_defl);
 
   prepareKrylovSpace(kSpace_mg, evals_mg, gauge->p);
-  computeMGDeflationSpace(gauge);
+  computeMGDeflationSpace(kSpace_mg, kSpace_defl, gauge);
 }
 
-void IRAM::computeMGDeflationSpace(const field<Complex> *gauge){
+void IRAM::computeMGDeflationSpace(std::vector<field<Complex>*> &kSpace_out, const std::vector<field<Complex>*> &kSpace_in,
+				   const field<Complex> *gauge){
 
   struct timeval start, end;
   
   gettimeofday(&start, NULL);    
   // Compress kSpace into block_data_ortho and block_coeffs...
-  blockCompress();
-  // ...then expand to into kSpace_mg
-  blockExpand();
+  blockCompress(kSpace_in);
+  // ...then expand to into kSpace
+  blockExpand(kSpace_out);
   gettimeofday(&end, NULL);  
   
   // Compute the eigenvalues and residua using the reconstructed kSpace
   std::vector<double> resid(n_conv, 0.0);
-  computeEvals(gauge, kSpace_mg, resid, evals_mg, n_conv);
+  computeEvals(gauge, kSpace_out, resid, evals_mg, n_conv);
 
   for (int i = 0; i < n_conv; i++) {
     printf("IRAM: Post Compression EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals_mg[i].real(), evals_mg[i].imag(), abs(evals_mg[i]), resid[i]);
@@ -983,7 +1049,7 @@ void IRAM::computeMGDeflationSpace(const field<Complex> *gauge){
   
   // Check compression ratio
   int pre = 2 * n_conv * Nx * Ny;
-  int post= n_blocks * n_low * (block_size + n_conv);
+  int post = n_blocks * n_low * (block_size + n_conv);
   cout << "IRAM: Algorithmic compression report: " << endl;
   cout << "IRAM: Complex(double) elems pre = " << pre << " Complex(double) elems post = " << post << endl;
   cout << "IRAM: Ratio: " << (100.0 * post)/pre << "% of original data." << endl;
@@ -1002,7 +1068,7 @@ void IRAM::prepareKrylovSpace(std::vector<field<Complex>*> &kSpace,
 }
 
 // Read the block data from the (iEig)th vector in kSpace 
-void IRAM::readVectorToBlock(std::vector<std::vector<Complex>> &block_data) {
+void IRAM::readVectorToBlock(const std::vector<field<Complex>*> &kSpace, std::vector<std::vector<Complex>> &block_data) {
   
   for(int i=0; i<n_conv; i++) {
     for(int by=0; by<block_scheme[1]; by++) {
@@ -1018,7 +1084,7 @@ void IRAM::readVectorToBlock(std::vector<std::vector<Complex>> &block_data) {
 	      
 	      int loc_idx = 2*(nx + x_block_size * ny) + mu;      // Local index
 	      int glo_idx = blk_offset + 2*((ny * Nx) + nx) + mu; // Global index
-	      block_data[blk_idx][block_size * i + loc_idx] = kSpace_defl[i]->data[glo_idx];
+	      block_data[blk_idx][block_size * i + loc_idx] = kSpace[i]->data[glo_idx];
 	    }
 	  }
 	}
@@ -1027,15 +1093,15 @@ void IRAM::readVectorToBlock(std::vector<std::vector<Complex>> &block_data) {
   }
 }
 
-void IRAM::blockCompress() {
+void IRAM::blockCompress(const std::vector<field<Complex>*> &kSpace) {
   
   // Object to hold the blocked eigenvector data
   std::vector<std::vector<Complex>> block_data(n_blocks, std::vector<Complex> (n_conv * block_size, 0.0));
   
   // Copy data from the eigenvector array into a block array
-  readVectorToBlock(block_data);
+  readVectorToBlock(kSpace, block_data);
   
-  // Compute an orthonormal basis from the nLow vectors.
+  // Compute an orthonormal basis from the n_low vectors.
 #pragma omp parallel for collapse(2)
   for(int by=0; by<block_scheme[1]; by++) {
     for(int bx=0; bx<block_scheme[0]; bx++) {
@@ -1092,7 +1158,6 @@ void IRAM::blockCompress() {
 	
 	int blk_idx = by * block_scheme[0] + bx;        
 	for(int i=0; i<n_low; i++) {
-	  
 
 	  // Inner product between orthed i block (low) and j block (high)
 	  Complex ip = 0.0;
@@ -1109,15 +1174,17 @@ void IRAM::blockCompress() {
 	}
       }
     }
-  }  
+  }
 }
 
-void IRAM::blockExpand() {
+void IRAM::blockExpand(std::vector<field<Complex>*> &kSpace) {
   
   // Loop over the desired eigenvalues.
 #pragma omp parallel for 
-  for(int j=0; j<n_conv; j++) {    
-    std::vector<std::vector<Complex>> block_data_temp(n_blocks, std::vector<Complex> (block_size, 0.0));      
+  for(int j=0; j<n_conv; j++) {
+    
+    std::vector<std::vector<Complex>> block_data_temp(n_blocks, std::vector<Complex> (block_size, 0.0));
+    
     // Loop over blocks, Gramm-Schmidt the blocks on the low modes
     for(int by=0; by<block_scheme[1]; by++) {
       for(int bx=0; bx<block_scheme[0]; bx++) {
@@ -1145,7 +1212,7 @@ void IRAM::blockExpand() {
 	      
 	      int loc_idx = 2*(nx + x_block_size * ny) + mu;      // Local index
 	      int glo_idx = blk_offset + 2*((ny * Nx) + nx) + mu; // Global index
-	      kSpace_mg[j]->data[glo_idx] = block_data_temp[blk_idx][loc_idx];
+	      kSpace[j]->data[glo_idx] = block_data_temp[blk_idx][loc_idx];
 	    }
 	  }
 	}
