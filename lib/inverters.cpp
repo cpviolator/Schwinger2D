@@ -8,12 +8,16 @@ inverterCG::inverterCG(Param param) {
   op = MdagM;
 
   verbosity = param.verbosity;
-  cg_verbosity = param.cg_verbosity;  
-  if(param.current_hmc_iter > param.therm) {    
-    deflate = param.eig_param.n_deflate > 0 ? true : false;
+  cg_verbosity = param.cg_verbosity;
+
+  // If still thermalising, ensure no eigensolver is called
+  if(param.current_hmc_iter >= param.therm) {    
+    deflate = param.deflate ? true : false;
     inspect_spectrum = param.inspect_spectrum;
+  } else {
+    deflate = false;
+    inspect_spectrum = false;
   }
-  else deflate = false;
 }
 
 
@@ -186,11 +190,16 @@ int inverterCG::solve(field<Complex> *x, const field<Complex> *b, const field<Co
   blas::zero(res->data);
 
   if(deflate) {
+    // If no eigensolver exists, this is the first call to CG from HMC,
+    // so we construct an eigensolver and a deflation space
     if (!eig) {
       if(verbosity) cout << "CG: Computing deflation space for CG" << endl;
       eig = new IRAM(gauge->p.eig_param);
       eig->computeDeflationSpace(gauge);
     }
+
+    // If we are inspecting the spectrum, recompute the eigenspace. IRAM
+    // will dump the data to files.
     if(inspect_spectrum) {
       if(verbosity) cout << "CG: Computing spectrum for inspection" << endl;
       eig->inspectEvolvedSpectrum(gauge, gauge->p.current_hmc_iter);

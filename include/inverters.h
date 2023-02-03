@@ -34,6 +34,11 @@ private:
   bool use_init_guess;
   bool deflate;
   bool inspect_spectrum;
+  
+  // Temp objects to hold status of eigensolver use
+  bool deflate_state;
+  bool inspect_spectrum_state;
+
   int iter;
 
   Operator op;
@@ -58,16 +63,18 @@ public:
   int solveMulti(std::vector<field<Complex> *> &x, field<Complex> *b,
 		 field<Complex> *gauge, std::vector<double> shifts);
 
-  void switchOffDeflation() {
-    if(verbosity) cout << "CG: Switching off deflation" << endl;
+  void switchOffEigensolver() {
+    if(verbosity) cout << "CG: Switching off eigensolver" << endl;
+    deflate_state = deflate;
+    inspect_spectrum_state = inspect_spectrum;
     deflate = false;
     inspect_spectrum = false;
   };
   
-  void switchOnDeflation() {
-    if(verbosity) cout << "CG: Switching on deflation" << endl;
-    deflate = true;
-    inspect_spectrum = true;
+  void switchOnEigensolver() {
+    if(verbosity) cout << "CG: Restoring eigensolver" << endl;
+    deflate = deflate_state;
+    inspect_spectrum = inspect_spectrum_state;
   };
   
   ~inverterCG() {

@@ -43,7 +43,7 @@ typedef struct EigParam {
   int n_ev = 16;
   int n_kr = 32;
   int n_conv = 16;
-  int n_deflate = 0;
+  int n_deflate = 16;
   int max_restarts = 100;
   double tol = 1e-9;
   bool poly_acc = false;
@@ -108,7 +108,7 @@ public:
       
   // Eigensolver params
   EigParam eig_param;
-  bool inspect_spectrum = true;
+  bool inspect_spectrum = false;
   bool deflate = false;
 
   //Smearing

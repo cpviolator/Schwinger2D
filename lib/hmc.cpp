@@ -143,15 +143,15 @@ bool HMC::hmc_reversibility(field<Complex> *gauge, int iter) {
 
   // Forward trajectory
   // Temporarily swich off deflation and inspection
-  inv->switchOffDeflation();  
+  inv->switchOffEigensolver();  
   H0 = measAction(mom, gauge, phi, heatbath_pfe);
-  if(iter >= gauge->p.therm && gauge->p.eig_param.n_deflate > 0) inv->switchOnDeflation();
+  inv->switchOnEigensolver();
   
   trajectory(mom, gauge, phi, iter);
 
-  inv->switchOffDeflation();  
+  inv->switchOffEigensolver();  
   H1 = measAction(mom, gauge, phi, heatbath_pfe);  
-  if(iter >= gauge->p.therm && gauge->p.eig_param.n_deflate > 0) inv->switchOnDeflation();
+  inv->switchOnEigensolver();
   
   // Reverse the trajectory
   gauge->p.tau *= -1.0;
@@ -219,10 +219,10 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
 
   if(iter >= gauge->p.therm) {    
     // Temporarily swich off deflation and inspection
-    inv->switchOffDeflation();      
+    inv->switchOffEigensolver();      
     // H_old = P^2 + S(U) + <chi|chi>
     H_old = measAction(mom, gauge, phi, heatbath_pfe);
-    if(gauge->p.eig_param.n_deflate > 0) inv->switchOnDeflation();
+    inv->switchOnEigensolver();
   }
   
   // Perfrom trajectory
@@ -230,9 +230,9 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   
   if(iter >= gauge->p.therm) {
     // H_evolved = P^2 + S(U) + <phi| (Ddag D)^-1 |phi>
-    inv->switchOffDeflation();  
+    inv->switchOffEigensolver();  
     H = measAction(mom, gauge, phi, heatbath_pfe);
-    if(gauge->p.eig_param.n_deflate > 0) inv->switchOnDeflation();  
+    inv->switchOnEigensolver();  
   }
   
   if (iter >= gauge->p.therm) {      

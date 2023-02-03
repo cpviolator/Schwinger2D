@@ -54,6 +54,8 @@ void Param::usage(char **argv) {
   printf("--eig-block-scheme <N> <N>       Size of coarsening scheme for MG projector (2 2).\n");
   printf("--eig-low-modes <N>              Number of low eigenmodes used to construct MG projector (16).\n");
   printf("--eig-verbosity <bool>           Sets IRAM verbosity as verbose or quiet (false).\n");
+  printf("--eig-deflate <bool>             Compute a deflation space at the start of the HMC trajectory\n"
+	 "                                 and use it throughout the HMC integration (false)\n");
   printf("--eig-inspection <bool>          Inspect the eigenspectrum at each call of CG (false).\n");
   printf("--eig-use-comp-space <bool>      Use the compressed space for deflation (false).\n");
   printf("\nMEASUREMENT PARAMS\n");
@@ -521,6 +523,30 @@ int Param::init(int argc, char **argv, int *idx) {
     goto out;
   }
 
+ // Eigensolver deflation
+  if( strcmp(argv[i], "--eig-deflate") == 0){
+    if (i+1 >= argc){
+      usage(argv);
+    }  
+    std::string eig_defl(argv[i+1]);
+    if (eig_defl == "yes" || eig_defl == "YES" ||
+	eig_defl == "true" || eig_defl == "TRUE" ||
+	eig_defl == "1") {
+      deflate = true;
+    }
+    else if (eig_defl == "no" || eig_defl == "NO" ||
+	     eig_defl == "false" || eig_defl == "FALSE" ||
+	     eig_defl == "0") {
+      deflate = false;
+    } else {
+      cout<<"Invalid Eigensolver deflation condition ("<< eig_defl << ") given. Use true/false"<<endl;
+      exit(0);
+    }
+    i++;
+    ret = 0;
+    goto out;
+  } 
+  
   // Eigensolver inspection
   if( strcmp(argv[i], "--eig-inspection") == 0){
     if (i+1 >= argc){
@@ -717,7 +743,7 @@ void Param::print() {
   cout << "              Wilson loops = " << (meas_wl ? "true" : "false") << endl;
   cout << "              Pion = " << (meas_pc ? "true" : "false") << endl;
   cout << "              Vacuum trace = " << (meas_vt ? "true" : "false") << endl;
-  if(eig_param.n_deflate > 0) {
+  if(deflate) {
     cout << "Deflation:    nkv = " << eig_param.n_kr << endl;
     cout << "              nev = " << eig_param.n_ev << endl;
     cout << "              ndefl = " << eig_param.n_deflate << endl;

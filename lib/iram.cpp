@@ -344,7 +344,7 @@ void IRAM::reorder(std::vector<field<Complex> *> kSpace, std::vector<Complex> ev
 		  const std::tuple<Complex, double, field<Complex>*> &b) {
 		return (std::get<0>(a).imag() < std::get<0>(b).imag()); } );
     break;
-  default: printf("Undefined spectrum type %d given", spectrum);
+  default: printf("IRAM: Undefined spectrum type %d given", spectrum);
     exit(0);
   }
   
@@ -724,7 +724,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
     }
     
     if(nshifts == 0 && num_converged < n_ev) {
-      cout << "No shifts can be applied" << endl;
+      cout << "IRAM ERROR: No shifts can be applied" << endl;
       exit(0);
     }    
     
@@ -804,7 +804,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
       t_compute += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
 
       if(blas::norm(r->data) < epsilon) {
-	printf("IRAM: Congratulations! You have reached an invariant subspace at iter %d, beta = %e\n", restart_iter, blas::norm(r->data));
+	printf("IRAM ERROR: Congratulations! You have reached an invariant subspace at iter %d, beta = %e\n", restart_iter, blas::norm(r->data));
 	exit(0);
       }
     }
@@ -819,7 +819,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   
   // Post computation report  
   if (!converged) {    
-    printf("IRAM: Failed to compute the requested %d vectors with with a %d search space and a %d Krylov space in %d restart_steps and %d OPs.\n", n_conv, n_ev, n_kr, restart_iter, iter);
+    printf("IRAM ERROR: Failed to compute the requested %d vectors with with a %d search space and a %d Krylov space in %d restart_steps and %d OPs.\n", n_conv, n_ev, n_kr, restart_iter, iter);
     exit(0);
   } else {
     if(verbosity) {
@@ -1048,20 +1048,22 @@ void IRAM::computeMGDeflationSpace(std::vector<field<Complex>*> &kSpace_out, con
   // Compute the eigenvalues and residua using the reconstructed kSpace
   std::vector<double> resid(n_conv, 0.0);
   computeEvals(gauge, kSpace_out, resid, evals_mg, n_conv);
-
-  for (int i = 0; i < n_conv; i++) {
-    printf("IRAM: Post Compression EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals_mg[i].real(), evals_mg[i].imag(), abs(evals_mg[i]), resid[i]);
-  }
   
-  // Check compression ratio
-  int pre = 2 * n_conv * Nx * Ny;
-  int post = n_blocks * n_low * (block_size + n_conv);
-  cout << "IRAM: Algorithmic compression report: " << endl;
-  cout << "IRAM: Complex(double) elems pre = " << pre << " Complex(double) elems post = " << post << endl;
-  cout << "IRAM: Ratio: " << (100.0 * post)/pre << "% of original data." << endl;
-  cout << "IRAM: " << n_low << " low eigenvectors used " << endl;
-  cout << "IRAM: " << (n_conv - n_low) << " high eigenvectors reconstructed " << endl;
-  cout << "IRAM: Compress/decompress time = " << ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6 << endl;
+  if(verbosity) {
+    for (int i = 0; i < n_conv; i++) {
+      printf("IRAM: Post Compression EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals_mg[i].real(), evals_mg[i].imag(), abs(evals_mg[i]), resid[i]);
+    }
+    
+    // Check compression ratio
+    int pre = 2 * n_conv * Nx * Ny;
+    int post = n_blocks * n_low * (block_size + n_conv);
+    cout << "IRAM: Algorithmic compression report: " << endl;
+    cout << "IRAM: Complex(double) elems pre = " << pre << " Complex(double) elems post = " << post << endl;
+    cout << "IRAM: Ratio: " << (100.0 * post)/pre << "% of original data." << endl;
+    cout << "IRAM: " << n_low << " low eigenvectors used " << endl;
+    cout << "IRAM: " << (n_conv - n_low) << " high eigenvectors reconstructed " << endl;
+    cout << "IRAM: Compress/decompress time = " << ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6 << endl;
+  }
 }
 
 void IRAM::prepareKrylovSpace(std::vector<field<Complex>*> &kSpace,
