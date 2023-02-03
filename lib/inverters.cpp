@@ -1,11 +1,19 @@
 #include "inverters.h"
 
-inverterCG::inverterCG(param_t param) {
+inverterCG::inverterCG(Param param) {
   res = new field<Complex>(param);
   p = new field<Complex>(param);
   Ap = new field<Complex>(param);
   temp = new field<Complex>(param);
   op = MdagM;
+
+  verbosity = param.verbosity;
+  cg_verbosity = param.cg_verbosity;  
+  if(param.current_hmc_iter > param.therm) {    
+    deflate = param.eig_param.n_deflate > 0 ? true : false;
+    inspect_spectrum = param.inspect_spectrum;
+  }
+  else deflate = false;
 }
 
 
@@ -25,10 +33,13 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
 			   field<Complex> *b,
 			   field<Complex> *gauge, std::vector<double> shifts) {
 
+  // Switch to heavy mass
   double mass_light = gauge->p.m;
   gauge->p.m = gauge->p.m_heavy;
+
+  // Sanity check
   if(x.size() != shifts.size()) {
-    printf("Error: x.size() = %lu, shifts.size() = %lu\n",
+    printf("CG Multi: Error: x.size() = %lu, shifts.size() = %lu\n",
 	   x.size(), shifts.size());
     exit(0);
   }
@@ -36,10 +47,11 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
   // Find norm of rhs.
   bnorm = blas::norm2(b->data);
   bsqrt = sqrt(bnorm);
-  if(verbose) cout << "bsqrt = " << bsqrt << endl;
+  if(cg_verbosity) cout << "CG Multi: bsqrt = " << bsqrt << endl;
+  
   // Sanity  
   if(bsqrt == 0 || bsqrt != bsqrt) {
-    cout << "Warning in inverterCG: inverting on zero source or Nan." << endl;
+    cout << "CG Multi: Warning in inverterCG Multi: inverting on zero source or Nan." << endl;
     exit(0);
   }
   
@@ -51,12 +63,12 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
   std::vector<double> alpha_arr(n_shifts, 1.0);
   std::vector<bool> active(n_shifts, true);
   
-  // compute initial residual
+  // Compute initial residual
   //---------------------------------------  
   res->copy(b);
   p->copy(b);
   rsq = blas::norm2(res->data);
-  if(verbose) printf("CG iter 0, rsq = %g\n", rsq);
+  if(cg_verbosity) printf("CG Multi: iter 0, res = %g\n", sqrt(rsq));
   
   std::vector<field<Complex> *> p_arr(n_shifts);
   for(int i=0; i<n_shifts; i++) {    
@@ -98,14 +110,14 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
     blas::axpy(alpha, Ap->data, res->data);    
 
     rsq_new = blas::norm2(res->data);
-    if(verbose) printf("CG iter %d, rsq = %g\n", iter+1, rsq_new);
+    if(cg_verbosity) printf("CG Multi: iter %d, res = %g\n", iter+1, sqrt(rsq_new));
 
     // Exit if new residual on the lightest vector is small enough
     bool converged = true;
     for (int i=0; i<n_shifts_remaining && active[i]; i++) {
-      if(zeta[i] * sqrt(rsq_new) < gauge->p.eps*bnorm) {
+      if(zeta[i] * sqrt(rsq_new) < pow(gauge->p.tol_cg, 2)*bnorm) {
 	active[i] = false;
-	if(verbose) printf("CG iter %d, shift %d converged: res = %g\n", iter+1, i, zeta[i] * sqrt(rsq_new));
+	if(cg_verbosity) printf("CG Multi: iter %d, shift %d converged: res = %g\n", iter+1, i, zeta[i] * sqrt(rsq_new));
       } else {
 	converged = false;
       }
@@ -132,49 +144,58 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
 
   if(iter == gauge->p.max_iter_cg) {
     // Failed convergence 
-    printf("CG: Failed to converge iter = %d, rsq = %.16e\n", iter+1, rsq); 
+    printf("CG Multi: Failed to converge iter = %d, res = %.16e\n", iter, sqrt(rsq)); 
     success = 0; 
   } else {
     // Convergence 
-    success = iter+1; 
+    success = iter; 
   }
 
-  if(verbose) {
+  if(cg_verbosity) {
     //Sanity
-    cout << "source norm = " << blas::norm(b->data) << endl;
+    cout << "CG Multi: source norm = " << blas::norm(b->data) << endl;
     for(int i=0; i<n_shifts; i++) {
-      cout << "sol norm = " << blas::norm(x[i]->data) << endl;    
+      cout << "CG Multi: sol " << i << " norm = " << blas::norm(x[i]->data) << endl;
+    }
+    
+    for(int i=0; i<n_shifts; i++) {
       OPERATOR(temp, x[i], gauge);
       blas::caxpy(shifts[i], x[i]->data, temp->data);
       
       blas::axpy(-1.0, temp->data, b->data, res->data);
       double truersq = blas::norm2(res->data);
-      printf("CG: Converged shift = %d, rsq = %.16e, truersq = %.16e\n", i, sqrt(rsq), sqrt(truersq)/(bsqrt));
+      printf("CG Multi: Converged shift = %d, iter = %d, res = %.16e, trueres = %.16e\n", i, success, sqrt(rsq), sqrt(truersq)/(bsqrt));
     }
   }
-  
-  //printf("CG: Converged iter = %d\n", success);
+
+  // Restore light mass
   gauge->p.m = mass_light;
   return success;  
 }
 
-int inverterCG::solve(field<Complex> *x, field<Complex> *b,
-		      std::vector<field<Complex> *> &kSpace,
-		      std::vector<Complex> &evals,
-		      field<Complex> *gauge, bool deflate) {
+int inverterCG::solve(field<Complex> *x, const field<Complex> *b, const field<Complex> *gauge) {
   
   // Find norm of rhs.
   bnorm = blas::norm2(b->data);
   bsqrt = sqrt(bnorm);
 
   // Sanity  
-  if(bsqrt == 0 || bsqrt != bsqrt) {
-    cout << "Warning in inverterCG: inverting on zero source or Nan!" << endl;
-    //exit(0);
-  }
-
+  if(bsqrt == 0 || bsqrt != bsqrt) cout << "CG: Warning in inverterCG: inverting on zero source or Nan!" << endl;
+  
   blas::zero(temp->data);
   blas::zero(res->data);
+
+  if(deflate) {
+    if (!eig) {
+      if(verbosity) cout << "CG: Computing deflation space for CG" << endl;
+      eig = new IRAM(gauge->p.eig_param);
+      eig->computeDeflationSpace(gauge);
+    }
+    if(inspect_spectrum) {
+      if(verbosity) cout << "CG: Computing spectrum for inspection" << endl;
+      eig->inspectEvolvedSpectrum(gauge, gauge->p.current_hmc_iter);
+    }
+  }
   
   // compute initial residual
   //---------------------------------------  
@@ -192,19 +213,23 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
     // temp contains original guess
     temp->copy(x);
     
-    if(verbose) {
-      cout << "using initial guess, |x0| = " << blas::norm(temp->data)
+    if(cg_verbosity) {
+      cout << "CG: Using initial guess, |x0| = " << blas::norm(temp->data)
 	   << ", |b| = " << bsqrt
 	   << ", |res| = " << blas::norm(res->data) << endl;
     }
   } else {
-    // no initial guess. Initial residual is the source.    
+    // no initial guess. Initial residual is the source.
+    if(cg_verbosity) {
+      cout << "CG: No initial guess, |b| = |res| = " << bsqrt;
+    }
     res->copy(b);
     blas::zero(temp->data);
   }
-  
-  if (deflate) {
-    deflateResidual(temp, res, kSpace, evals);
+
+  if (deflate && eig->deflationSpaceExists()) {
+    if(verbosity) cout << "CG: Applying deflation space preconditioner" << endl;
+    eig->deflate(temp, res);
     OPERATOR(res, temp, gauge);
     blas::axpy(-1.0, res->data, b->data, res->data);
   }
@@ -230,9 +255,8 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
     
     // Exit if new residual is small enough
     rsq_new = blas::norm2(res->data);
-    if (verbose) printf("CG iter %d, rsq = %g\n", iter+1, rsq_new);
-    //printf("CG iter %d, rsq = %g\n", iter+1, rsq_new);
-    if (rsq_new < gauge->p.eps*bnorm) {
+    if (cg_verbosity) printf("CG: iter %d, res = %g\n", iter, sqrt(rsq_new));
+    if (rsq_new < pow(gauge->p.tol_cg, 2)*bnorm) {
       rsq = rsq_new;
       convergence = true;
     }
@@ -248,11 +272,11 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
 
   if(iter == gauge->p.max_iter_cg) {
     // Failed convergence 
-    printf("CG: Failed to converge iter = %d, rsq = %.16e\n", iter+1, rsq); 
+    printf("CG: Failed to converge iter = %d, res = %.16e\n", iter, sqrt(rsq)); 
     success = 0; 
   } else {
     // Convergence 
-    success = iter+1; 
+    success = iter; 
   }
 
   // x contains the solution to the deflated system b - A*x0.
@@ -260,25 +284,17 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b,
   blas::axpy(1.0, temp->data, x->data);  
   // x now contains the solution to the RHS b.
   
-  if(verbose) {
-    
+  if(cg_verbosity) {    
     //Sanity
-    cout << "source norm = " << blas::norm(b->data) << endl;
-    cout << "sol norm = " << blas::norm(x->data) << endl;
-    
-    OPERATOR(temp, x, gauge);
-    blas::axpy(-1.0, temp->data, b->data, res->data);
-    double truersq = blas::norm2(res->data);
-    printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", iter+1, rsq, truersq/(bsqrt*bsqrt));
-  }
-  //printf("CG: Converged iter = %d\n", success);  
+    cout << "CG: source norm = " << blas::norm(b->data) << endl;
+    cout << "CG: sol norm = " << blas::norm(x->data) << endl;
+  }    
+  OPERATOR(temp, x, gauge);
+  blas::axpy(-1.0, temp->data, b->data, res->data);
+  double truersq = blas::norm2(res->data);
+  if(verbosity) printf("CG: Converged iter = %d, res = %.16e, truersq = %.16e\n", success, sqrt(rsq), sqrt(truersq)/bsqrt);
+  
   return success;  
-}
-
-int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gauge) {
-  std::vector<field<Complex> *> kSpace;
-  std::vector<Complex> evals;
-  return solve(x, b, kSpace, evals, gauge, false);
 }
 
 int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gauge, double offset) {
@@ -291,10 +307,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
   bsqrt = sqrt(bnorm);
 
   // Sanity  
-  if(bsqrt == 0 || bsqrt != bsqrt) {
-    cout << "Warning in inverterCG: inverting on zero source or Nan!" << endl;
-    exit(0);
-  }
+  if(bsqrt == 0 || bsqrt != bsqrt) cout << "CG: Warning in inverterCG: inverting on zero source or Nan!" << endl;
 
   blas::zero(temp->data);
   blas::zero(res->data);
@@ -316,8 +329,8 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
     // temp contains original guess
     temp->copy(x);
     
-    if(verbose) {
-      cout << "using initial guess, |x0| = " << blas::norm(temp->data)
+    if(cg_verbosity) {
+      cout << "CG: using initial guess, |x0| = " << blas::norm(temp->data)
 	   << ", |b| = " << bsqrt
 	   << ", |res| = " << blas::norm(res->data) << endl;
     }
@@ -348,8 +361,8 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
     
     // Exit if new residual is small enough
     rsq_new = blas::norm2(res->data);
-    if (verbose) printf("CG iter %d, rsq = %g\n", iter+1, rsq_new);
-    if (rsq_new < gauge->p.eps*bnorm) {
+    if (cg_verbosity) printf("CG: iter %d, rsq = %g\n", iter, rsq_new);
+    if (rsq_new < pow(gauge->p.tol_cg, 2)*bnorm) {
       rsq = rsq_new;
       break;
     }
@@ -365,11 +378,11 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
 
   if(iter == gauge->p.max_iter_cg) {
     // Failed convergence 
-    printf("CG: Failed to converge iter = %d, rsq = %.16e\n", iter+1, rsq); 
+    printf("CG: Failed to converge iter = %d, rsq = %.16e\n", iter, rsq); 
     success = 0; 
   } else {
     // Convergence 
-    success = iter+1; 
+    success = iter; 
   }
 
   // x contains the solution to the deflated system b - A*x0.
@@ -377,33 +390,17 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
   blas::axpy(1.0, temp->data, x->data);  
   // x now contains the solution to the RHS b.
   
-  if(verbose) {
-    
+  if(cg_verbosity) {    
     //Sanity
-    cout << "source norm = " << blas::norm(b->data) << endl;
-    cout << "sol norm = " << blas::norm(x->data) << endl;
-    
-    OPERATOR(temp, x, gauge);
-    blas::axpy(-offset, x->data, temp->data);    
-    blas::axpy(-1.0, temp->data, b->data, res->data);
-    double truersq = blas::norm2(res->data);
-    printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", iter+1, rsq, truersq/(bsqrt*bsqrt));
+    cout << "CG: source norm = " << blas::norm(b->data) << endl;
+    cout << "CG: sol norm = " << blas::norm(x->data) << endl;
   }
-  return success;  
-}
-
-void inverterCG::deflateResidual(field<Complex> *phi_defl, field<Complex> *phi,
-				 std::vector<field<Complex> *> &kSpace,
-				 std::vector<Complex> &evals) {
   
-  Complex scalar;
-  //Deflate each converged eigenpair from the phi
-  // phi_defl = (v * lambda^-1 * v^dag) * phi
-  for(int i=0; i<kSpace.size(); i++) {
-    //Compute scalar part: s = (lambda)^-1 * (v^dag * phi)
-    scalar = blas::cDotProd(kSpace[i]->data, phi->data);
-    scalar /= evals[i].real();
-    //Accumulate in phi_defl: phi_defl = phi_defl + v * s
-    blas::caxpy(scalar, kSpace[i]->data, phi_defl->data);
-  }
+  OPERATOR(temp, x, gauge);
+  blas::axpy(-offset, x->data, temp->data);    
+  blas::axpy(-1.0, temp->data, b->data, res->data);
+  double truersq = blas::norm2(res->data);
+  if(verbosity) printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", iter, rsq, truersq/(bsqrt*bsqrt));
+
+  return success;  
 }

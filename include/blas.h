@@ -36,19 +36,19 @@ namespace blas {
   Complex cDotProd(const std::vector<Complex> &x, const std::vector<Complex> &y);
   
   // Norm squared 
-  double norm2(std::vector<Complex> &x);
+  double norm2(const std::vector<Complex> &x);
   
   // Norm squared 
   double norm2(Complex *x, int size);
   
   // Norm 
-  double norm(std::vector<Complex> &a);
+  double norm(const std::vector<Complex> &a);
 
   // Norm squared 
-  double norm2(std::vector<double> &x);
+  double norm2(const std::vector<double> &x);
   
   // Norm 
-  double norm(std::vector<double> &a);
+  double norm(const std::vector<double> &a);
   
   // caxpby
   void caxpby(const Complex a, const std::vector<Complex> &x, const Complex b, std::vector<Complex> &y);

@@ -7,8 +7,8 @@
 #include "hdf5.h"
 #endif
 
-void printParams(param_t p);
-void constructName(string &name, param_t p);
+void printParams(Param p);
+void constructName(string &name, Param p);
 void writeGauge(field<Complex> *gauge, string name);
 void readGauge(field<Complex> *gauge, string name);
 

@@ -70,7 +70,7 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter)
   name = "data/creutz/creutz";
   constructName(name, gauge->p);
   name += ".dat";
-  sprintf(fname, "%s", name.c_str());
+  snprintf(fname, 100, "%s", name.c_str());
   fp = fopen(fname, "a");
   fprintf(fp, "%d %.16e ", iter, -log(abs(plaq)) );
   for(int size=2; size<loop_max; size++)
@@ -84,7 +84,7 @@ void measWilsonLoops(field<Complex> *gauge, double plaq, int iter)
       name += "_" + to_string(sizex) + "_" + to_string(sizey);
       constructName(name, gauge->p);
       name += ".dat";
-      sprintf(fname, "%s", name.c_str());
+      snprintf(fname, 100, "%s", name.c_str());
       fp = fopen(fname, "a");
       fprintf(fp, "%d %.16e %.16e\n", iter, real(wLoops[sizex][sizey]), imag(wLoops[sizex][sizey]));	    
       fclose(fp);
@@ -177,7 +177,7 @@ void measPionCorrelation(field<Complex> *gauge, int iter)
   name = "data/pion/pion";
   constructName(name, gauge->p);
   name += ".dat";  
-  sprintf(fname, "%s", name.c_str());
+  snprintf(fname, 100, "%s", name.c_str());
   fp = fopen(fname, "a");
   fprintf(fp, "%d ", iter);
   for(int t=0; t<Ny/2+1; t++)
@@ -190,111 +190,6 @@ void measPionCorrelation(field<Complex> *gauge, int iter)
   delete source;
   delete Dsource;
   delete inv;
-}
-
-double measGaugeAction(field<Complex> *gauge) {
-
-  double beta = gauge->p.beta;
-  double action = 0.0;
-  Complex plaq = 0.0;
-
-  int Nx = gauge->p.Nx;
-  int Ny = gauge->p.Ny;
-  //#pragma	omp parallel for reduction (+:action)
-  for(int x=0; x<Nx; x++) {
-    int xp1 = (x+1)%Nx;
-    for(int y=0; y<Ny; y++) {
-      int yp1 = (y+1)%Ny;
-      Complex plaq = (gauge->read(x,y,0) * gauge->read(xp1,y,1) *
-		      conj(gauge->read(x,yp1,0)) * conj(gauge->read(x,y,1)));
-      
-      action += beta*real(1.0 - plaq);      
-    }
-  }
-  return action;
-}
-
-double measMomAction(field<double> *mom) {
-  
-  double action = 0.0;
-  double temp = 0.0;
-  int Nx = mom->p.Nx;
-  int Ny = mom->p.Ny;
-  //#pragma	omp parallel for reduction (+:action)
-  for(int x=0; x<Nx; x++)
-    for(int y=0; y<Ny; y++){
-      for(int mu=0; mu<2; mu++){
-	double temp = mom->read(x,y,mu);
-	action += 0.5 * temp * temp;
-      }
-    }
-  
-  return action;
-}
-
-//Wilson fermion
-double measFermAction(field<Complex> *gauge, field<Complex> *phi,
-		      PFE &pfe, bool rational) {
-
-  int n_ferm = rational ? pfe.inv_pole.size() : 1;
-  std::vector<field<Complex>*> phi_tmp;
-  phi_tmp.reserve(n_ferm);
-  for(int i=0; i<n_ferm; i++) phi_tmp.push_back(new field<Complex>(gauge->p));  
-  
-  Complex action = 0.0;
-  inverterCG *inv = new inverterCG(gauge->p);
-  
-  if(rational) {
-    inv->solveMulti(phi_tmp, phi, gauge, pfe.inv_pole);
-    action = pfe.inv_norm * blas::cDotProd(phi->data, phi->data);
-    for(int i=0; i<n_ferm; i++) action += pfe.inv_res[i] * blas::cDotProd(phi_tmp[i]->data, phi->data);
-  } else {
-    inv->solve(phi_tmp[0], phi, gauge);
-    action = blas::cDotProd(phi_tmp[0]->data, phi->data);
-  }
-  
-  for(int i=0; i<n_ferm; i++) delete phi_tmp[i];
-  delete inv;
-  return action.real();
-}
-
-//Wilson Action
-double measAction(field<double> *mom, field<Complex> *gauge, std::vector<field<Complex>*> &phi, PFE &pfe) {
-
-  int n_ferm = phi.size();
-  double action = 0.0;
-  double beta = gauge->p.beta;
-  int Ny = gauge->p.Ny;
-  int Nx = gauge->p.Nx;
-  
-  action += measMomAction(mom);
-  action += (Nx * Ny)*beta*real(1.0 - measPlaq(gauge));
-
-  if(gauge->p.dynamic) {
-    action += measFermAction(gauge, phi[0], pfe, false);
-    if(gauge->p.flavours == 3) action += measFermAction(gauge, phi[1], pfe, true);
-  }
-  
-  return action;
-}
-
-
-Complex measPlaq(field<Complex> *gauge) {
-  Complex plaq = 0.0;
-  int Nx = gauge->p.Nx;
-  int Ny = gauge->p.Ny;
-  double norm = 1.0/(Nx * Ny);
-
-  //#pragma	omp parallel for reduction(+:plaq)
-  for(int x=0; x<Nx; x++) {
-    int xp1 = (x+1)%Nx;
-    for(int y=0; y<Ny; y++) {
-      int yp1 = (y+1)%Ny;
-      // Anti-clockwise plaquette, starting at (x,y)
-      plaq += (gauge->read(x,y,0) * gauge->read(xp1,y,1) * conj(gauge->read(x,yp1,0)) * conj(gauge->read(x,y,1)));
-    }
-  }
-  return plaq * norm;
 }
 
 double measTopCharge(field<Complex> *gauge){

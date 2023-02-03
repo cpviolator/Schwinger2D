@@ -1,8 +1,10 @@
 #include "utils.h"
 #include "io.h"
 
-void writeGauge(field<Complex> *gauge, string name){
+void writeGauge(field<Complex> *gauge, string name) {
 
+  cout << "IO: Writing gauge " << name << endl;
+  
   fstream outPutFile;
   outPutFile.open(name,ios::in|ios::out|ios::trunc);  
   outPutFile.setf(ios_base::fixed,ios_base::floatfield); 
@@ -18,8 +20,8 @@ void writeGauge(field<Complex> *gauge, string name){
   return;  
 }
 
-void readGauge(field<Complex> *gauge, string name)
-{
+void readGauge(field<Complex> *gauge, string name) {
+  cout << "IO: Reading gauge " << name << endl;
   fstream inPutFile;
   inPutFile.open(name);
   string val;
@@ -45,6 +47,7 @@ void readGauge(field<Complex> *gauge, string name)
 
 void writePFE(PFE &pfe, string name){
 
+  cout << "IO: Writing PFE " << name << endl;
   fstream outputFile;
   outputFile.open(name,ios::in|ios::out|ios::trunc);  
   outputFile.setf(ios_base::scientific); 
@@ -75,6 +78,7 @@ void writePFE(PFE &pfe, string name){
 
 bool readPFE(PFE &pfe, string name)
 {
+  cout << "IO: Reading PFE " << name << endl;
   fstream inputFile;
   inputFile.open(name);
   string val;

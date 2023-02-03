@@ -4,9 +4,8 @@
 
 //2D HMC Routines
 //---------------------------------------------------------------------
-HMC::HMC(param_t param) {
+HMC::HMC(Param param) {
 
-  inv = new inverterCG(param);
   guess_stack.reserve(10);  
   for(int i=0; i<10; i++) guess_stack.push_back(new field<Complex>(param));
 
@@ -15,8 +14,8 @@ HMC::HMC(param_t param) {
 
   if(param.flavours == 3) {
 #ifdef ENABLE_ALG_REMEZ
-    int n = param.degree; // The degree of the numerator polynomial
-    int d = param.degree; // The degree of the denominator polynomial
+    int n = param.pfe_degree; // The degree of the numerator polynomial
+    int d = param.pfe_degree; // The degree of the denominator polynomial
     int y = 1;  // The numerator of the exponent
     int z = 4;  // The denominator of the exponent
     int precision = param.pfe_prec; // The precision that gmp uses
@@ -93,8 +92,8 @@ HMC::HMC(param_t param) {
     cout << "Error: AlgRemez not installed. Please recompile with ENABLE_ALG_REMEZ = ON: flavours passed = " << param.flavours << endl;
     exit(0);
 #endif
-  } else if(!(param.flavours == 2 || param.flavours == 3)) {
-    cout << "Error: flavours must be 2 or 3: flavours passed = " << param.flavours << endl;
+  } else if(!(param.flavours == 2 || param.flavours == 0)) {
+    cout << "Error: flavours must be 0, 2, or 3: flavours passed = " << param.flavours << endl;
     exit(0);    
   }
 };
@@ -118,7 +117,10 @@ bool HMC::hmc_reversibility(field<Complex> *gauge, int iter) {
   // init mom[LX][LY][D]  <mom^2> = 1;
   gaussReal(mom); 
 
-  if(gauge->p.dynamic) {    
+  // Create CG solver
+  inv = new inverterCG(gauge->p);
+  
+  if(gauge->p.flavours > 0) {    
     //Create gaussian distributed fermion field chi
     gaussComplex(chi[0]);
     if(gauge->p.flavours == 3) gaussComplex(chi[1]);
@@ -128,14 +130,14 @@ bool HMC::hmc_reversibility(field<Complex> *gauge, int iter) {
     if(gauge->p.flavours == 3) {
       //Create a rational pseudo fermion field phi = (g3 D g3 D)^-1/4 chi
       std::vector<field<Complex>*> phi_arr;
-      for(int i=0; i<gauge->p.degree; i++) phi_arr.push_back(new field<Complex>(gauge->p));    
+      for(int i=0; i<gauge->p.pfe_degree; i++) phi_arr.push_back(new field<Complex>(gauge->p));    
       inv->solveMulti(phi_arr, chi[1], gauge, heatbath_pfe.pole);
       blas::zero(phi[1]->data);
       // Accumulate the norm
       blas::axpy(heatbath_pfe.norm, chi[1]->data, phi[1]->data);
       // Continue accumulation
-      for(int i=0; i<gauge->p.degree; i++) blas::axpy(heatbath_pfe.res[i], phi_arr[i]->data, phi[1]->data);
-      for(int i=0; i<gauge->p.degree; i++) delete phi_arr[i];        
+      for(int i=0; i<gauge->p.pfe_degree; i++) blas::axpy(heatbath_pfe.res[i], phi_arr[i]->data, phi[1]->data);
+      for(int i=0; i<gauge->p.pfe_degree; i++) delete phi_arr[i];        
     }
   }
 
@@ -181,10 +183,13 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   field<Complex> *gauge_old = new field<Complex>(gauge->p);  
   gauge_old->copy(gauge);
   
-  // init mom[LX][LY][D]  <mom^2> = 1;
-  gaussReal(mom); 
+  // init momentum
+  gaussReal(mom);
+
+  // Create CG solver
+  inv = new inverterCG(gauge->p);
   
-  if(gauge->p.dynamic) {    
+  if(gauge->p.flavours > 0) {    
     //Create gaussian distributed fermion field chi
     gaussComplex(chi[0]);
     if(gauge->p.flavours == 3) gaussComplex(chi[1]);
@@ -194,33 +199,27 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
     if(gauge->p.flavours == 3) {
       //Create a rational pseudo fermion field phi = (g3 D g3 D)^-1/4 chi
       std::vector<field<Complex>*> phi_arr;
-      for(int i=0; i<gauge->p.degree; i++) phi_arr.push_back(new field<Complex>(gauge->p));    
+      for(int i=0; i<gauge->p.pfe_degree; i++) phi_arr.push_back(new field<Complex>(gauge->p));    
       inv->solveMulti(phi_arr, chi[1], gauge, heatbath_pfe.pole);
       blas::zero(phi[1]->data);
       // Accumulate the norm
       blas::axpy(heatbath_pfe.norm, chi[1]->data, phi[1]->data);
       // Continue accumulation
-      for(int i=0; i<gauge->p.degree; i++) blas::axpy(heatbath_pfe.res[i], phi_arr[i]->data, phi[1]->data);
-      for(int i=0; i<gauge->p.degree; i++) delete phi_arr[i];        
+      for(int i=0; i<gauge->p.pfe_degree; i++) blas::axpy(heatbath_pfe.res[i], phi_arr[i]->data, phi[1]->data);
+      for(int i=0; i<gauge->p.pfe_degree; i++) delete phi_arr[i];        
     }
   }
 
-  // Reset the guess counter so that the previous guesses are discarded and new
-  // ones constructed.
-  guess_counter = 0;
-  
-  if (iter >= gauge->p.therm) {
-    // P^2 + S(U) + <chi|chi>
-    H_old = measAction(mom, gauge, phi, heatbath_pfe);
-  }
+  // H_old = P^2 + S(U) + <chi|chi>
+  if (iter >= gauge->p.therm) H_old = measAction(mom, gauge, phi, heatbath_pfe);
 
+  // Perfrom trajectory
   trajectory(mom, gauge, phi, iter);
   
-  if (iter >= gauge->p.therm) {
-    // P^2 + S(U) + <phi| (Ddag D)^-1 |phi>
-    H = measAction(mom, gauge, phi, heatbath_pfe);
-  }
-  if (iter >= 2*gauge->p.therm) {      
+  // H_evolved = P^2 + S(U) + <phi| (Ddag D)^-1 |phi>
+  if (iter >= gauge->p.therm) H = measAction(mom, gauge, phi, heatbath_pfe);
+
+  if (iter >= gauge->p.therm) {      
     hmc_count++;    
     exp_dH = exp(-(H-H_old));
     dH = (H-H_old);
@@ -247,7 +246,8 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   delete phi[0]; delete phi[1];
   delete chi[0]; delete chi[1];
   delete gauge_old;
-
+  delete inv;
+  
   return accept;
 }
 
@@ -256,7 +256,6 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
   double dtau = gauge->p.tau/gauge->p.n_step;
   double H = 0.0;
   double ave_iter = 0;
-  bool inspectrum_bool = gauge->p.inspect_spectrum;
   
   // gauge force (U field)
   field<double> *fU = new field<double>(gauge->p);
@@ -272,7 +271,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
   double one_minus_2lambda_dt = (1-2*lambda)*dtau;
   double two_lambda_dt = lambda_dt*2;
   double xi_dtdt = 2*dtau*dtau*dtau*xi;
-
+  
   switch(gauge->p.integrator) {
   case LEAPFROG:
     // Start LEAPFROG HMC trajectory
@@ -550,9 +549,10 @@ void HMC::update_gauge(field<Complex> *gauge, field<double> *mom, double dtau){
 int HMC::forceD(field<double> *fD, field<Complex> *phi, field<Complex> *gauge)
 {
   int cg_iter = 0;
-  if(gauge->p.dynamic == true) {
+  if(gauge->p.flavours > 0) {
 
-    blas::zero(fD->data);    
+    blas::zero(fD->data);
+    blas::zero(phip->data);    
     cg_iter += inv->solve(phip, phi, gauge);
     
     //g3Dphi = g3D * phip
@@ -619,7 +619,7 @@ int HMC::forceMultiD(field<double> *fD, field<Complex> *phi, field<Complex> *gau
 {
   int n_ferm = force_pfe.inv_pole.size();
   int cg_iter = 0;
-  if(gauge->p.dynamic == true) {
+  if(gauge->p.flavours == 3) {
     
     std::vector<field<Complex>*> phi_array;
     phi_array.reserve(n_ferm);
@@ -704,6 +704,113 @@ int HMC::forceMultiD(field<double> *fD, field<Complex> *phi, field<Complex> *gau
   return cg_iter;
 }
 
+double HMC::measGaugeAction(field<Complex> *gauge) {
+
+  double beta = gauge->p.beta;
+  double action = 0.0;
+  Complex plaq = 0.0;
+
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+  //#pragma	omp parallel for reduction (+:action)
+  for(int x=0; x<Nx; x++) {
+    int xp1 = (x+1)%Nx;
+    for(int y=0; y<Ny; y++) {
+      int yp1 = (y+1)%Ny;
+      Complex plaq = (gauge->read(x,y,0) * gauge->read(xp1,y,1) *
+		      conj(gauge->read(x,yp1,0)) * conj(gauge->read(x,y,1)));
+      
+      action += beta*real(1.0 - plaq);      
+    }
+  }
+  return action;
+}
+
+double HMC::measMomAction(field<double> *mom) {
+  
+  double action = 0.0;
+  double temp = 0.0;
+  int Nx = mom->p.Nx;
+  int Ny = mom->p.Ny;
+#pragma	omp parallel for reduction (+:action)
+  for(int x=0; x<Nx; x++)
+    for(int y=0; y<Ny; y++){
+      for(int mu=0; mu<2; mu++){
+	double temp = mom->read(x,y,mu);
+	action += 0.5 * temp * temp;
+      }
+    }
+  
+  return action;
+}
+
+//Wilson fermion
+double HMC::measFermAction(field<Complex> *gauge, field<Complex> *phi,
+			   PFE &pfe, bool rational) {
+
+  int n_ferm = rational ? pfe.inv_pole.size() : 1;
+  std::vector<field<Complex>*> phi_tmp;
+  phi_tmp.reserve(n_ferm);
+  for(int i=0; i<n_ferm; i++) {
+    phi_tmp.push_back(new field<Complex>(gauge->p));
+    blas::zero(phi_tmp[i]->data);
+  }
+  
+  Complex action = 0.0;
+
+  // Temporarily swich off deflation and inspection
+  inv->switchOffDeflation();  
+  if(rational) {
+    inv->solveMulti(phi_tmp, phi, gauge, pfe.inv_pole);
+    action = pfe.inv_norm * blas::cDotProd(phi->data, phi->data);
+    for(int i=0; i<n_ferm; i++) action += pfe.inv_res[i] * blas::cDotProd(phi_tmp[i]->data, phi->data);
+  } else {
+    inv->solve(phi_tmp[0], phi, gauge);
+    action = blas::cDotProd(phi_tmp[0]->data, phi->data);
+  }
+  inv->switchOnDeflation();
+  
+  for(int i=0; i<n_ferm; i++) delete phi_tmp[i];
+  return action.real();
+}
+
+//Wilson Action
+double HMC::measAction(field<double> *mom, field<Complex> *gauge, std::vector<field<Complex>*> &phi, PFE &pfe) {
+
+  int n_ferm = phi.size();
+  double action = 0.0;
+  double beta = gauge->p.beta;
+  int Ny = gauge->p.Ny;
+  int Nx = gauge->p.Nx;
+  
+  action += measMomAction(mom);
+  action += (Nx * Ny)*beta*real(1.0 - measPlaq(gauge));
+
+  if(gauge->p.flavours > 0) action += measFermAction(gauge, phi[0], pfe, false);
+  if(gauge->p.flavours == 3) action += measFermAction(gauge, phi[1], pfe, true);
+  
+  return action;
+}
+
+
+Complex HMC::measPlaq(field<Complex> *gauge) {
+  Complex plaq = 0.0;
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+  double norm = 1.0/(Nx * Ny);
+
+  //#pragma	omp parallel for reduction(+:plaq)
+  for(int x=0; x<Nx; x++) {
+    int xp1 = (x+1)%Nx;
+    for(int y=0; y<Ny; y++) {
+      int yp1 = (y+1)%Ny;
+      // Anti-clockwise plaquette, starting at (x,y)
+      plaq += (gauge->read(x,y,0) * gauge->read(xp1,y,1) * conj(gauge->read(x,yp1,0)) * conj(gauge->read(x,y,1)));
+    }
+  }
+  return plaq * norm;
+}
+
 
 //----------------------------------------------------------------------------------
 
@@ -712,7 +819,6 @@ HMC::~HMC() {
 #ifdef ENABLE_ALG_REMEZ
   delete remez;
 #endif
-  delete inv;
   for(int i=0; i<10; i++) delete guess_stack[i];
   delete phip;
   delete g3Dphi;

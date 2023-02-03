@@ -33,7 +33,7 @@ public:
   double exp_dH = 0.0;
   double dH = 0.0;
   
-  HMC(param_t param);
+  HMC(Param param);
   int hmc(field<Complex> *gauge, int iter);
   bool hmc_reversibility(field<Complex> *gauge, int iter);
   void trajectory(field<double> *mom, field<Complex> *gauge, std::vector<field<Complex>*> &phi, int iter);
@@ -47,6 +47,12 @@ public:
   void forceGradient(field<double> *mom, field<Complex> *gauge, double one_minus_2lambda_dt, double xi_dtdt);
   void innerFGI(field<double> *mom, field<Complex> *gauge, double tau, int steps);
 
+  double measGaugeAction(field<Complex> *gauge);
+  double measMomAction(field<double> *mom);
+  double measFermAction(field<Complex> *gauge, field<Complex> *phi, PFE &pfe, bool rational);
+  double measAction(field<double> *mom, field<Complex> *gauge, std::vector<field<Complex>*> &phi, PFE &pfe);
+  Complex measPlaq(field<Complex> *gauge);
+  
   // Optimise this to operate only on a single parity of sites.
   int forceMultiD(field<double> *fD, field<Complex> *phi, field<Complex> *gauge);
   

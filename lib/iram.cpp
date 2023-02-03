@@ -1,7 +1,44 @@
 #include "iram.h"
 
-IRAM::IRAM(eig_param_t param) {
-  op = param.op;
+IRAM::IRAM(EigParam eig_param_in) {
+  
+  eig_param = eig_param_in;
+  verbosity = eig_param.verbosity;
+  inspection_counter = 0;
+
+  Nx = eig_param.Nx;
+  Ny = eig_param.Ny;
+  
+  n_ev = eig_param.n_ev;
+  n_kr = eig_param.n_kr;
+  n_conv = eig_param.n_conv;
+  n_deflate = eig_param.n_deflate;
+  max_restarts = eig_param.max_restarts;
+  tol = eig_param.tol;
+  spectrum = eig_param.spectrum;
+  iram_verbose = eig_param.iram_verbose;
+  op = eig_param.op;
+  block_scheme[0] = eig_param.block_scheme[0];
+  block_scheme[1] = eig_param.block_scheme[1];
+  n_low = eig_param.n_low;
+
+  x_block_size = Nx/block_scheme[0];
+  y_block_size = Ny/block_scheme[1];
+  n_blocks = block_scheme[0]*block_scheme[1];
+  block_size = 2 * x_block_size * y_block_size;
+
+  if(Nx%block_scheme[0] != 0) {
+    cout << "IRAM: Error: x block_scheme = " << block_scheme[0] << " does not divide Nx = " << Nx << endl;
+  }
+  if(Ny%block_scheme[1] != 0) {
+    cout << "IRAM: Error: y block_scheme = " << block_scheme[1] << " does not divide Ny = " << Ny << endl;
+  }
+
+  // n_blocks * n_conv * (block_size + l_low) complex elems
+  for(int i=0; i<n_blocks; i++) {
+    block_data_ortho.push_back(std::vector<Complex> (n_conv * block_size, 0.0));
+    block_coeffs.push_back(std::vector<Complex> (n_low * n_conv, 0.0));
+  }
 }
 
 void IRAM::OPERATOR(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge){
@@ -10,27 +47,44 @@ void IRAM::OPERATOR(field<Complex> *out, const field<Complex> *in, const field<C
   case Mdag: Ddagpsi(out, in, gauge); break;
   case MdagM: DdagDpsi(out, in, gauge); break;
   case MMdag: DdagDpsi(out, in, gauge); break;
-  default: cout << "Undefined operator type requested: " << op << endl;
+  default: cout << "IRAM: Undefined operator type requested: " << op << endl;
     exit(0);
   }
 }
 
-void IRAM::deflate(field<Complex> *guess, field<Complex> *phi,
-		   std::vector<field<Complex> *> kSpace, std::vector<Complex> &evals,
-		   int n_deflate) {
+void IRAM::deflate(field<Complex> *guess, field<Complex> *phi) {
+
+  if(kSpace_defl.size() == 0) {
+    cout << "IRAM Error: No deflation space evecs exist" << endl;
+    exit(0);
+  }
+  if(evals_defl.size() == 0) {
+    cout << "IRAM: Error: No deflation space evals exist" << endl;
+    exit(0);
+  }
   
   blas::zero(guess->data);
   Complex scalar;
   
   // Deflate each converged eigenpair from the guess  
   // guess_defl = (v * lambda^-1 * v^dag) * guess
+  if(verbosity) cout << "IRAM: Deflating " << n_deflate << " eigenpairs." << endl;
   for(int i=0; i<n_deflate; i++) {
     
-    // Compute scalar part: s = (lambda)^-1 * (v^dag * phi)
-    scalar = blas::cDotProd(kSpace[i]->data, phi->data);
-    scalar /= real(evals[i]);
-    // Accumulate in guess defl_guess: defl_guess = defl_guess + v * s
-    blas::caxpy(scalar, kSpace[i]->data, guess->data);
+    if(use_compressed_space) { 
+      // Compute scalar part: s = (lambda)^-1 * (v^dag * phi)
+      scalar = blas::cDotProd(kSpace_mg[i]->data, phi->data);
+      scalar /= real(evals_mg[i]);
+      // Accumulate in guess defl_guess: defl_guess = defl_guess + v * s
+      blas::caxpy(scalar, kSpace_mg[i]->data, guess->data);
+    }
+    else {
+      // Compute scalar part: s = (lambda)^-1 * (v^dag * phi)
+      scalar = blas::cDotProd(kSpace_defl[i]->data, phi->data);
+      scalar /= real(evals_defl[i]);
+      // Accumulate in guess defl_guess: defl_guess = defl_guess + v * s
+      blas::caxpy(scalar, kSpace_defl[i]->data, guess->data);
+    }
   }
 }
 
@@ -70,7 +124,7 @@ void IRAM::zsortc(Spectrum which, int n, std::vector<Complex> &x, std::vector<Co
 			const pair<Complex,Complex> &b) {
 		      return (a.first).imag() > (b.first).imag(); } );
     break;
-  default: cout << "Undefined sort" << endl;
+  default: cout << "IRAM: Undefined sort" << endl;
   }
 
   // Repopulate x and y arrays with sorted elements
@@ -238,7 +292,7 @@ void IRAM::arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *
     //%---------------------------------------%
     //| RESID is numerically in the span of V |
     //%---------------------------------------%
-    cout << "Unable to orthonormalise r" << endl;
+    cout << "IRAM: Unable to orthonormalise r" << endl;
     exit(0);
   }
 }
@@ -454,7 +508,7 @@ int IRAM::qrFromUpperHess(MatrixXcd &upperHess, MatrixXcd &Qmat, std::vector<Com
     residua[i] = abs(beta * Qmat.col(i)[n_kr-1]);
   }
   
-  printf("eigensystem iterations = %d\n", iter);
+  if(iram_verbose) printf("IRAM: eigensystem iterations = %d\n", iter);
 
   return iter;  
 }
@@ -510,7 +564,7 @@ void IRAM::computeEvals(const field<Complex> *gauge, std::vector<field<Complex> 
 }
 
 void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
-		std::vector<Complex> &evals, eig_param_t param) {
+		std::vector<Complex> &evals) {
   
   struct timeval start, end, total_start, total_end;
   gettimeofday(&total_start, NULL);  
@@ -527,27 +581,19 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   //---------------------------------------------------------  
   gettimeofday(&start, NULL);  
 
-  // Extract parameters
-  int n_ev = param.n_ev;
-  int n_kr = param.n_kr;
-  int n_conv = param.n_conv;
-  int max_restarts = param.max_restarts;
-  double tol = param.tol;
-  Spectrum spectrum = param.spectrum;
-  bool verbose = param.verbose;
-  Operator op = param.op;
-  
-  if (!(n_kr > n_ev + 6)) {
-    printf("n_kr=%d must be greater than n_ev+6=%d\n", n_kr, n_ev + 6);
-    //exit(0);
+  if (!(n_kr > n_ev + 6) && n_kr != (gauge->p.Nx * gauge->p.Ny * 2)) {
+    printf("IRAM WARNING: n_kr=%d must be greater than n_ev+6=%d\n", n_kr, n_ev + 6);
+    exit(0);
   }
 
-  printf("n_kr = %d\n", n_kr);
-  printf("n_ev = %d\n", n_ev);
-  printf("n_conv = %d\n", n_conv);
-  printf("Restarts = %d\n", max_restarts);
-  printf("tol = %e\n", tol);
-    
+  if(iram_verbose) {
+    printf("IRAM: n_kr = %d\n", n_kr);
+    printf("IRAM: n_ev = %d\n", n_ev);
+    printf("IRAM: n_conv = %d\n", n_conv);
+    printf("IRAM: Restarts = %d\n", max_restarts);
+    printf("IRAM: tol = %e\n", tol);
+  }
+  
   // Construct objects for IRAM.
   //---------------------------------------------------------------------
   //Eigenvalues and their residua
@@ -604,7 +650,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   
   // START IRAM
   // Implicitly restarted Arnoldi method for asymmetric eigenvalue problems
-  printf("START IRAM SOLUTION\n");
+  if(iram_verbose) printf("IRAM: Start IRAM solution\n");
   //----------------------------------------------------------------------
 
   // Loop over restart iterations.
@@ -641,7 +687,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
       double rtemp = std::max(epsilon23, abs(evals[idx]));
       if(residua[idx] < tol * rtemp) {
 	iter_converged++;
-	if(verbose) printf("residuum[%d] = %e, cond = %e\n", i, residua[idx], tol * abs(evals[idx]));
+	if(iram_verbose) printf("IRAM: residuum[%d] = %e, cond = %e\n", i, residua[idx], tol * abs(evals[idx]));
       } else {
 	break;
       }
@@ -664,8 +710,8 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
     num_keep = iter_keep;      
     nshifts = n_kr - num_keep;
 
-    printf("%04d converged eigenvalues at iter %d\n", num_converged, restart_iter);
-
+    if(verbosity) printf("IRAM: %04d converged eigenvalues at iter %d\n", num_converged, restart_iter);
+    
     int nshifts0 = nshifts;
     for(int i=0; i<nshifts0; i++) {
       if(residua[i] <= epsilon) {
@@ -754,7 +800,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
       t_compute += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
 
       if(blas::norm(r->data) < epsilon) {
-	printf("Congratulations! You have reached an invariant subspace at iter %d, beta = %e\n", restart_iter, blas::norm(r->data));
+	printf("IRAM: Congratulations! You have reached an invariant subspace at iter %d, beta = %e\n", restart_iter, blas::norm(r->data));
 	exit(0);
       }
     }
@@ -769,82 +815,118 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   
   // Post computation report  
   if (!converged) {    
-    printf("IRAM failed to compute the requested %d vectors with with a %d search space and a %d Krylov space in %d restart_steps and %d OPs.\n", n_conv, n_ev, n_kr, restart_iter, iter);
+    printf("IRAM: Failed to compute the requested %d vectors with with a %d search space and a %d Krylov space in %d restart_steps and %d OPs.\n", n_conv, n_ev, n_kr, restart_iter, iter);
+    exit(0);
   } else {
-    printf("IRAM computed the requested %d vectors with a %d search space and a %d Krylov space in %d restart_steps and %d OPs in %e secs.\n", n_conv, n_ev, n_kr, restart_iter, iter, (t_compute + t_sort + t_EV + t_QR));
-
-    for (int i = 0; i < n_conv; i++) {
-      printf("EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), residua[i]);
+    if(verbosity) {
+      printf("IRAM: Computed the requested %d vectors with a %d search space and a %d Krylov space in %d restart_steps and %d OPs in %e secs.\n", n_conv, n_ev, n_kr, restart_iter, iter, (t_compute + t_sort + t_EV + t_QR));    
+      for (int i = 0; i < n_conv; i++) {
+	printf("IRAM: EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), residua[i]);
+      }
     }
   }
-  
-  cout << "Timings:" << endl;
-  cout << "init = " << t_init << endl;
-  cout << "compute = " << t_compute << endl;
-  cout << "sort = " << t_sort << endl;
-  cout << "EV = " << t_EV << endl;
-  cout << "QR = " << t_QR << endl;
-  cout << "missing = " << (t_total) << " - " << (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen) << " = " << (t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen)) << " ("<<(100*((t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen))))/t_total<<"%)" << endl;  
+
+  if(iram_verbose) {
+    cout << "IRAM: Timings:" << endl;
+    cout << "IRAM: init = " << t_init << endl;
+    cout << "IRAM: compute = " << t_compute << endl;
+    cout << "IRAM: sort = " << t_sort << endl;
+    cout << "IRAM: EV = " << t_EV << endl;
+    cout << "IRAM: QR = " << t_QR << endl;
+    cout << "IRAM: missing = " << (t_total) << " - " << (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen) << " = " << (t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen)) << " ("<<(100*((t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen))))/t_total<<"%)" << endl;  
+  }
 }
 
-void IRAM::inspectrum(const field<Complex> *gauge, int iter) {
-
-  eig_param_t eig_param;
+void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
+  
   std::vector<field<Complex>*> kSpace;
   std::vector<Complex> evals;
 
-  if(kSpace_pre.size() == 0) {
-    // Allocate space to hold the previous kSpace
-    prepareKrylovSpace(kSpace_pre, evals, eig_param, gauge->p);  
+  // Allocate space to hold the previous kSpace
+  if(kSpace_pre.size() == 0) prepareKrylovSpace(kSpace_pre, evals, gauge->p);  
+
+  // Allocate space for this inspection
+  prepareKrylovSpace(kSpace, evals, gauge->p);
+
+  // Compute eigenspectrum of this gauge.
+  if(inspection_counter == 0) {
+    // A deflation space was just constructed, copy it to the
+    // kSpace_pre container and save data.
+    cout << "IRAM: First inspection call, copy deflation space" << endl;
+    for(int i=0; i<n_conv; i++) blas::copy(kSpace_pre[i]->data, kSpace_defl[i]->data);
+  } else {
+    // If inspection_counter > 0, the gauge field has changed and
+    // we need to recompute the space for inspecton
+    cout << "IRAM: Computing new spectrum" << endl;
+    iram(gauge, kSpace, evals);
   }
-  
-  prepareKrylovSpace(kSpace, evals, eig_param, gauge->p);  
-  iram(gauge, kSpace, evals, eig_param);
   
   string name;
   char fname[256];
   FILE *fp;
 
   // Dump eigenvalue data
-  name = "data/eig/eigenvalues_iter" + to_string(iter);
+  name = "data/eig/eigenvalues" + to_string(iter);
   constructName(name, gauge->p);
   name += ".dat";
   snprintf(fname, 100, "%s", name.c_str());	  
   fp = fopen(fname, "a");
-  for(int i=0; i<eig_param.n_conv; i++) {
+  for(int i=0; i<n_conv; i++) {
     fprintf(fp, "%d %d %.16e %.16e\n",
-	    0,
+	    inspection_counter,
 	    i,
 	    evals[i].real(),
 	    evals[i].imag());
   }
-  fprintf(fp,"\n");
   fclose(fp);
 
+  // Dump eigenvector data
+  name = "data/eig/eigenvectors" + to_string(iter);
+  constructName(name, gauge->p);
+  name += ".dat";
+  snprintf(fname, 100, "%s", name.c_str());	  
+  fp = fopen(fname, "a");
+  for(int i=0; i<n_conv; i++) {
+    // Data to the ith eigenvector
+    for(int x=0; x<gauge->p.Nx; x++) {
+      for(int y=0; y<gauge->p.Ny; y++) {
+	for(int mu=0; mu<2; mu++) {
+	  int glo_idx = 2*((y * gauge->p.Nx) + x) + mu; // Global index
+	  
+	  fprintf(fp, "%d %d %d %d %d %.16e %.16e\n",
+		  inspection_counter, i, x, y, mu,
+		  kSpace[i]->data[glo_idx].real(),
+		  kSpace[i]->data[glo_idx].imag());
+	}
+      }
+    }
+  }
+  fclose(fp);
+  
   // Measure the inner products
-  std::vector<Complex> inner_products(eig_param.n_conv * eig_param.n_conv);
-  for(int i=0; i<eig_param.n_conv; i++) {
-    for(int j=0; j<eig_param.n_conv; j++) inner_products[i + eig_param.n_conv * j] = blas::cDotProd(kSpace_pre[j]->data, kSpace[i]->data);
+  std::vector<Complex> inner_products(n_conv * n_conv);
+  for(int i=0; i<n_conv; i++) {
+    for(int j=0; j<n_conv; j++) inner_products[i + n_conv * j] = blas::cDotProd(kSpace_pre[j]->data, kSpace[i]->data);
   }
 
   // Measure overlaps
-  std::vector<double> overlaps(eig_param.n_conv, 0.0);
-  for(int i=0; i<eig_param.n_conv; i++) 
-    for(int j=0; j<eig_param.n_conv; j++) overlaps[i] += (inner_products[i + eig_param.n_conv * j] * conj(inner_products[i + eig_param.n_conv * j])).real();
+  std::vector<double> overlaps(n_conv, 0.0);
+  for(int i=0; i<n_conv; i++) 
+    for(int j=0; j<n_conv; j++) overlaps[i] += (inner_products[i + n_conv * j] * conj(inner_products[i + n_conv * j])).real();
   
   // Dump inner product data
   name = "data/eig/inner_products" + to_string(iter);
   constructName(name, gauge->p);
   name += ".dat";
-  sprintf(fname, "%s", name.c_str());	  
+  snprintf(fname, 100, "%s", name.c_str());	  
   fp = fopen(fname, "a");
-  for(int i=0; i<eig_param.n_conv; i++) {
-    for(int j=0; j<eig_param.n_conv; j++) {
+  for(int i=0; i<n_conv; i++) {
+    for(int j=0; j<n_conv; j++) {
       fprintf(fp, "%d %d %.16e %.16e\n",
 	      i,
 	      j,
-	      inner_products[i + eig_param.n_conv * j].real(),
-	      inner_products[i + eig_param.n_conv * j].imag());
+	      inner_products[i + n_conv * j].real(),
+	      inner_products[i + n_conv * j].imag());
     }
   }
   fprintf(fp,"\n");
@@ -854,9 +936,9 @@ void IRAM::inspectrum(const field<Complex> *gauge, int iter) {
   name = "data/eig/overlap" + to_string(iter);
   constructName(name, gauge->p);
   name += ".dat";
-  sprintf(fname, "%s", name.c_str());	  
+  snprintf(fname, 100, "%s", name.c_str());	  
   fp = fopen(fname, "a");
-  for(int i=0; i<eig_param.n_conv; i++) {
+  for(int i=0; i<n_conv; i++) {
     fprintf(fp, "%d %.16e\n",
 	    i,
 	    overlaps[i]);
@@ -865,28 +947,209 @@ void IRAM::inspectrum(const field<Complex> *gauge, int iter) {
   fclose(fp);
   
   // Copy the space
-  for(int i=0; i<eig_param.n_conv; i++) blas::copy(kSpace_pre[i]->data, kSpace[i]->data);
+  for(int i=0; i<n_conv; i++) blas::copy(kSpace_pre[i]->data, kSpace[i]->data);
   
   // Clean up
   for(int i=0; i<kSpace.size(); i++) delete kSpace[i];
+  inspection_counter++;
+}
+
+void IRAM::computeDeflationSpace(const field<Complex> *gauge){
+  prepareKrylovSpace(kSpace_defl, evals_defl, gauge->p);
+  iram(gauge, kSpace_defl, evals_defl);
+
+  prepareKrylovSpace(kSpace_mg, evals_mg, gauge->p);
+  computeMGDeflationSpace(gauge);
+}
+
+void IRAM::computeMGDeflationSpace(const field<Complex> *gauge){
+
+  struct timeval start, end;
+  
+  gettimeofday(&start, NULL);    
+  // Compress kSpace into block_data_ortho and block_coeffs...
+  blockCompress();
+  // ...then expand to into kSpace_mg
+  blockExpand();
+  gettimeofday(&end, NULL);  
+  
+  // Compute the eigenvalues and residua using the reconstructed kSpace
+  std::vector<double> resid(n_conv, 0.0);
+  computeEvals(gauge, kSpace_mg, resid, evals_mg, n_conv);
+
+  for (int i = 0; i < n_conv; i++) {
+    printf("IRAM: Post Compression EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals_mg[i].real(), evals_mg[i].imag(), abs(evals_mg[i]), resid[i]);
+  }
+  
+  // Check compression ratio
+  int pre = 2 * n_conv * Nx * Ny;
+  int post= n_blocks * n_low * (block_size + n_conv);
+  cout << "IRAM: Algorithmic compression report: " << endl;
+  cout << "IRAM: Complex(double) elems pre = " << pre << " Complex(double) elems post = " << post << endl;
+  cout << "IRAM: Ratio: " << (100.0 * post)/pre << "% of original data." << endl;
+  cout << "IRAM: " << n_low << " low eigenvectors used " << endl;
+  cout << "IRAM: " << (n_conv - n_low) << " high eigenvectors reconstructed " << endl;
+  cout << "IRAM: Compress/decompress time = " << ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6 << endl;
 }
 
 void IRAM::prepareKrylovSpace(std::vector<field<Complex>*> &kSpace,
 			      std::vector<Complex> &evals,
-			      eig_param_t &eig_param,
-			      const param_t p) {
+			      const Param p) {  
   
-  eig_param.n_ev = p.n_ev;
-  eig_param.n_kr = p.n_kr;
-  eig_param.n_conv = p.n_conv;
-  eig_param.n_deflate = p.n_deflate;
-  eig_param.max_restarts = p.eig_max_restarts;
-  eig_param.tol = p.eig_tol;
-  eig_param.spectrum = SM;
-  eig_param.verbose = false;
-    
-  // Krylov space and eigenvalues
   kSpace.reserve(eig_param.n_conv);
   for(int i=0; i<eig_param.n_conv; i++) kSpace.push_back(new field<Complex>(p));
   evals.resize(eig_param.n_conv);
+}
+
+// Read the block data from the (iEig)th vector in kSpace 
+void IRAM::readVectorToBlock(std::vector<std::vector<Complex>> &block_data) {
+  
+  for(int i=0; i<n_conv; i++) {
+    for(int by=0; by<block_scheme[1]; by++) {
+      for(int bx=0; bx<block_scheme[0]; bx++) {
+	int blk_idx = by * block_scheme[0] + bx;
+	
+	// Location of the start of the desired block (x runs fastest)
+	int blk_offset = 2 * ((x_block_size * bx) + Nx * (y_block_size * by));
+	
+	for(int nx=0; nx<x_block_size; nx++) {
+	  for(int ny=0; ny<y_block_size; ny++) {
+	    for(int mu=0; mu<2; mu++) {
+	      
+	      int loc_idx = 2*(nx + x_block_size * ny) + mu;      // Local index
+	      int glo_idx = blk_offset + 2*((ny * Nx) + nx) + mu; // Global index
+	      block_data[blk_idx][block_size * i + loc_idx] = kSpace_defl[i]->data[glo_idx];
+	    }
+	  }
+	}
+      }
+    }
+  }
+}
+
+void IRAM::blockCompress() {
+  
+  // Object to hold the blocked eigenvector data
+  std::vector<std::vector<Complex>> block_data(n_blocks, std::vector<Complex> (n_conv * block_size, 0.0));
+  
+  // Copy data from the eigenvector array into a block array
+  readVectorToBlock(block_data);
+  
+  // Compute an orthonormal basis from the nLow vectors.
+#pragma omp parallel for collapse(2)
+  for(int by=0; by<block_scheme[1]; by++) {
+    for(int bx=0; bx<block_scheme[0]; bx++) {
+      int blk_idx = by * block_scheme[0] + bx;
+      
+      // Location of the start of the desired block (x runs fastest)
+      int blk_offset = 2 * ((x_block_size * bx) + Nx * (y_block_size * by));
+      
+      for(int i=0; i<n_low; i++) {
+	
+	// Copy data from the block data into the block ortho array
+	for(int k=0; k<block_size; k++) {
+	  block_data_ortho[blk_idx][block_size * i + k] = block_data[blk_idx][block_size * i + k];
+	}
+	
+	// Loop up to i
+	for(int j=0; j<i; j++) {
+	  
+	  // Copy data from the jth ortho array into a temp array
+	  std::vector<Complex> temp(block_size, 0.0);
+	  for(int k=0; k<block_size; k++) temp[k] = block_data_ortho[blk_idx][block_size * j + k];
+	  
+	  // <Vj|Vi> : inner product
+	  Complex ip = 0.0;	  
+	  for(int k=0; k<block_size; k++) ip += conj(temp[k]) * block_data[blk_idx][block_size * i + k];
+	  
+	  // |Vi> = |Vi> - <Vj|Vi>|Vj> : CAXPY project and write to block_data_ortho 
+	  for(int k=0; k<block_size; k++) {
+	    block_data_ortho[blk_idx][block_size * i + k] = (block_data_ortho[blk_idx][block_size * i + k] - ip * temp[k]);
+	  }	  
+	}
+
+	// Normalize
+	Complex ip = 0.0;
+	for(int k=0; k<block_size; k++) {
+	  ip += conj(block_data_ortho[blk_idx][block_size * i + k]) * block_data_ortho[blk_idx][block_size * i + k];
+	}
+	
+	double nrm = 1.0/sqrt(ip.real());
+	for(int k=0; k<block_size; k++) {
+	  block_data_ortho[blk_idx][block_size * i + k] *= nrm;
+	}
+      }
+    }
+  }
+  
+  // Get coefficients: project the blocked n_conv eigenvectors on to the
+  // orthonormalised low blocks.
+  // Modified Gramm-Schmidt
+#pragma omp parallel for collapse(3)
+  for(int j=0; j<n_conv; j++) {
+    for(int by=0; by<block_scheme[1]; by++) {
+      for(int bx=0; bx<block_scheme[0]; bx++) {
+	
+	int blk_idx = by * block_scheme[0] + bx;        
+	for(int i=0; i<n_low; i++) {
+	  
+
+	  // Inner product between orthed i block (low) and j block (high)
+	  Complex ip = 0.0;
+	  for(int k=0; k<block_size; k++) {
+	    ip += (conj(block_data_ortho[blk_idx][block_size * i + k]) * 
+		   block_data[blk_idx][block_size * j + k]);
+	  }
+	  
+	  block_coeffs[blk_idx][n_low * j + i] = ip;
+	  
+	  for(int k=0; k<block_size; k++) {
+	    block_data[blk_idx][block_size * j + k] = block_data[blk_idx][block_size * j + k] - (ip * block_data_ortho[blk_idx][block_size * i + k]);
+	  }
+	}
+      }
+    }
+  }  
+}
+
+void IRAM::blockExpand() {
+  
+  // Loop over the desired eigenvalues.
+#pragma omp parallel for 
+  for(int j=0; j<n_conv; j++) {    
+    std::vector<std::vector<Complex>> block_data_temp(n_blocks, std::vector<Complex> (block_size, 0.0));      
+    // Loop over blocks, Gramm-Schmidt the blocks on the low modes
+    for(int by=0; by<block_scheme[1]; by++) {
+      for(int bx=0; bx<block_scheme[0]; bx++) {
+	int blk_idx = by * block_scheme[0] + bx;
+
+	for(int i=0; i<n_low; i++) {	  
+	  for(int k=0; k<block_size; k++) {
+	    block_data_temp[blk_idx][k] += block_coeffs[blk_idx][j*n_low + i] * block_data_ortho[blk_idx][block_size * i + k];
+	  }
+	}	
+      }
+    }
+
+    for(int by=0; by<block_scheme[1]; by++) {
+      for(int bx=0; bx<block_scheme[0]; bx++) {
+	int blk_idx = by * block_scheme[0] + bx;
+
+	// Location of the start of the desired block (x runs fastest)
+	int blk_offset = 2 * ((x_block_size * bx) + Nx * (y_block_size * by));
+
+	// Copy data to the jth eigenvector
+	for(int ny=0; ny<y_block_size; ny++) {
+	  for(int nx=0; nx<x_block_size; nx++) {
+	    for(int mu=0; mu<2; mu++) {
+	      
+	      int loc_idx = 2*(nx + x_block_size * ny) + mu;      // Local index
+	      int glo_idx = blk_offset + 2*((ny * Nx) + nx) + mu; // Global index
+	      kSpace_mg[j]->data[glo_idx] = block_data_temp[blk_idx][loc_idx];
+	    }
+	  }
+	}
+      }
+    }
+  }
 }

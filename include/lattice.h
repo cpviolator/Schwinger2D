@@ -11,13 +11,13 @@ public:
   }
   
   std::vector<T> data;
-  param_t p;
+  Param p;
   
-  field(std::vector<T> &data, param_t p) : data(data), p(p)
+  field(std::vector<T> &data, Param p) : data(data), p(p)
   {
   }
   
-  field(param_t p) : p(p)
+  field(Param p) : p(p)
   {
     data.resize(p.Nx * p.Ny * 2);
     for(unsigned int i=0; i<data.size(); i++) data[i] = 0.0;

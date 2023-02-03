@@ -21,53 +21,60 @@
 class inverterCG {
 
 private:
-  int success = 0;
-  bool verbose = false;
+  int success;
+  bool verbosity;
+  bool cg_verbosity;
   
   field<Complex> *res;
   field<Complex> *p;
   field<Complex> *Ap;
   field<Complex> *temp;
   
-  double alpha = 0.0, beta = 0.0, denom = 0.0, rsq = 0.0, rsq_new = 0.0, bsqrt = 0.0, bnorm = 0.0;
-  bool use_init_guess = false;  
+  double alpha, beta, denom, rsq, rsq_new, bsqrt, bnorm;
+  bool use_init_guess;
+  bool deflate;
+  bool inspect_spectrum;
   int iter;
 
-  Operator op = MdagM;
+  Operator op;
 
   IRAM *eig;
   
 public:
 
   // Class instance constructor  
-  inverterCG(param_t param);
+  inverterCG(Param param);
 
   // Operator to solve
   void OPERATOR(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge);
-  
-  // With no deflation space
-  int solve(field<Complex> *x, field<Complex> *b, field<Complex> *gauge);
-  
-  // With a deflation space
-  int solve(field<Complex> *x, field<Complex> *b,
-	    std::vector<field<Complex> *> &kSpace, std::vector<Complex> &evals,
-	    field<Complex> *gauge, bool deflate = true);
 
-  // With constant 
+  // CG solver
+  int solve(field<Complex> *x, const field<Complex> *b, const field<Complex> *gauge);
+  
+  // CG solver With constant offset 
   int solve(field<Complex> *x, field<Complex> *b, field<Complex> *gauge, double offset);
 
   // Multi RHS for RHMC
   int solveMulti(std::vector<field<Complex> *> &x, field<Complex> *b,
 		 field<Complex> *gauge, std::vector<double> shifts);
-  
-  void deflateResidual(field<Complex> *deflated_guess, field<Complex> *residual,
-		       std::vector<field<Complex> *> &kSpace, std::vector<Complex> &evals);
 
+  void switchOffDeflation() {
+    if(verbosity) cout << "CG: Switching off deflation" << endl;
+    deflate = false;
+    inspect_spectrum = false;
+  };
+  void switchOnDeflation() {
+    if(verbosity) cout << "CG: Switching on deflation" << endl;
+    deflate = true;
+    inspect_spectrum = true;
+  };
+  
   ~inverterCG() {
     delete res;
     delete p;
     delete Ap;
     delete temp;
+    if(eig) delete eig;
   }
   
 };

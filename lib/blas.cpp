@@ -62,7 +62,7 @@ namespace blas {
   }
   
   // Norm squared
-  double norm2(std::vector<Complex> &x) { 
+  double norm2(const std::vector<Complex> &x) { 
     double sum = 0.0;
 #pragma omp parallel for reduction(+:sum)
     for(int i=0; i<(int)x.size(); i++) sum += (conj(x[i]) * x[i]).real();
@@ -70,7 +70,7 @@ namespace blas {
   }
 
   // Norm squared
-  double norm2(std::vector<double> &x) { 
+  double norm2(const std::vector<double> &x) { 
     double sum = 0.0;
 #pragma omp parallel for reduction(+:sum)
     for(int i=0; i<(int)x.size(); i++) sum += x[i] * x[i];
@@ -78,12 +78,12 @@ namespace blas {
   }
   
   // Norm 
-  double norm(std::vector<Complex> &a) { 
+  double norm(const std::vector<Complex> &a) { 
     return sqrt(real(blas::norm2(a)));
   }
 
   // Norm 
-  double norm(std::vector<double> &a) { 
+  double norm(const std::vector<double> &a) { 
     return sqrt(blas::norm2(a));
   }
   
