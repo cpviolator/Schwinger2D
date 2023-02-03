@@ -8,41 +8,41 @@ mkdir -p {gauge,data/{data,plaq,creutz,polyakov,rect,top,pion,vacuum,eig}}
 SEED=1234
 
 # General verbosity
-VERBOSITY=true
+VERBOSITY=1
 
 # Physics params
 #-----------------------------------------------
 # Lattice dims
-LX=10
-LY=10
+LX=8
+LY=8
 # The value of the coupling in the U(1) 2D theory
-BETA=5.0
+BETA=4.0
 # Dynamic fermion parameters
 # 0 = pure gauge
 # 2 = two light degenerate fermions
 # 3 = two light degenerate, one heavy fermion
 FLAVOURS=2
 # Light Fermions (degenerate) mass
-MASS=0.01
+MASS=0.05
 # Heavy Fermion mass
-MASS_HEAVY=0.6
+MASS_HEAVY=0.5
 
 # HMC params
 #-----------------------------------------------
 # The total number of thermalised HMC iterations to perform.
 HMC_ITER=1000
 # The number of HMC iterations for thermalisation (accept + accept/reject).
-HMC_THERM=00
+HMC_THERM=10
 # The number of HMC iterations to skip bewteen measurements.
 HMC_SKIP=10
 # Dump the gauge field every HMC_CHKPT iterations after thermalisation.
 HMC_CHKPT=100
 # If non-zero, read in the HMC_CHKPT_START gauge field. 
-HMC_CHKPT_START=100
+HMC_CHKPT_START=000
 # Reverse the gauge fields for ergodicity check
 HMC_REVERSE=100
 # HMC time steps in the integration 
-HMC_NSTEP=4
+HMC_NSTEP=20
 # HMC inner time steps in the integration 
 HMC_INNER_NSTEP=1
 # Degree of polynomial for AlgRemez
@@ -54,24 +54,24 @@ HMC_TAU=1.0
 # Integrator type: leapfrog = 0, fgi = 1
 # FYI, aim for 70% acceptance with Leapfrog
 # and 90% with FGI for optimal FLOP usage
-HMC_INTEGRATOR=1
+HMC_INTEGRATOR=0
 # Maximum CG iterations
 MAX_CG_ITER=10000
 # CG residual tolerance 
-CG_TOL=1e-9
+CG_TOL=1e-7
 # CG verbosity
 CG_VERBOSITY=false
 
 # Eigensolver parameters
 #-----------------------------------------------
-NKR=200
-NEV=200
-NCONV=200
-NDEFL=100
+NKR=128
+NEV=128
+NCONV=128
+NDEFL=128
 # IRAM MG projector
 X_BLK=2
-Y_BLK=2
-N_LOW=50
+Y_BLK=4
+N_LOW=16
 # Tolerance on eigenvector residua
 EIG_TOL=1e-10
 # Maximum restart iterations
@@ -82,8 +82,10 @@ EIG_OP=MdagM
 EIG_SPEC=SR
 # IRAM verbosity
 EIG_VERBOSITY=false
-# inspect spectrum
+# Inspect spectrum
 EIG_INSPECTION=true
+# When deflating, use the compressed space
+EIG_USE_COMP_SPACE=true
 
 # Measurements
 #-----------------------------------------------
@@ -117,7 +119,7 @@ HMC_PARAMS="--hmc-traj-length ${HMC_TAU} --hmc-n-step ${HMC_NSTEP} --hmc-inner-s
 
 EIG_PARAMS="--eig-n-ev ${NEV} --eig-n-kr ${NKR} --eig-n-conv ${NCONV} --eig-n-deflate ${NDEFL} --eig-max-restarts ${MAX_IRAM_ITER} \
             --eig-tol ${EIG_TOL} --eig-operator ${EIG_OP} --eig-spectrum ${EIG_SPEC} --eig-block-scheme ${X_BLK} ${Y_BLK} \
-            --eig-low-modes ${N_LOW} --eig-verbosity ${EIG_VERBOSITY} --eig-inspection ${EIG_INSPECTION}"
+            --eig-low-modes ${N_LOW} --eig-verbosity ${EIG_VERBOSITY} --eig-inspection ${EIG_INSPECTION} --eig-use-comp-space ${EIG_USE_COMP_SPACE} "
 
 MEASUREMENTS="--ape-alpha ${APE_ALPHA} --ape-iter ${APE_ITER} --meas-pl ${MEAS_PL} --meas-wl ${MEAS_WL} --meas-pc ${MEAS_PC} \
 	      --meas-vt ${MEAS_VT}"
