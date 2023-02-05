@@ -189,11 +189,6 @@ void IRAM::arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *
   //| an exact j-step Arnoldi factorization is present. |
   //%---------------------------------------------------%
   beta = sqrt(blas::norm2(r));
-  //for(int i=0; i<10; i++) cout << (r.data)[i] << endl;
-  //exit(0);
-  //beta = blas::norm2(r.data.data(), r.data.size());
-  //cout << beta << endl;
-  
   
   //%--------------------------------%
   //| STEP 2:  v_{j} = r_{j-1}/rnorm |

@@ -8,7 +8,7 @@ mkdir -p {gauge,data/{data,plaq,creutz,polyakov,rect,top,pion,vacuum,eig}}
 SEED=1234
 
 # General verbosity
-VERBOSITY=1
+VERBOSITY=0
 
 # Physics params
 #-----------------------------------------------
@@ -32,13 +32,13 @@ MASS_HEAVY=0.5
 # The total number of thermalised HMC iterations to perform.
 HMC_ITER=1000
 # The number of HMC iterations for thermalisation (accept + accept/reject).
-HMC_THERM=100
+HMC_THERM=000
 # The number of HMC iterations to skip bewteen measurements.
 HMC_SKIP=10
 # Dump the gauge field every HMC_CHKPT iterations after thermalisation.
 HMC_CHKPT=100
 # If non-zero, read in the HMC_CHKPT_START gauge field. 
-HMC_CHKPT_START=000
+HMC_CHKPT_START=100
 # Reverse the gauge fields for ergodicity check
 HMC_REVERSE=100
 # HMC time steps in the integration 
@@ -82,7 +82,11 @@ EIG_OP=MdagM
 EIG_SPEC=SR
 # IRAM verbosity
 EIG_VERBOSITY=false
-# Inspect spectrum
+# Compute a deflation space at the start of each
+# HMC trajectory and use it throughout the HMC integration
+EIG_DEFLATE=false
+# Inspect the eigenspectrum at each instance that
+# the gauge field is updated in the HMC integrator
 EIG_INSPECTION=false
 # When deflating, use the compressed space
 EIG_USE_COMP_SPACE=false
@@ -119,7 +123,7 @@ HMC_PARAMS="--hmc-traj-length ${HMC_TAU} --hmc-n-step ${HMC_NSTEP} --hmc-inner-s
 
 EIG_PARAMS="--eig-n-ev ${NEV} --eig-n-kr ${NKR} --eig-n-conv ${NCONV} --eig-n-deflate ${NDEFL} --eig-max-restarts ${MAX_IRAM_ITER} \
             --eig-tol ${EIG_TOL} --eig-operator ${EIG_OP} --eig-spectrum ${EIG_SPEC} --eig-block-scheme ${X_BLK} ${Y_BLK} \
-            --eig-low-modes ${N_LOW} --eig-verbosity ${EIG_VERBOSITY} --eig-inspection ${EIG_INSPECTION} --eig-use-comp-space ${EIG_USE_COMP_SPACE} "
+            --eig-low-modes ${N_LOW} --eig-verbosity ${EIG_VERBOSITY} --eig-deflate ${EIG_DEFLATE} --eig-inspection ${EIG_INSPECTION} --eig-use-comp-space ${EIG_USE_COMP_SPACE} "
 
 MEASUREMENTS="--ape-alpha ${APE_ALPHA} --ape-iter ${APE_ITER} --meas-pl ${MEAS_PL} --meas-wl ${MEAS_WL} --meas-pc ${MEAS_PC} \
 	      --meas-vt ${MEAS_VT}"
