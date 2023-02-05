@@ -311,7 +311,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       
       //Initial half step.
       //U_{k} = exp(i (dtau/2) P_{k-1/2}) * U_{k-1}
-      update_gauge(gauge, mom, 0.5*dtau);
+      update_gauge(gauge, mom, dtauby2);
       
       //P_{k+1/2} = P_{k-1/2} - dtau * (fU - fD)
       fU = computeGaugeForce(gauge);
@@ -321,7 +321,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       
       //Final half step.
       //U_{k+1} = exp(i (dtau/2) P_{k+1/2}) * U_{k}
-      update_gauge(gauge, mom, 0.5*dtau);
+      update_gauge(gauge, mom, dtauby2);
     }    
     break;
 
@@ -343,7 +343,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       forceGradient(mom, phi, gauge, one_minus_2lambda_dt/2, xi_dtdt/2);
       innerFGI(mom, gauge, dtauby2/2, inner_step);
 #else
-      //PQPQP: most efficient
+      //PQPQP: more efficient
       if(k == 0) {
 	fD = computeFermionForce(gauge, phi);
 	update_mom(fD, mom, -lambda_dt);

@@ -19,11 +19,11 @@ public:
     for(unsigned int i=0; i<data.size(); i++) data[i] = 0.0;
   }
   
-  T read(int x, int y, int mu) const {
+  T read(const int x, const int y, const int mu) const {
     return data[2*(x + p.Nx * y) + mu];
   } 
   
-  void write(int x, int y, int mu, const T elem) {
+  void write(const int x, const int y, const int mu, const T elem) {
     data[2*(x + p.Nx * y) + mu] = elem;
   }
   
