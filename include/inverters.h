@@ -43,7 +43,7 @@ private:
 
   Operator op;
 
-  IRAM *eig;
+  IRAM *eig = nullptr;
   
 public:
 

@@ -26,6 +26,10 @@ public:
   void write(const int x, const int y, const int mu, const T elem) {
     data[2*(x + p.Nx * y) + mu] = elem;
   }
+
+  void write(const int i, const T elem) {
+    data[i] = elem;
+  }
   
   unsigned int const size() const { return data.size(); }
   

@@ -1,5 +1,10 @@
 #include "iram.h"
 
+#ifdef ENABLE_FEAST
+#include "feast.h"
+#include "feast_sparse.h"
+#endif
+
 int int_round(double d)
 {
   return (int)floor(d + 0.5);
@@ -580,11 +585,12 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   double t_compute = 0.0;
   double t_QR = 0.0;
   double t_EV = 0.0;  
-
+  double t_crs = 0.0;
+  
   // START init
   //---------------------------------------------------------  
   gettimeofday(&start, NULL);  
-
+  
   if (!(n_kr > n_ev + 6) && n_kr != (gauge->p.Nx * gauge->p.Ny * 2)) {
     printf("IRAM WARNING: n_kr=%d must be greater than n_ev+6=%d\n", n_kr, n_ev + 6);
     exit(0);
@@ -627,11 +633,114 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   int iter_converged = 0;
   int iter_keep = 0;
   int num_converged = 0;
-  int num_keep = 0;  
+  int num_keep = 0;
   // END init
   //---------------------------------------------------------
   gettimeofday(&end, NULL);  
   t_init += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+
+#ifdef ENABLE_FEAST
+  gettimeofday(&start, NULL);  
+  // Compute CRS matrix for FEAST
+  // Fortran indexing applies... be careful!
+  std::vector<double> crs_elems;
+  std::vector<int> crs_col_idx;
+  std::vector<int> crs_row_idx;
+  // Row index always starts at 1
+  int current_crs_row_idx = 1;  
+  
+  field<Complex> *point_source = new field<Complex>(gauge->p);
+  std::vector<field<Complex>*> op_column(2*Nx*Ny);
+  for(int i=0; i<2*Nx*Ny; i++) {
+
+    // Get the ith column data, conjugate it, it becomes the
+    // the data on the ith row. 
+    op_column[i] = new field<Complex>(gauge->p);
+    blas::zero(point_source);
+    point_source->write(i, cUnit);
+    OPERATOR(op_column[i], point_source, gauge);
+
+    // Store the current row index
+    crs_row_idx.push_back(current_crs_row_idx);
+    // Loop over this row, get non-zero data
+    for(int j=0; j<2*Nx*Ny; j++) {      
+      if(op_column[i]->elem(j).real() != 0.0 || op_column[i]->elem(j).imag() != 0.0) {
+	
+	// Store data in the array
+	crs_elems.push_back( op_column[i]->elem(j).real());
+	crs_elems.push_back(-op_column[i]->elem(j).imag());
+	
+	// Store the column index of this row
+	crs_col_idx.push_back(j);
+
+	// Increment the row index
+	current_crs_row_idx++;
+      }      
+    }
+  }
+  
+  gettimeofday(&end, NULL);  
+  t_crs += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+  
+  cout << "IRAM: CRS construction time = " << t_crs << endl;
+  cout << "IRAM: CRS elems = " << crs_elems.size()/2 << endl;
+  cout << "IRAM: CRS row idx size = " << crs_row_idx.size() << " Should equal " << 2*Nx*Ny << endl;
+
+  /*!!!!!!!!!!!!!!!!! Matrix declaration variable */
+  FILE *fp;
+  char name[]="system4.mtx";
+  int  N,nnz;
+  double *sa;
+  int *isa,*jsa;
+  char UPLO='F';
+  
+  // Create Custom Contour
+  int ccN = 3;     //!! number of pieces that make up contour
+  
+  std::vector<double> Zedge(2*ccN);
+  std::vector<int> Nedge(ccN);
+  std::vector<int> Tedge(ccN);
+  // Example contour - triangle
+  Zedge[0] = 0.1e0;  Zedge[1] = 0.41e0;  // 1st complex #
+  Zedge[2] = 4.2e0;  Zedge[3] = 0.41e0;
+  Zedge[4] = 4.2e0;  Zedge[5] = -8.30e0;
+  Tedge[0] = 0; Tedge[1] = 0; Tedge[2] = 0;
+  Nedge[0] = 6; Nedge[1] = 6; Nedge[2] = 18;
+  
+  /*!!!!!!!!!!!!!!!!! Others */
+  int  fpm[64];
+  double epsout;
+  int loop; 
+  int  k,err;
+  int  M,info;
+  double Emid[2],r_feast;
+  double *X; //! eigenvectors
+  double *E, *res; //! eigenvalue+residual
+
+  // Note: user must specify total # of contour points and edit fpm[7] later
+  int Nodes=0;
+  for(int i=0; i<ccN; i++) Nodes = Nodes + Nedge[i];
+  std::vector<double> Zne(2*Nodes); // Contains the complex valued contour points 
+  std::vector<double> Wne(2*Nodes); // Contains the complex valued integration weights
+
+  /* !! Fill Zne/Wne */
+  zfeast_customcontour(&Nodes,&ccN,Nedge.data(),Tedge.data(),Zedge.data(),Zne.data(),Wne.data());
+  printf("---- Printing Countour Nodes (Re+iIm) and associated Weight (Re+iIm)----\n");
+  for(int i=0; i<Nodes; i++)
+    printf("%d %le %le %le %le\n",i,Zne[2*i],Zne[2*i+1],Wne[2*i],Wne[2*i+1]);
+  
+  int M0=40; // M0 >= M
+
+  /*
+  E=calloc(2*M0,sizeof(double));   // eigenvalues: factor 2 fopr complex
+  res=calloc(M0,sizeof(double));   // residual (if needed)
+  X=calloc(2*N*M0,sizeof(double)); // eigenvectors:factor 2 for complex
+  
+  feastinit(fpm);
+  fpm[0]=1;  // change from default value 
+  fpm[7]=Nodes;
+  */
+#endif
   
   // START compute 
   //---------------------------------------------------------

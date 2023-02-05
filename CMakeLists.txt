@@ -17,8 +17,6 @@ if(ENABLE_OPENMP)
   find_package(OpenMP)
 endif()
 
-find_package(MPFR REQUIRED)
-
 # Add Eigen for small, dense algebra
 set(EIGEN_VERSION 3.3.7)
 set(EIGEN_DOWNLOAD_LOCATION ${CMAKE_SOURCE_DIR}/externals/eigen/${EIGEN_VERSION}.tar.bz2)
@@ -86,6 +84,7 @@ endif()
 
 option(ENABLE_ALG_REMEZ "enable AlgRemez" OFF)
 if(ENABLE_ALG_REMEZ)
+  find_package(MPFR REQUIRED)
   ExternalProject_Add(
     ALG_REMEZ
     GIT_REPOSITORY https://github.com/maddyscientist/AlgRemez.git
@@ -102,6 +101,8 @@ if(ENABLE_ALG_REMEZ)
   ExternalProject_Get_Property(ALG_REMEZ source_dir)
   set(ALG_REMEZ_INCLUDE_DIRS ${source_dir}/include)
 endif()
+
+option(ENABLE_FEAST "enable FEAST" OFF)
 
 add_subdirectory(lib)
 add_subdirectory(wilson)

@@ -150,4 +150,3 @@ void DDdagpsi(field<Complex> *out, const field<Complex> *in, const field<Complex
   Dpsi(out, temp, gauge);
   delete temp;
 }
-

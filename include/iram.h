@@ -118,17 +118,20 @@ public:
     for (int i=0; i<kSpace_pre.size(); i++) delete kSpace_pre[i];
     for (int i=0; i<kSpace_defl.size(); i++) delete kSpace_defl[i];
     for (int i=0; i<kSpace_mg.size(); i++) delete kSpace_mg[i];
+    
     kSpace_pre.resize(0);
     kSpace_defl.resize(0);
     kSpace_mg.resize(0);
+
     evals_pre.resize(0);    
     evals_defl.resize(0);
     evals_mg.resize(0);
-
+    
     for(int i=0; i<n_blocks; i++) {
       block_data_ortho[i].resize(0);
       block_coeffs[i].resize(0);
     }
+
     block_data_ortho.resize(0);
     block_coeffs.resize(0);;
     

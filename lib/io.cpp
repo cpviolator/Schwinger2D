@@ -26,7 +26,7 @@ void readGauge(field<Complex> *gauge, string name) {
   inPutFile.open(name);
   string val;
   if(!inPutFile.is_open()) {
-    cout << "Error opening file " << name << endl;
+    cout << "IO: Error opening file " << name << endl;
     exit(0);
   }
   
@@ -83,10 +83,10 @@ bool readPFE(PFE &pfe, string name)
   inputFile.open(name);
   string val;
   if(!inputFile.is_open()) {
-    cout << "No Remez PFE wisdom found for " << name << endl;
+    cout << "IO: No Remez PFE wisdom found for " << name << endl;
     return false;
   } else {
-    cout << "Remez PFE wisdom found for " << name << endl;
+    cout << "IO: Remez PFE wisdom found for " << name << endl;
     int degree = pfe.res.size();
 
     // PFE
