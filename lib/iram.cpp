@@ -1,5 +1,10 @@
 #include "iram.h"
 
+int int_round(double d)
+{
+  return (int)floor(d + 0.5);
+}
+
 IRAM::IRAM(EigParam eig_param_in) {
   
   eig_param = eig_param_in;
@@ -67,7 +72,7 @@ void IRAM::deflate(field<Complex> *guess, field<Complex> *phi) {
     exit(0);
   }
   
-  blas::zero(guess->data);
+  blas::zero(guess);
   Complex scalar;
   
   // Deflate each converged eigenpair from the guess  
@@ -77,17 +82,17 @@ void IRAM::deflate(field<Complex> *guess, field<Complex> *phi) {
     
     if(use_compressed_space) { 
       // Compute scalar part: s = (lambda)^-1 * (v^dag * phi)
-      scalar = blas::cDotProd(kSpace_mg[i]->data, phi->data);
+      scalar = blas::cDotProd(kSpace_mg[i], phi);
       scalar /= real(evals_mg[i]);
       // Accumulate in guess defl_guess: defl_guess = defl_guess + v * s
-      blas::caxpy(scalar, kSpace_mg[i]->data, guess->data);
+      blas::axpy(scalar, kSpace_mg[i], guess);
     }
     else {
       // Compute scalar part: s = (lambda)^-1 * (v^dag * phi)
-      scalar = blas::cDotProd(kSpace_defl[i]->data, phi->data);
+      scalar = blas::cDotProd(kSpace_defl[i], phi);
       scalar /= real(evals_defl[i]);
       // Accumulate in guess defl_guess: defl_guess = defl_guess + v * s
-      blas::caxpy(scalar, kSpace_defl[i]->data, guess->data);
+      blas::axpy(scalar, kSpace_defl[i], guess);
     }
   }
 }
@@ -183,7 +188,7 @@ void IRAM::arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *
   //| vector is zero. Equivalent to determine whether   |
   //| an exact j-step Arnoldi factorization is present. |
   //%---------------------------------------------------%
-  beta = blas::norm(r->data);
+  beta = sqrt(blas::norm2(r));
   //for(int i=0; i<10; i++) cout << (r.data)[i] << endl;
   //exit(0);
   //beta = blas::norm2(r.data.data(), r.data.size());
@@ -193,8 +198,8 @@ void IRAM::arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *
   //%--------------------------------%
   //| STEP 2:  v_{j} = r_{j-1}/rnorm |
   //%--------------------------------%  
-  blas::ax(1.0/beta, r->data);
-  blas::copy(kSpace[j]->data, r->data);
+  blas::ax(1.0/beta, r);
+  blas::copy(kSpace[j], r);
   
   //%----------------------------%
   //| STEP 3:  r_{j} = OP*v_{j}; |
@@ -206,7 +211,7 @@ void IRAM::arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *
   //| Compute the B-norm of OP*v_{j}.     |
   //%-------------------------------------%
 
-  double wnorm = blas::norm(r->data);
+  double wnorm = sqrt(blas::norm2(r));
 
   //%-----------------------------------------%
   //| Compute the j-th residual corresponding |
@@ -222,7 +227,7 @@ void IRAM::arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *
   //%------------------------------------------%
   //H_{j,i}_j = v_i^dag * r
   for (int i = 0; i < j+1; i++) {
-    upperHessEigen(i,j) = blas::cDotProd(kSpace[i]->data, r->data);
+    upperHessEigen(i,j) = blas::cDotProd(kSpace[i], r);
   }
   
   //%--------------------------------------%
@@ -231,12 +236,12 @@ void IRAM::arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *
   //%--------------------------------------%
   //r = r - H_{j,i} * v_j 
   for (int i = 0; i < j+1; i++) {
-    blas::caxpy(-1.0*upperHessEigen(i,j), kSpace[i]->data, r->data);
+    blas::axpy(-1.0*upperHessEigen(i,j), kSpace[i], r);
   }
   
   if(j > 0) upperHessEigen(j,j-1) = beta;
   
-  beta = blas::norm(r->data);
+  beta = sqrt(blas::norm2(r));
   
   //%-----------------------------------------------------------%
   //| STEP 5: Re-orthogonalization / Iterative refinement phase |
@@ -280,15 +285,15 @@ void IRAM::arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *
     //printf("beta = %e < %e: Reorthogonalise at step %d, iter %d\n", beta, 0.717*wnorm, j, orth_iter);
     std::vector<Complex> alpha(j+1, 0.0);
     for(int i=0; i < j+1; i++) {
-      alpha[i] = blas::cDotProd(kSpace[i]->data, r->data);
+      alpha[i] = blas::cDotProd(kSpace[i], r);
       upperHessEigen(i,j) += alpha[i];
     }
     
     for(int i=0; i < j+1; i++) {
-      blas::caxpy(-1.0*alpha[i], kSpace[i]->data, r->data);
+      blas::axpy(-1.0*alpha[i], kSpace[i], r);
     }
     
-    beta = blas::norm(r->data);
+    beta = sqrt(blas::norm2(r));
     orth_iter++;
   }
   
@@ -557,12 +562,12 @@ void IRAM::computeEvals(const field<Complex> *gauge, std::vector<field<Complex> 
     OPERATOR(temp, kSpace[i], gauge);
 
     // lambda_i = v_i^dag A v_i / (v_i^dag * v_i)
-    evals[i] = blas::cDotProd(kSpace[i]->data, temp->data);
+    evals[i] = blas::cDotProd(kSpace[i], temp);
 
     // Measure ||lambda_i*v_i - A*v_i||
     Complex n_unit(-1.0, 0.0);
-    blas::caxpby(evals[i], kSpace[i]->data, n_unit, temp->data);
-    residua[i] = blas::norm(temp->data);
+    blas::axpby(evals[i], kSpace[i], n_unit, temp);
+    residua[i] = sqrt(blas::norm2(temp));
   }
   delete temp;
 }
@@ -650,7 +655,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
 
   //Place initial source in range of mat
   OPERATOR(kSpace[0], r, gauge);
-  r->copy(kSpace[0]);
+  blas::copy(r, kSpace[0]);
   
   // START IRAM
   // Implicitly restarted Arnoldi method for asymmetric eigenvalue problems
@@ -799,12 +804,12 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
       //|    betak = e_{kev+1}'*H*e_{kev}     |
       //%-------------------------------------%
 
-      blas::caxpby(upperHessEigen(num_keep, num_keep-1), kSpace[num_keep]->data, Qmat(n_kr-1, num_keep-1), r->data);
+      blas::axpby(upperHessEigen(num_keep, num_keep-1), kSpace[num_keep], Qmat(n_kr-1, num_keep-1), r);
       gettimeofday(&end, NULL);  
       t_compute += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
 
-      if(blas::norm(r->data) < epsilon) {
-	printf("IRAM ERROR: Congratulations! You have reached an invariant subspace at iter %d, beta = %e\n", restart_iter, blas::norm(r->data));
+      if(sqrt(blas::norm2(r)) < epsilon) {
+	printf("IRAM ERROR: Congratulations! You have reached an invariant subspace at iter %d, beta = %e\n", restart_iter, sqrt(blas::norm2(r)));
 	exit(0);
       }
     }
@@ -825,7 +830,7 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
     if(verbosity) {
       printf("IRAM: Computed the requested %d vectors with a %d search space and a %d Krylov space in %d restart_steps and %d OPs in %e secs.\n", n_conv, n_ev, n_kr, restart_iter, iter, (t_compute + t_sort + t_EV + t_QR));    
       for (int i = 0; i < n_conv; i++) {
-	printf("IRAM: EigValue[%04d]: ||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), residua[i]);
+	printf("IRAM: EigValue[%04d]:||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), residua[i]);
       }
     }
   }
@@ -859,7 +864,7 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
     // kSpace container and save.
     cout << "IRAM: First inspection call, copy deflation space" << endl;
     for(int i=0; i<n_conv; i++) {
-      blas::copy(kSpace[i]->data, kSpace_defl[i]->data);
+      blas::copy(kSpace[i], kSpace_defl[i]);
       evals[i] = evals_defl[i];
     }
     
@@ -917,14 +922,29 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
   if(inspection_counter > 0) {
     // Measure the kSpace inner products
     std::vector<Complex> inner_products(n_conv * n_conv);
+    std::vector<std::vector<int>> swap_mat(n_conv, std::vector<int> (n_conv, 0));
     for(int i=0; i<n_conv; i++) {
-      for(int j=0; j<n_conv; j++) inner_products[i + n_conv * j] = blas::cDotProd(kSpace_pre[j]->data, kSpace[i]->data);
+      for(int j=0; j<n_conv; j++) {
+	inner_products[i + n_conv * j] = blas::cDotProd(kSpace_pre[j], kSpace[i]);
+	swap_mat[i][j] = int_round(abs(inner_products[i + n_conv * j]));
+      }
     }
+
+#if 0
+    for(int i=0; i<n_conv; i++) {
+      for(int j=0; j<n_conv; j++) {
+	swap_mat[i][j] == 1 ? cout << swap_mat[i][j] << " " : cout << "  ";
+      }
+      cout << endl;
+    }
+#endif
     
     // Measure kSpace overlaps
     std::vector<double> overlaps(n_conv, 0.0);
     for(int i=0; i<n_conv; i++) 
-      for(int j=0; j<n_conv; j++) overlaps[i] += (inner_products[i + n_conv * j] * conj(inner_products[i + n_conv * j])).real();
+      for(int j=0; j<n_conv; j++) overlaps[i] += abs(inner_products[i + n_conv * j] * conj(inner_products[i + n_conv * j]));
+
+
     
     // Dump inner product data
     name = "data/eig/inner_products" + to_string(iter);
@@ -934,8 +954,9 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
     fp = fopen(fname, "a");
     for(int i=0; i<n_conv; i++) {
       for(int j=0; j<n_conv; j++) {
-	fprintf(fp, "%d   %d %d %.16e %.16e\n",
+	fprintf(fp, "%d   %d %d %.16e %.16e %.16e\n",
 		inspection_counter, i, j,
+		abs(inner_products[i + n_conv * j]),
 		inner_products[i + n_conv * j].real(),
 		inner_products[i + n_conv * j].imag());
       }
@@ -1014,7 +1035,7 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
   
   // Copy the new space into the old space for overlap comparision.
   for(int i=0; i<n_conv; i++) {
-    blas::copy(kSpace_pre[i]->data, kSpace[i]->data);
+    blas::copy(kSpace_pre[i], kSpace[i]);
     evals_pre[i] = evals[i];
   }
   
@@ -1028,7 +1049,7 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
 void IRAM::computeDeflationSpace(const field<Complex> *gauge){
   prepareKrylovSpace(kSpace_defl, evals_defl, gauge->p);
   iram(gauge, kSpace_defl, evals_defl);
-
+  
   prepareKrylovSpace(kSpace_mg, evals_mg, gauge->p);
   computeMGDeflationSpace(kSpace_mg, kSpace_defl, gauge);
 }

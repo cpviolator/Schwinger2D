@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "blas.h"
 
 void Param::usage(char **argv) {
 
@@ -836,12 +837,12 @@ void smearLink(field<Complex> *smeared, field<Complex> *gauge){
   int iter = gauge->p.smear_iter;
   Complex tmp = 0;
   field<Complex> *smeared_tmp = new field<Complex>(gauge->p);
-  smeared->copy(gauge);
+  blas::copy(smeared, gauge);
   
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
   for(int i=0; i<iter; i++) {
-    smeared_tmp->copy(smeared);
+    blas::copy(smeared_tmp, smeared);
     
     for(int x=0; x<Nx; x++) {
       for(int y=0; y<Ny; y++) {
@@ -888,24 +889,24 @@ void wilsonFlow(field<Complex> *gauge, double dt) {
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
 
-  field<double> z0(gauge->p);
-  field<double> z1(gauge->p);
-  field<double> z2(gauge->p);
-
-  field<Complex> w0(gauge->p);
-  field<Complex> w1(gauge->p);
-  field<Complex> w2(gauge->p);
-  field<Complex> w3(gauge->p);
-
-  w0.copy(gauge);
-
+  field<double> *z0 = new field<double>(gauge->p);
+  field<double> *z1 = new field<double>(gauge->p);
+  field<double> *z2 = new field<double>(gauge->p);
+  
+  field<Complex> *w0 = new field<Complex>(gauge->p);
+  field<Complex> *w1 = new field<Complex>(gauge->p);
+  field<Complex> *w2 = new field<Complex>(gauge->p);
+  field<Complex> *w3 = new field<Complex>(gauge->p);
+  
+  blas::copy(w0, gauge);
+  
   for (int x = 0; x < Nx; x++) {
     for (int y = 0; y < Ny; y++) {
       for (int mu = 0; mu < 2; mu++) {
 	Complex s = staple(w0, x, y, mu);
-	double z = -imag(w0.read(x, y, mu) * conj(s));
-	z0.write(x, y, mu, dt * z);
-	w1.write(x, y, mu, polar(1.0, (1.0/4.0) * z0.read(x, y, mu)) * w0.read(x, y, mu));
+	double z = -imag(w0->read(x, y, mu) * conj(s));
+	z0->write(x, y, mu, dt * z);
+	w1->write(x, y, mu, polar(1.0, (1.0/4.0) * z0->read(x, y, mu)) * w0->read(x, y, mu));
       }
     }
   }
@@ -914,9 +915,9 @@ void wilsonFlow(field<Complex> *gauge, double dt) {
     for (int y = 0; y < Ny; y++) {
       for (int mu = 0; mu < 2; mu++) {
 	Complex s = staple(w1, x, y, mu);
-	double z = -imag(w1.read(x, y, mu) * conj(s));
-	z1.write(x, y, mu, dt * z);
-	w2.write(x, y, mu, polar(1.0, (8.0/9.0) * z1.read(x, y, mu) - (17.0/36.0) * z0.read(x, y, mu)) * w1.read(x, y, mu));
+	double z = -imag(w1->read(x, y, mu) * conj(s));
+	z1->write(x, y, mu, dt * z);
+	w2->write(x, y, mu, polar(1.0, (8.0/9.0) * z1->read(x, y, mu) - (17.0/36.0) * z0->read(x, y, mu)) * w1->read(x, y, mu));
       }
     }
   }
@@ -925,32 +926,32 @@ void wilsonFlow(field<Complex> *gauge, double dt) {
     for (int y = 0; y < Ny; y++) {
       for (int mu = 0; mu < 2; mu++) {
 	Complex s = staple(w2, x, y, mu);
-	double z = -imag(w2.read(x, y, mu) * conj(s));
-	z2.write(x, y, mu, dt * z);
-	w3.write(x, y, mu, polar(1.0, (3.0/4.0) * z2.read(x, y, mu) - (8.0/9.0) * z1.read(x, y, mu) + (17.0/36.0) * z0.read(x, y, mu)) * w2.read(x, y, mu));
+	double z = -imag(w2->read(x, y, mu) * conj(s));
+	z2->write(x, y, mu, dt * z);
+	w3->write(x, y, mu, polar(1.0, (3.0/4.0) * z2->read(x, y, mu) - (8.0/9.0) * z1->read(x, y, mu) + (17.0/36.0) * z0->read(x, y, mu)) * w2->read(x, y, mu));
       }
     }
   }
     
-  gauge->copy(&w3);
+  blas::copy(gauge, w3);
 }
 
-Complex staple(field<Complex>& gauge, int x, int y, int mu) {
+Complex staple(field<Complex> *gauge, int x, int y, int mu) {
   
   // calculate the sum of staples attached to the link at (x,y,mu) in the
   // reverse direction as compared to the direction of the link
   
-  int Nx = gauge.p.Nx;
-  int Ny = gauge.p.Ny;
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
   int xp1 = (x + 1) % Nx;
   int xm1 = (x - 1 + Nx) % Nx;
   int yp1 = (y + 1) % Ny;
   int ym1 = (y - 1 + Ny) % Ny;
   if (mu == 0) {
-    return gauge.read(x,y,1) * gauge.read(x,yp1,0) * conj(gauge.read(xp1,y,1))
-      + conj(gauge.read(x,ym1,1)) * gauge.read(x,ym1,0) * gauge.read(xp1,ym1,1);
+    return gauge->read(x,y,1) * gauge->read(x,yp1,0) * conj(gauge->read(xp1,y,1))
+      + conj(gauge->read(x,ym1,1)) * gauge->read(x,ym1,0) * gauge->read(xp1,ym1,1);
   } else {
-    return gauge.read(x,y,0) * gauge.read(xp1,y,1) * conj(gauge.read(x,yp1,0))
-      + conj(gauge.read(xm1,y,0)) * gauge.read(xm1,y,1) * gauge.read(xm1,yp1,0);
+    return gauge->read(x,y,0) * gauge->read(xp1,y,1) * conj(gauge->read(x,yp1,0))
+      + conj(gauge->read(xm1,y,0)) * gauge->read(xm1,y,1) * gauge->read(xm1,yp1,0);
   }
 }

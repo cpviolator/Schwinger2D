@@ -37,7 +37,7 @@ public:
   int hmc(field<Complex> *gauge, int iter);
   bool hmc_reversibility(field<Complex> *gauge, int iter);
   void trajectory(field<double> *mom, field<Complex> *gauge, std::vector<field<Complex>*> &phi, int iter);
-  void forceU(field<double> *fU, field<Complex> *gauge);
+
   int forceD(field<double> *fD, field<Complex> *gauge, field<Complex> *phi);
   
   void update_mom(field<double> *fU, field<double> *fD, field<double> *mom, double dtau);
@@ -46,7 +46,9 @@ public:
   void forceGradient(field<double> *mom, std::vector<field<Complex>*> phi, field<Complex> *gauge, double one_minus_2lambda_dt, double xi_dtdt);
   void forceGradient(field<double> *mom, field<Complex> *gauge, double one_minus_2lambda_dt, double xi_dtdt);
   void innerFGI(field<double> *mom, field<Complex> *gauge, double tau, int steps);
-
+  field<double>* computeFermionForce(field<Complex> *gauge, std::vector<field<Complex>*> &phi);
+  field<double>* computeGaugeForce(field<Complex> *gauge);
+  
   double measGaugeAction(field<Complex> *gauge);
   double measMomAction(field<double> *mom);
   double measFermAction(field<Complex> *gauge, field<Complex> *phi, PFE &pfe, bool rational);

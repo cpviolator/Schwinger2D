@@ -49,7 +49,7 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
   }
 
   // Find norm of rhs.
-  bnorm = blas::norm2(b->data);
+  bnorm = blas::norm2(b);
   bsqrt = sqrt(bnorm);
   if(cg_verbosity) cout << "CG Multi: bsqrt = " << bsqrt << endl;
   
@@ -69,16 +69,16 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
   
   // Compute initial residual
   //---------------------------------------  
-  res->copy(b);
-  p->copy(b);
-  rsq = blas::norm2(res->data);
+  blas::copy(res, b);
+  blas::copy(p, b);
+  rsq = blas::norm2(res);
   if(cg_verbosity) printf("CG Multi: iter 0, res = %g\n", sqrt(rsq));
   
   std::vector<field<Complex> *> p_arr(n_shifts);
   for(int i=0; i<n_shifts; i++) {    
-    blas::zero(x[i]->data);
+    blas::zero(x[i]);
     p_arr[i] = new field<Complex>(x[0]->p);
-    p_arr[i]->copy(p);
+    blas::copy(p_arr[i], p);
   }
   
   alpha = 1.0;
@@ -90,7 +90,7 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
     
     // Compute Ap.
     OPERATOR(Ap, p, gauge);
-    denom = (blas::cDotProd(p->data, Ap->data)).real();
+    denom = (blas::cDotProd(p, Ap)).real();
     double alpha_old = alpha;
     alpha = -rsq/denom;
     
@@ -108,12 +108,12 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
       if(zeta[i] != 0.0) alpha_arr[i] = alpha * zeta[i] / zeta_old[i];
       else               alpha_arr[i] = 0.0;
       
-      blas::axpy(-alpha_arr[i], p_arr[i]->data, x[i]->data);
+      blas::axpy(-alpha_arr[i], p_arr[i], x[i]);
     }
     
-    blas::axpy(alpha, Ap->data, res->data);    
+    blas::axpy(alpha, Ap, res);    
 
-    rsq_new = blas::norm2(res->data);
+    rsq_new = blas::norm2(res);
     if(cg_verbosity) printf("CG Multi: iter %d, res = %g\n", iter+1, sqrt(rsq_new));
 
     // Exit if new residual on the lightest vector is small enough
@@ -138,10 +138,10 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
     
     for (int i=0; i<n_shifts_remaining && active[i]; i++) {
       beta_arr[i] = beta * zeta[i] * alpha_arr[i]/(zeta_old[i] * alpha);
-      blas::axpby(zeta[i], res->data, beta_arr[i], p_arr[i]->data);
+      blas::axpby(zeta[i], res, beta_arr[i], p_arr[i]);
     }
     
-    blas::axpby(1.0, res->data, beta, p->data);
+    blas::axpby(1.0, res, beta, p);
     
   } // End loop over iter
   //---------------------------------------
@@ -157,17 +157,17 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
 
   if(cg_verbosity) {
     //Sanity
-    cout << "CG Multi: source norm = " << blas::norm(b->data) << endl;
+    cout << "CG Multi: source norm = " << sqrt(blas::norm2(b)) << endl;
     for(int i=0; i<n_shifts; i++) {
-      cout << "CG Multi: sol " << i << " norm = " << blas::norm(x[i]->data) << endl;
+      cout << "CG Multi: sol " << i << " norm = " << sqrt(blas::norm2(x[i])) << endl;
     }
     
     for(int i=0; i<n_shifts; i++) {
       OPERATOR(temp, x[i], gauge);
-      blas::caxpy(shifts[i], x[i]->data, temp->data);
+      blas::axpy(shifts[i], x[i], temp);
       
-      blas::axpy(-1.0, temp->data, b->data, res->data);
-      double truersq = blas::norm2(res->data);
+      blas::axpy(-1.0, temp, b, res);
+      double truersq = blas::norm2(res);
       printf("CG Multi: Converged shift = %d, iter = %d, res = %.16e, trueres = %.16e\n", i, success, sqrt(rsq), sqrt(truersq)/(bsqrt));
     }
   }
@@ -180,14 +180,14 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
 int inverterCG::solve(field<Complex> *x, const field<Complex> *b, const field<Complex> *gauge) {
   
   // Find norm of rhs.
-  bnorm = blas::norm2(b->data);
+  bnorm = blas::norm2(b);
   bsqrt = sqrt(bnorm);
 
   // Sanity  
   if(bsqrt == 0 || bsqrt != bsqrt) cout << "CG: Warning in inverterCG: inverting on zero source or Nan!" << endl;
   
-  blas::zero(temp->data);
-  blas::zero(res->data);
+  blas::zero(temp);
+  blas::zero(res);
 
   if(deflate) {
     // If no eigensolver exists, this is the first call to CG from HMC,
@@ -208,44 +208,44 @@ int inverterCG::solve(field<Complex> *x, const field<Complex> *b, const field<Co
   
   // compute initial residual
   //---------------------------------------  
-  if (blas::norm2(x->data) > 0.0) {    
+  if (blas::norm2(x) > 0.0) {    
 
     // initial guess supplied: res = b - A*x0
     use_init_guess = true;
     OPERATOR(temp, x, gauge);
-    blas::axpy(-1.0, temp->data, b->data, res->data);
+    blas::axpy(-1.0, temp, b, res);
     
     // Update bnorm
-    bnorm = blas::norm2(res->data);
+    bnorm = blas::norm2(res);
     bsqrt = sqrt(bnorm);
 
     // temp contains original guess
-    temp->copy(x);
+    blas::copy(temp, x);
     
     if(cg_verbosity) {
-      cout << "CG: Using initial guess, |x0| = " << blas::norm(temp->data)
+      cout << "CG: Using initial guess, |x0| = " << sqrt(blas::norm2(temp))
 	   << ", |b| = " << bsqrt
-	   << ", |res| = " << blas::norm(res->data) << endl;
+	   << ", |res| = " << sqrt(blas::norm2(res)) << endl;
     }
   } else {
     // no initial guess. Initial residual is the source.
     if(cg_verbosity) {
       cout << "CG: No initial guess, |b| = |res| = " << bsqrt;
     }
-    res->copy(b);
-    blas::zero(temp->data);
+    blas::copy(res, b);
+    blas::zero(temp);
   }
 
   if (deflate && eig->deflationSpaceExists()) {
     if(verbosity) cout << "CG: Applying deflation space preconditioner" << endl;
     eig->deflate(temp, res);
     OPERATOR(res, temp, gauge);
-    blas::axpy(-1.0, res->data, b->data, res->data);
+    blas::axpy(-1.0, res, b, res);
   }
   
-  blas::zero(x->data);
-  p->copy(res);  
-  rsq = blas::norm2(res->data);
+  blas::zero(x);
+  blas::copy(p, res);  
+  rsq = blas::norm2(res);
   //---------------------------------------
   
   // Iterate until convergence
@@ -256,14 +256,14 @@ int inverterCG::solve(field<Complex> *x, const field<Complex> *b, const field<Co
     // Compute Ap.
     OPERATOR(Ap, p, gauge);
  
-    denom = (blas::cDotProd(p->data, Ap->data)).real();
+    denom = (blas::cDotProd(p, Ap)).real();
     alpha = rsq/denom;
     
-    blas::axpy( alpha, p->data,    x->data);
-    blas::axpy(-alpha, Ap->data, res->data);
+    blas::axpy( alpha, p,    x);
+    blas::axpy(-alpha, Ap, res);
     
     // Exit if new residual is small enough
-    rsq_new = blas::norm2(res->data);
+    rsq_new = blas::norm2(res);
     if (cg_verbosity) printf("CG: iter %d, res = %g\n", iter, sqrt(rsq_new));
     if (rsq_new < pow(gauge->p.tol_cg, 2)*bnorm) {
       rsq = rsq_new;
@@ -274,7 +274,7 @@ int inverterCG::solve(field<Complex> *x, const field<Complex> *b, const field<Co
     beta = rsq_new/rsq;
     rsq = rsq_new;
     
-    blas::axpy(beta, p->data, res->data, p->data);
+    blas::axpy(beta, p, res, p);
     
   } // End loop over iter
   //---------------------------------------
@@ -290,17 +290,17 @@ int inverterCG::solve(field<Complex> *x, const field<Complex> *b, const field<Co
 
   // x contains the solution to the deflated system b - A*x0.
   // We must add back the exact part if using an initial guess too
-  blas::axpy(1.0, temp->data, x->data);  
+  blas::axpy(1.0, temp, x);  
   // x now contains the solution to the RHS b.
   
   if(cg_verbosity) {    
     //Sanity
-    cout << "CG: source norm = " << blas::norm(b->data) << endl;
-    cout << "CG: sol norm = " << blas::norm(x->data) << endl;
+    cout << "CG: source norm = " << sqrt(blas::norm2(b)) << endl;
+    cout << "CG: sol norm = " << sqrt(blas::norm2(x)) << endl;
   }    
   OPERATOR(temp, x, gauge);
-  blas::axpy(-1.0, temp->data, b->data, res->data);
-  double truersq = blas::norm2(res->data);
+  blas::axpy(-1.0, temp, b, res);
+  double truersq = blas::norm2(res);
   if(verbosity) printf("CG: Converged iter = %d, res = %.16e, truersq = %.16e\n", success, sqrt(rsq), sqrt(truersq)/bsqrt);
   
   return success;  
@@ -312,46 +312,46 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
   std::vector<Complex> evals;
 
   // Find norm of rhs.
-  bnorm = blas::norm2(b->data);
+  bnorm = blas::norm2(b);
   bsqrt = sqrt(bnorm);
 
   // Sanity  
   if(bsqrt == 0 || bsqrt != bsqrt) cout << "CG: Warning in inverterCG: inverting on zero source or Nan!" << endl;
 
-  blas::zero(temp->data);
-  blas::zero(res->data);
+  blas::zero(temp);
+  blas::zero(res);
   
   // compute initial residual
   //---------------------------------------  
-  if (blas::norm2(x->data) > 0.0) {    
+  if (blas::norm2(x) > 0.0) {    
 
     // initial guess supplied: res = b - A*x0
     use_init_guess = true;
     OPERATOR(temp, x, gauge);
-    blas::axpy(-offset, x->data, temp->data);
-    blas::axpy(-1.0, temp->data, b->data, res->data);
+    blas::axpy(-offset, x, temp);
+    blas::axpy(-1.0, temp, b, res);
     
     // Update bnorm
-    bnorm = blas::norm2(res->data);
+    bnorm = blas::norm2(res);
     bsqrt = sqrt(bnorm);
 
     // temp contains original guess
-    temp->copy(x);
+    blas::copy(temp, x);
     
     if(cg_verbosity) {
-      cout << "CG: using initial guess, |x0| = " << blas::norm(temp->data)
+      cout << "CG: using initial guess, |x0| = " << sqrt(blas::norm2(temp))
 	   << ", |b| = " << bsqrt
-	   << ", |res| = " << blas::norm(res->data) << endl;
+	   << ", |res| = " << sqrt(blas::norm2(res)) << endl;
     }
   } else {
     // no initial guess. Initial residual is the source.    
-    res->copy(b);
-    blas::zero(temp->data);
+    blas::copy(res, b);
+    blas::zero(temp);
   }
 
-  blas::zero(x->data);
-  p->copy(res);  
-  rsq = blas::norm2(res->data);
+  blas::zero(x);
+  blas::copy(p, res);  
+  rsq = blas::norm2(res);
   //---------------------------------------
   
   // Iterate until convergence
@@ -360,16 +360,16 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
     
     // Compute Ap.
     OPERATOR(Ap, p, gauge);
-    blas::axpy(-offset, p->data, Ap->data);
+    blas::axpy(-offset, p, Ap);
     
-    denom = (blas::cDotProd(p->data, Ap->data)).real();
+    denom = (blas::cDotProd(p, Ap)).real();
     alpha = rsq/denom;
     
-    blas::axpy( alpha, p->data,    x->data);
-    blas::axpy(-alpha, Ap->data, res->data);
+    blas::axpy( alpha, p,    x);
+    blas::axpy(-alpha, Ap, res);
     
     // Exit if new residual is small enough
-    rsq_new = blas::norm2(res->data);
+    rsq_new = blas::norm2(res);
     if (cg_verbosity) printf("CG: iter %d, rsq = %g\n", iter, rsq_new);
     if (rsq_new < pow(gauge->p.tol_cg, 2)*bnorm) {
       rsq = rsq_new;
@@ -380,7 +380,7 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
     beta = rsq_new/rsq;
     rsq = rsq_new;
     
-    blas::axpy(beta, p->data, res->data, p->data);
+    blas::axpy(beta, p, res, p);
     
   } // End loop over iter
   //---------------------------------------
@@ -396,19 +396,19 @@ int inverterCG::solve(field<Complex> *x, field<Complex> *b, field<Complex> *gaug
 
   // x contains the solution to the deflated system b - A*x0.
   // We must add back the exact part if using an initial guess too
-  blas::axpy(1.0, temp->data, x->data);  
+  blas::axpy(1.0, temp, x);  
   // x now contains the solution to the RHS b.
   
   if(cg_verbosity) {    
     //Sanity
-    cout << "CG: source norm = " << blas::norm(b->data) << endl;
-    cout << "CG: sol norm = " << blas::norm(x->data) << endl;
+    cout << "CG: source norm = " << sqrt(blas::norm2(b)) << endl;
+    cout << "CG: sol norm = " << sqrt(blas::norm2(x)) << endl;
   }
   
   OPERATOR(temp, x, gauge);
-  blas::axpy(-offset, x->data, temp->data);    
-  blas::axpy(-1.0, temp->data, b->data, res->data);
-  double truersq = blas::norm2(res->data);
+  blas::axpy(-offset, x, temp);    
+  blas::axpy(-1.0, temp, b, res);
+  double truersq = blas::norm2(res);
   if(verbosity) printf("CG: Converged iter = %d, rsq = %.16e, truersq = %.16e\n", iter, rsq, truersq/(bsqrt*bsqrt));
 
   return success;  

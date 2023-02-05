@@ -210,7 +210,7 @@ int main(int argc, char **argv) {
     if((iter+1)%p.reverse == 0) {	  
       
       field<Complex> *gauge_old = new field<Complex>(p);
-      gauge_old->copy(gauge);
+      blas::copy(gauge_old, gauge);
       bool reverse = HMCStep->hmc_reversibility(gauge_old, iter);
       if(!reverse) {
 	cout << "Error in reversibility" << endl;
@@ -218,10 +218,10 @@ int main(int argc, char **argv) {
       }
       
       // gauge_old should now be the same as gauge
-      blas::axpy(-1.0, gauge->data, gauge_old->data);
-      cout << "L2 norm of gauge(t0) - evolve_gauge(t0->t1->t0) = " << std::scientific << blas::norm2(gauge_old->data)/(p.Nx * p.Ny * 2) << endl;
+      blas::axpy(-1.0, gauge, gauge_old);
+      cout << "L2 norm of gauge(t0) - evolve_gauge(t0->t1->t0) = " << std::scientific << blas::norm2(gauge_old)/(p.Nx * p.Ny * 2) << endl;
       
-      gauge_old->copy(gauge);	
+      blas::copy(gauge_old, gauge);	
       double wilson_flow_tau = 1.0;
       int wilson_flow_steps = 50;
       double dt = wilson_flow_tau/wilson_flow_steps;
@@ -229,8 +229,8 @@ int main(int argc, char **argv) {
       for(int i=0; i<wilson_flow_steps; i++) wilsonFlow(gauge_old, -dt);
 
       // gauge_old should now be the same as gauge
-      blas::axpy(-1.0, gauge->data, gauge_old->data);
-      cout << "L2 norm of gauge(t0) - flowed_gauge(t0->t1->t0) = " << std::scientific << blas::norm2(gauge_old->data)/(p.Nx * p.Ny * 2) << endl;
+      blas::axpy(-1.0, gauge, gauge_old);
+      cout << "L2 norm of gauge(t0) - flowed_gauge(t0->t1->t0) = " << std::scientific << blas::norm2(gauge_old)/(p.Nx * p.Ny * 2) << endl;
     }
     
     //Checkpoint the gauge field?

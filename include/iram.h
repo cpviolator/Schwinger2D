@@ -101,6 +101,8 @@ public:
   void zsortc(Spectrum which, int n, std::vector<double> &x, std::vector<Complex> &y);
   // Overloaded version of zsortc to deal with real x and y array.
   void zsortc(Spectrum which, int n, std::vector<double> &x, std::vector<double> &y);
+
+  void setTau0Tags(std::vector<field<Complex>*> &kSpace);
   
   void inspectEvolvedSpectrum(const field<Complex> *gauge, int iter);
   void prepareKrylovSpace(std::vector<field<Complex>*> &kSpace, std::vector<Complex> &evals, const Param p);

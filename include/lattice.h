@@ -1,6 +1,4 @@
-#include "blas.h"
-#include "utils.h"
-
+#pragma once
 
 template<typename T> class field {
   
@@ -12,10 +10,8 @@ public:
   
   std::vector<T> data;
   Param p;
-  
-  field(std::vector<T> &data, Param p) : data(data), p(p)
-  {
-  }
+
+  int tag;
   
   field(Param p) : p(p)
   {
@@ -31,11 +27,9 @@ public:
     data[2*(x + p.Nx * y) + mu] = elem;
   }
   
-  void copy(const field<T> *in){
-    blas::copy(data, in->data);
-  }
-
-  unsigned int size() { return data.size(); }
+  unsigned int const size() const { return data.size(); }
+  
+  T elem(int i) { return data[i]; }
   
   void print() {
     for(int x=0; x<p.Nx; x++) {

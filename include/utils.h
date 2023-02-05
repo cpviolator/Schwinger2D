@@ -2,7 +2,6 @@
 
 #include "schwinger2d_internal.h"
 #include "lattice.h"
-#include "blas.h"
 #ifdef ENABLE_HDF5
 #include "hdf5.h"
 #endif
@@ -25,7 +24,7 @@ void gaussComplex(field<Complex> *field);
 // staple x is 0th, y is 1st.
 void smearLink(field<Complex> *smeared, field<Complex> *gauge);
 void wilsonFlow(field<Complex> *gauge, double dt);
-Complex staple(field<Complex>& gauge, int x, int y, int mu);
+Complex staple(field<Complex> *gauge, int x, int y, int mu);
 
 void measBlockColinearity(std::vector<field<Complex> *> kSpace, int blockScheme[2], int nLow);
 

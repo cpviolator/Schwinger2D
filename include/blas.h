@@ -1,6 +1,7 @@
 #pragma once
 
 #include "schwinger2d_internal.h"
+#include "lattice.h"
 
 // strip path from __FILE__
 inline constexpr const char* str_end(const char *str) { return *str ? str_end(str + 1) : str; }
@@ -16,77 +17,73 @@ namespace blas {
   /**
      @brief asserts that two vectors have the same length   
   */
-  void assertVectorLength(const std::vector<Complex> &x, const std::vector<Complex> &y, const char *func);
-
-  void assertVectorLength(const std::vector<double> &x, const std::vector<double> &y, const char *func);
-
-  // Zero vector
-  void zero(std::vector<Complex> &x);
+  template <typename T> const void assertVectorLength(const field<T> *x, const field<T> *y,
+						      const char *func){
+    if(x->size() != y->size()) {
+      cout << "Error: vector sizes not equal (" << func << ")" << endl;
+      exit(0);
+    }
+  }
   
   // Zero vector
-  void zero(std::vector<double> &x);
-
+  template <typename T> void zero(field<T> *x) {
+#pragma omp parallel for
+    for(int i=0; i<(int)x->size(); i++) x->data[i] = 0.0;
+  }
+  
   // Copy vector 
-  void copy(std::vector<Complex> &x, const std::vector<Complex> &y);
-
-  // Copy vector 
-  void copy(std::vector<double> &x, const std::vector<double> &y);
-  
-  // Inner product
-  Complex cDotProd(const std::vector<Complex> &x, const std::vector<Complex> &y);
+  template <typename T> void copy(field<T> *x, const field<T> *y) {
+    assertVectorLength(x, y, __func__);
+#pragma omp parallel for
+    for(int i=0; i<(int)x->size(); i++) x->data[i] = y->data[i];
+  }
   
   // Norm squared 
-  double norm2(const std::vector<Complex> &x);
+  template <typename T> double norm2(const field<T> *x) {
+    double sum = 0.0;
+#pragma omp parallel for reduction(+:sum)
+    for(int i=0; i<(int)x->size(); i++) sum += (conj(x->data[i]) * x->data[i]).real();
+    return sum;
+  }
   
-  // Norm squared 
-  double norm2(Complex *x, int size);
-  
-  // Norm 
-  double norm(const std::vector<Complex> &a);
-
-  // Norm squared 
-  double norm2(const std::vector<double> &x);
-  
-  // Norm 
-  double norm(const std::vector<double> &a);
-  
-  // caxpby
-  void caxpby(const Complex a, const std::vector<Complex> &x, const Complex b, std::vector<Complex> &y);
-
   // axpby
-  void axpby(const double a, const std::vector<Complex> &x, const double b, std::vector<Complex> &y);
-
-  // caxpy in place
-  void caxpy(const Complex a, const std::vector<Complex> &x, std::vector<Complex> &y);
-
-  // caxpy in result
-  void caxpy(const Complex a, const std::vector<Complex> &x, const std::vector<Complex> &y, std::vector<Complex> &z);
-
-  // axpy in place
-  void axpy(const double a, const std::vector<Complex> &x, std::vector<Complex> &y);
+  template <typename T, typename A> void axpby(const A a, const field<T> *x, const A b, field<T> *y) {
+    assertVectorLength(x,y,__func__);
+#pragma omp parallel for
+    for(int i=0; i<(int)x->size(); i++) {
+      y->data[i] *= b;
+      y->data[i] += a*x->data[i];
+    }
+  }
 
   // axpy in result
-  void axpy(const double a, const std::vector<Complex> &x, const std::vector<Complex> &y, std::vector<Complex> &z);
-
+  template <typename T, typename A> void axpy(const A a, const field<T> *x, const field<T> *y, field<T> *z) {
+    assertVectorLength(x, y, __func__);
+#pragma omp parallel for
+    for(int i=0; i<(int)z->size(); i++) {
+      z->data[i] = y->data[i] + a*x->data[i];
+    }
+  }
+  
   // axpy in place
-  void axpy(const double a, const std::vector<double> &x, std::vector<double> &y);
-  
-  // axpy in result
-  void axpy(const double a, const std::vector<double> &x, const std::vector<double> &y, std::vector<double> &z);
-
-  
-  // cax
-  void cax(const Complex a, std::vector<Complex> &x);
-  
-  // ax
-  void ax(const double a, std::vector<Complex> &x);
-
-  // cax
-  void cax(const Complex a, std::vector<double> &x);
+  template<typename T, typename A> void axpy(const A a, field<T> *x, field<T> *y) {    
+    assertVectorLength(x, y, __func__);
+#pragma omp parallel for
+    for(int i=0; i<(int)x->size(); i++) {
+      y->data[i] += a*x->data[i];
+    }
+  }
   
   // ax
-  void ax(const double a, std::vector<double> &x);
+  template <typename T, typename A> void ax(const A a, field<T> *x) {
+#pragma omp parallel for
+    for(int i=0; i<(int)x->size(); i++) {
+      x->data[i] *= a;
+    }
+  }
 
+  // Complex inner product
+  Complex cDotProd(const field<Complex> *x, const field<Complex> *y);
   
   // Print the vector elements
   void printVector(const std::vector<Complex> &x);

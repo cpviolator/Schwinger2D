@@ -119,9 +119,9 @@ void measPionCorrelation(field<Complex> *gauge, int iter)
   Dsource = new field<Complex>(gauge->p);
   
   //Up type prop
-  blas::zero(source->data);
-  blas::zero(Dsource->data);
-  blas::zero(propUp->data);
+  blas::zero(source);
+  blas::zero(Dsource);
+  blas::zero(propUp);
   source->write(0, 0, 0, cUnit);
   
   // up -> (g3Dg3) * up *****
@@ -132,9 +132,9 @@ void measPionCorrelation(field<Complex> *gauge, int iter)
   inv->solve(propUp, source, gauge);
 
   //Down type prop
-  blas::zero(source->data);
-  blas::zero(Dsource->data);
-  blas::zero(propDn->data);
+  blas::zero(source);
+  blas::zero(Dsource);
+  blas::zero(propDn);
   source->write(0, 0, 1, cUnit);
   
   // dn -> (g3Dg3) * dn   
