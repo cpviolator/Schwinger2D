@@ -32,6 +32,7 @@ enum Integrator { LEAPFROG = 0, FGI = 1};
 enum Operator { M = 0, Mdag = 1, MMdag = 2, MdagM = 3};
 // (L)argest (S)mallest (R)eal (I)maginary
 enum Spectrum { LM = 0, SM = 1, LR = 2, SR = 3, LI = 4, SI = 6};
+enum SmearType { APE = 0, WILSON = 1};
 
 using namespace std;
 
@@ -117,8 +118,11 @@ public:
   bool use_feast = true;
 
   //Smearing
-  double alpha = 0.5;
-  int smear_iter = 1;
+  double ape_alpha = 0.5;
+  int ape_iter = 1;
+  double wilson_time = 1.0;
+  int wilson_steps = 10;  
+  SmearType smear_type = WILSON;
   
   //Measurements
   bool meas_pl = false; //Polyakov loops

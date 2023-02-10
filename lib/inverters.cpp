@@ -10,6 +10,8 @@ inverterCG::inverterCG(Param param) {
   verbosity = param.verbosity;
   cg_verbosity = param.cg_verbosity;
 
+  flavours = param.flavours;
+  
   // If still thermalising, ensure no eigensolver is called
   if(param.current_hmc_iter >= param.therm) {    
     deflate = param.deflate ? true : false;

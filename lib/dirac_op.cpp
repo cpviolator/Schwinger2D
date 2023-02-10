@@ -27,21 +27,20 @@ void Dpsi(field<Complex> *out, const field<Complex> *in, const field<Complex> *g
   //Sum over 0,1 directions at each lattice site.
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
-
+  int xp1, xm1, yp1, ym1;
+  Complex tmp = 0.0;
+  
   //#pragma omp parallel for collapse(2)
   for(int x=0; x<Nx; x++) {
+    xp1 = (x+1) == Nx ? 0    : (x+1);
+    xm1 = (x-1) == -1 ? Nx-1 : (x-1);
+    
     for(int y=0; y<Ny; y++) {
-
-      int xp1 = (x+1)%Nx;
-      int xm1 = (x-1+Nx)%Nx;    
-      int yp1 = (y+1)%Ny;
-      int ym1 = (y-1+Ny)%Ny;
+      yp1 = (y+1) == Ny ? 0    : (y+1);
+      ym1 = (y-1) == -1 ? Ny-1 : (y-1);
 
       if(yp1 == 0) fwd_bc = -1.0;
       if(y   == 0) bwd_bc = -1.0;  
-      
-      
-      Complex tmp = 0.0;
       
       //upper
       //(m0 + 2) * I_{X}

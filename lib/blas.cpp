@@ -6,9 +6,8 @@ namespace blas {
   Complex cDotProd(const field<Complex> *x, const field<Complex> *y) {
     double re_prod = 0.0;
     double im_prod = 0.0;
-    //cout << "x=" << x->size() << "y=" << y->size() << endl;
     assertVectorLength(x,y,__func__);
-    //#pragma omp parallel for reduction(+:re_prod, im_prod)
+#pragma omp parallel for reduction(+:re_prod, im_prod)
     for(int i=0; i<(int)x->size(); i++) {
       Complex prod = conj(x->data[i]) * y->data[i];
       re_prod += prod.real();

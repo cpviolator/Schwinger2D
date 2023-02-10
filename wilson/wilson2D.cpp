@@ -222,12 +222,12 @@ int main(int argc, char **argv) {
       cout << "L2 norm of gauge(t0) - evolve_gauge(t0->t1->t0) = " << std::scientific << blas::norm2(gauge_old)/(p.Nx * p.Ny * 2) << endl;
       
       blas::copy(gauge_old, gauge);	
-      double wilson_flow_tau = 1.0;
-      int wilson_flow_steps = 500;
+      double wilson_flow_tau = gauge->p.wilson_time;
+      int wilson_flow_steps = gauge->p.wilson_steps;
       double dt = wilson_flow_tau/wilson_flow_steps;
       for(int i=0; i<wilson_flow_steps; i++) wilsonFlow(gauge_old, dt);
       for(int i=0; i<wilson_flow_steps; i++) wilsonFlow(gauge_old, -dt);
-
+      
       // gauge_old should now be the same as gauge
       blas::axpy(-1.0, gauge, gauge_old);
       cout << "L2 norm of gauge(t0) - flowed_gauge(t0->t1->t0) = " << std::scientific << blas::norm2(gauge_old)/(p.Nx * p.Ny * 2) << endl;

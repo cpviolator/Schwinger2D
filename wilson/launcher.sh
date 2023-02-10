@@ -1,27 +1,34 @@
 #!/bin/bash
 
-export OMP_NUM_THREADS=1
+export OMP_NUM_THREADS=4
+export MKL_NUM_THREADS=4
 
 mkdir -p {gauge,data/{data,plaq,creutz,polyakov,rect,top,pion,vacuum,eig}}
 
 # The RNG seed
 SEED=1234
 
-# General verbosity
-VERBOSITY=0
+# Verbosities
+#-----------------------------------------------
+# General
+VERBOSITY=1
+# CG verbosity
+CG_VERBOSITY=0
+# Eigensolver verbosity
+EIG_VERBOSITY=0
 
 # Physics params
 #-----------------------------------------------
 # Lattice dims
-LX=8
-LY=8
+LX=${1}
+LY=${1}
 # The value of the coupling in the U(1) 2D theory
-BETA=4.0
+BETA=${2}
 # Dynamic fermion parameters
 # 0 = pure gauge
 # 2 = two light degenerate fermions
 # 3 = two light degenerate, one heavy fermion
-FLAVOURS=2
+FLAVOURS=0
 # Light Fermions (degenerate) mass
 MASS=0.05
 # Heavy Fermion mass
@@ -30,73 +37,86 @@ MASS_HEAVY=0.5
 # HMC params
 #-----------------------------------------------
 # The total number of thermalised HMC iterations to perform.
-HMC_ITER=1000
+HMC_ITER=10000
 # The number of HMC iterations for thermalisation (accept + accept/reject).
-HMC_THERM=000
+HMC_THERM=10000
 # The number of HMC iterations to skip bewteen measurements.
 HMC_SKIP=10
 # Dump the gauge field every HMC_CHKPT iterations after thermalisation.
-HMC_CHKPT=100
+HMC_CHKPT=1000
 # If non-zero, read in the HMC_CHKPT_START gauge field. 
-HMC_CHKPT_START=100
+HMC_CHKPT_START=000
 # Reverse the gauge fields for ergodicity check
-HMC_REVERSE=100
+HMC_REVERSE=1000
 # HMC time steps in the integration 
-HMC_NSTEP=4
+HMC_NSTEP=2
 # HMC inner time steps in the integration 
-HMC_INNER_NSTEP=1
+HMC_INNER_NSTEP=2
 # Degree of polynomial for AlgRemez
 HMC_AR_DEGREE=12
 # Precision for AlgRemez (GMP)
 HMC_AR_GMP_PREC=40
 # HMC trajectory time
-HMC_TAU=1.0
-# Integrator type: leapfrog = 0, fgi = 1
-# FYI, aim for 70% acceptance with Leapfrog
-# and 90% with FGI for optimal FLOP usage
+HMC_TAU=1.5
+# Integrator type: leapfrog = 0, FGI = 1
+# FYI, for optimal FLOP usage aim for:
+# 70% acceptance with Leapfrog
+# 90% acceptance with FGI
 HMC_INTEGRATOR=1
 # Maximum CG iterations
-MAX_CG_ITER=10000
+MAX_CG_ITER=1000
 # CG residual tolerance 
-CG_TOL=1e-9
-# CG verbosity
-CG_VERBOSITY=false
+CG_TOL=1e-10
 
 # Eigensolver parameters
 #-----------------------------------------------
+# Use the FEAST eigensolver, else IRAM
+EIG_USE_FEAST=1
+# FEAST M0
+EIG_FEAST_M0=40
+# FEAST N contours
+EIG_FEAST_NCONTOUR=8
+# FEAST Max Eval
+EIG_FEAST_EMAX=0.8
+
 NKR=128
-NEV=128
-NCONV=128
-NDEFL=128
+NEV=64
+NCONV=32
+NDEFL=32
+
 # IRAM MG projector
-X_BLK=4
-Y_BLK=4
+X_BLK=8
+Y_BLK=8
 N_LOW=8
 # Tolerance on eigenvector residua
-EIG_TOL=1e-10
+EIG_TOL=1e-7
 # Maximum restart iterations
 MAX_IRAM_ITER=1000
 # Operator to solve
 EIG_OP=MdagM
 # Spectrum to compute
 EIG_SPEC=SR
-# IRAM verbosity
-EIG_VERBOSITY=false
 # Compute a deflation space at the start of each
 # HMC trajectory and use it throughout the HMC integration
-EIG_DEFLATE=false
+EIG_DEFLATE=1
 # Inspect the eigenspectrum at each instance that
 # the gauge field is updated in the HMC integrator
-EIG_INSPECTION=false
+EIG_INSPECTION=1
 # When deflating, use the compressed space
 EIG_USE_COMP_SPACE=false
 
 # Measurements
 #-----------------------------------------------
-# Number of APE smearing hits to perform when measuring topology
-APE_ITER=0
+# Smearing algorithm
+SMEAR_TYPE=APE
+# Number of smearing hits to perform when measuring topology
+APE_ITER=5
 # The alpha value in the APE smearing
-APE_ALPHA=0.5
+APE_ALPHA=0.6
+# Number of smearing hits to perform when measuring topology
+WILSON_STEPS=5
+# The alpha value in the APE smearing
+WILSON_TIME=0.2
 # Measurements: 1 = measure, 0 = no measure
 # Polyakov loops
 MEAS_PL=0
@@ -123,13 +143,14 @@ HMC_PARAMS="--hmc-traj-length ${HMC_TAU} --hmc-n-step ${HMC_NSTEP} --hmc-inner-s
 
 EIG_PARAMS="--eig-n-ev ${NEV} --eig-n-kr ${NKR} --eig-n-conv ${NCONV} --eig-n-deflate ${NDEFL} --eig-max-restarts ${MAX_IRAM_ITER} \
             --eig-tol ${EIG_TOL} --eig-operator ${EIG_OP} --eig-spectrum ${EIG_SPEC} --eig-block-scheme ${X_BLK} ${Y_BLK} \
-            --eig-low-modes ${N_LOW} --eig-verbosity ${EIG_VERBOSITY} --eig-deflate ${EIG_DEFLATE} --eig-inspection ${EIG_INSPECTION} --eig-use-comp-space ${EIG_USE_COMP_SPACE} "
+            --eig-low-modes ${N_LOW} --eig-verbosity ${EIG_VERBOSITY} --eig-deflate ${EIG_DEFLATE} --eig-inspection ${EIG_INSPECTION} \
+            --eig-use-comp-space ${EIG_USE_COMP_SPACE} --eig-feast ${EIG_USE_FEAST} \
+            --eig-feast-M0 ${EIG_FEAST_M0} --eig-feast-Emax ${EIG_FEAST_EMAX} --eig-feast-Ncontour ${EIG_FEAST_NCONTOUR} "
 
-MEASUREMENTS="--ape-alpha ${APE_ALPHA} --ape-iter ${APE_ITER} --meas-pl ${MEAS_PL} --meas-wl ${MEAS_WL} --meas-pc ${MEAS_PC} \
-	      --meas-vt ${MEAS_VT}"
+MEASUREMENTS="--ape-alpha ${APE_ALPHA} --ape-iter ${APE_ITER} --wilson-steps ${WILSON_STEPS} --wilson-time ${WILSON_TIME} --smear-type ${SMEAR_TYPE} \
+	      --meas-pl ${MEAS_PL} --meas-wl ${MEAS_WL} --meas-pc ${MEAS_PC} --meas-vt ${MEAS_VT} "
 
 command="./wilson2D ${BASIC_PARAMS} ${HMC_PARAMS} ${EIG_PARAMS} ${MEASUREMENTS}"
 
 echo $command
 $command
-

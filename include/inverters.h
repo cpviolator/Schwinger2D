@@ -40,7 +40,8 @@ private:
   bool inspect_spectrum_state;
 
   int iter;
-
+  int flavours;
+  
   Operator op;
 
   Eig *eig = nullptr;
@@ -64,7 +65,7 @@ public:
 		 field<Complex> *gauge, std::vector<double> shifts);
 
   void switchOffEigensolver() {
-    if(verbosity) cout << "CG: Switching off eigensolver" << endl;
+    if(verbosity && deflate && flavours > 0) cout << "CG: Switching off eigensolver" << endl;
     deflate_state = deflate;
     inspect_spectrum_state = inspect_spectrum;
     deflate = false;
@@ -72,7 +73,7 @@ public:
   };
   
   void switchOnEigensolver() {
-    if(verbosity) cout << "CG: Restoring eigensolver" << endl;
+    if(verbosity && deflate_state && flavours > 0) cout << "CG: Restoring eigensolver" << endl;
     deflate = deflate_state;
     inspect_spectrum = inspect_spectrum_state;
   };

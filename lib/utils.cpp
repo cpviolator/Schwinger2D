@@ -63,8 +63,11 @@ void Param::usage(char **argv) {
   printf("--eig-inspection <bool>          Inspect the eigenspectrum at each call of CG (false).\n");
   printf("--eig-use-comp-space <bool>      Use the compressed space for deflation (false).\n");
   printf("\nMEASUREMENT PARAMS\n");
+  printf("--smear-type <APE, WILSON>       Smearing algorithm (WILSON)\n");
   printf("--ape-alpha <float>              Projection coefficient for APE smearing (0.5).\n");
   printf("--ape-iter <N>                   Number of APE smearing hits (1).\n");
+  printf("--wilson-time <float>            Wilson Flow time (1.0)\n");
+  printf("--wilson-steps <N>               Wilson Flow steps (10)\n");  
   printf("--meas-pl <bool>                 Measure Polyakov loops every measurement interval (false).\n");
   printf("--meas-wl <bool>                 Measure Wilson loops every measurement interval (false).\n");
   printf("--meas-pc <bool>                 Measure Pion every measurement interval (false).\n");
@@ -119,7 +122,6 @@ int Param::init(int argc, char **argv, int *idx) {
     goto out;
   } 
 
-  
   // Physics parameters
   //-------------------------
   // Beta coupling
@@ -660,23 +662,64 @@ int Param::init(int argc, char **argv, int *idx) {
   
   // Measurement params
   //-------------------------------------
+  // HMC Integrator
+  if( strcmp(argv[i], "--smear-type") == 0){
+    if (i+1 >= argc){
+      usage(argv);
+    }    
+    std::string smear(argv[i+1]);
+    if (smear == "APE" || smear == "ape" || smear == "0") {
+      smear_type = APE;
+    } else if(smear == "WILSON" || smear == "wilson" || smear == "1") {
+      smear  = WILSON;
+    } else {
+      cout<<"Invalid smear type ("<< smear <<") given. Use APE or WILSON"<<endl;
+      exit(0);
+    }
+    i++;
+    ret = 0;
+    goto out;
+  } 
+  
   // APE smearing iterations 
   if( strcmp(argv[i], "--ape-iter") == 0){
     if (i+1 >= argc){
       usage(argv);
     }
-    smear_iter = atoi(argv[i+1]);
+    ape_iter = atoi(argv[i+1]);
     i++;
     ret = 0;
     goto out;
   }
 
-  // APE smearing iterations 
+  // APE Alpha coefficient
   if( strcmp(argv[i], "--ape-alpha") == 0){
     if (i+1 >= argc){
       usage(argv);
     }
-    alpha = atof(argv[i+1]);
+    ape_alpha = atof(argv[i+1]);
+    i++;
+    ret = 0;
+    goto out;
+  }
+
+  // Wilson Flow smearing iterations 
+  if( strcmp(argv[i], "--wilson-steps") == 0){
+    if (i+1 >= argc){
+      usage(argv);
+    }
+    wilson_steps = atoi(argv[i+1]);
+    i++;
+    ret = 0;
+    goto out;
+  }
+
+  // Wilson Flow time
+  if( strcmp(argv[i], "--wilson-time") == 0){
+    if (i+1 >= argc){
+      usage(argv);
+    }
+    wilson_time = atof(argv[i+1]);
     i++;
     ret = 0;
     goto out;
@@ -798,13 +841,18 @@ void Param::print() {
   if  (integrator == FGI) {
     cout << "              Inner Trajectory Steps = " << inner_step << endl;
   }
-  cout << "Measurements: APE iter = " << smear_iter << endl;
-  cout << "              APE alpha = " << alpha << endl;
-  cout << "              Polyakov loops = " << (meas_pl ? "true" : "false") << endl;
+  cout << "Measurements: Polyakov loops = " << (meas_pl ? "true" : "false") << endl;
   cout << "              Wilson loops = " << (meas_wl ? "true" : "false") << endl;
   cout << "              Pion = " << (meas_pc ? "true" : "false") << endl;
   cout << "              Vacuum trace = " << (meas_vt ? "true" : "false") << endl;
-  if(deflate) {
+  if(smear_type == APE) {
+    cout << "              APE iter = " << ape_iter << endl;
+    cout << "              APE alpha = " << ape_alpha << endl;
+  } else {
+    cout << "              Wilson Flow steps = " << wilson_steps << endl;
+    cout << "              Wilson Flow time = " << wilson_time << endl;
+  }
+  if(deflate && flavours > 0) {
     cout << "Deflation:    nkv = " << eig_param.n_kr << endl;
     cout << "              nev = " << eig_param.n_ev << endl;
     cout << "              ndefl = " << eig_param.n_deflate << endl;
@@ -894,52 +942,61 @@ void gaussComplex(field<Complex> *field) {
 void smearLink(field<Complex> *smeared, field<Complex> *gauge){
 
   blas::copy(smeared, gauge);
-  double wilson_flow_tau = 1.0;
-  int wilson_flow_steps = 10;
-  double dt = wilson_flow_tau/wilson_flow_steps;
-  for(int i=0; i<wilson_flow_steps; i++) wilsonFlow(smeared, dt);
-  
-  /*
-  int Nx = gauge->p.Nx;
-  int Ny = gauge->p.Ny;
-  for(int i=0; i<iter; i++) {
-    blas::copy(smeared_tmp, smeared);
-    
-    for(int x=0; x<Nx; x++) {
-      for(int y=0; y<Ny; y++) {
 
+  if(gauge->p.smear_type == WILSON) {
+    double wilson_flow_tau = gauge->p.wilson_time;
+    int wilson_flow_steps = gauge->p.wilson_steps;
+    double dt = wilson_flow_tau/wilson_flow_steps;
+    for(int i=0; i<wilson_flow_steps; i++) wilsonFlow(smeared, dt);
+  } else if(gauge->p.smear_type == APE) {
+
+    double alpha = gauge->p.ape_alpha;
+    Complex tmp;
+    
+    field<Complex> *smeared_tmp = new field<Complex>(gauge->p);
+    
+    int Nx = gauge->p.Nx;
+    int Ny = gauge->p.Ny;
+    for(int i=0; i<gauge->p.ape_iter; i++) {
+      blas::copy(smeared_tmp, smeared);
+      
+      for(int x=0; x<Nx; x++) {
 	int xp1 = (x+1)%Nx;
 	int xm1 = (x-1+Nx)%Nx;
-	int yp1 = (y+1)%Ny;
-	int ym1 = (y-1+Ny)%Ny;
-		
-	//|->-|   |   |
-	//^   v + v   ^
-	//|   |   |->-|
-	tmp = smeared->read(x,y,0);
-	tmp += alpha * (smeared->read(x,y,1) * smeared->read(x,yp1,0) * conj(smeared->read(xp1,y,1)));	
-	tmp += alpha * (conj(smeared->read(x,ym1,1)) * smeared->read(x,ym1,0) * smeared->read(xp1,ym1,1));			
-	smeared_tmp->write(x,y,0, tmp);
-				
-	//|->-    -<-|
-	//^    +     ^
-	//|-<-    ->-|
-	tmp = smeared->read(x,y,1);
-	tmp += alpha * (smeared->read(x,y,0) * smeared->read(xp1,y,1) * conj(smeared->read(x,yp1,0)));
-	tmp += alpha * (conj(smeared->read(xm1,y,0)) * smeared->read(xm1,y,1) * smeared->read(xm1, yp1,01));
-	smeared_tmp->write(x,y,1, tmp);	
+	for(int y=0; y<Ny; y++) {
+	  int yp1 = (y+1)%Ny;
+	  int ym1 = (y-1+Ny)%Ny;
+	  
+	  //|->-|   |   |
+	  //^   v + v   ^
+	  //|   |   |->-|
+	  tmp = smeared->read(x,y,0);
+	  tmp += alpha * (smeared->read(x,y,1) * smeared->read(x,yp1,0) * conj(smeared->read(xp1,y,1)));
+	  tmp += alpha * (conj(smeared->read(x,ym1,1)) * smeared->read(x,ym1,0) * smeared->read(xp1,ym1,1));			
+	  smeared_tmp->write(x,y,0, tmp);
+	  
+	  //|->-    -<-|
+	  //^    +     ^
+	  //|-<-    ->-|
+	  tmp = smeared->read(x,y,1);
+	  tmp += alpha * (smeared->read(x,y,0) * smeared->read(xp1,y,1) * conj(smeared->read(x,yp1,0)));
+	  tmp += alpha * (conj(smeared->read(xm1,y,0)) * smeared->read(xm1,y,1) * smeared->read(xm1, yp1,01));
+	  smeared_tmp->write(x,y,1, tmp);	
+	}
       }
+      
+      //Project back to U(1)
+      for(int x=0; x<Nx; x++)
+	for(int y=0; y<Ny; y++)
+	  for(int mu=0; mu<2; mu++)
+	    smeared->write(x,y,mu, polar(1.0,arg(smeared_tmp->read(x,y,mu))));
     }
     
-    //Project back to U(1)
-    for(int x=0; x<Nx; x++)
-      for(int y=0; y<Ny; y++)
-	for(int mu=0; mu<2; mu++)
-	  smeared->write(x,y,mu, polar(1.0,arg(smeared_tmp->read(x,y,mu))));
+    delete smeared_tmp;
+  } else {
+    cout << "Error Smear: Unknown smear type passed " << endl;
+    exit(0);
   }
-
-  delete smeared_tmp;
-  */
 }
 
 // staple x is 0th, y is 1st.
@@ -961,7 +1018,7 @@ void wilsonFlow(field<Complex> *gauge, double dt) {
   field<Complex> *w3 = new field<Complex>(gauge->p);
   
   blas::copy(w0, gauge);
-  
+
   for (int x = 0; x < Nx; x++) {
     for (int y = 0; y < Ny; y++) {
       for (int mu = 0; mu < 2; mu++) {
@@ -994,7 +1051,7 @@ void wilsonFlow(field<Complex> *gauge, double dt) {
       }
     }
   }
-    
+  
   blas::copy(gauge, w3);
 }
 
@@ -1009,6 +1066,7 @@ Complex staple(field<Complex> *gauge, int x, int y, int mu) {
   int xm1 = (x - 1 + Nx) % Nx;
   int yp1 = (y + 1) % Ny;
   int ym1 = (y - 1 + Ny) % Ny;
+
   if (mu == 0) {
     return gauge->read(x,y,1) * gauge->read(x,yp1,0) * conj(gauge->read(xp1,y,1))
       + conj(gauge->read(x,ym1,1)) * gauge->read(x,ym1,0) * gauge->read(xp1,ym1,1);
