@@ -60,7 +60,8 @@ private:
 
   int feast_Ncontour;
   int feast_M0;
-  double feast_Emax;  
+  double feast_Emax;
+  double feast_init_guess;  
   
 public:  
   

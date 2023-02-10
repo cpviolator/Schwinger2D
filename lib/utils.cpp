@@ -60,6 +60,7 @@ void Param::usage(char **argv) {
   printf("--eig-feast-M0 <N>               M0 (search space size) value for FEAST (32) \n");
   printf("--eig-feast-Emax <float>         Maximum eigenvalue size for FEAST (1.0) \n");
   printf("--eig-feast-Ncontour <N>         Contour integration points for FEAST (8)\n");
+  printf("--eig-feast-init-guess <bool>    Use previous eigenspace ats init guess in FEAST (true)\n");
   printf("--eig-inspection <bool>          Inspect the eigenspectrum at each call of CG (false).\n");
   printf("--eig-use-comp-space <bool>      Use the compressed space for deflation (false).\n");
   printf("\nMEASUREMENT PARAMS\n");
@@ -579,6 +580,30 @@ int Param::init(int argc, char **argv, int *idx) {
       use_feast = false;
     } else {
       cout<<"Invalid Eigensolver FEAST condition ("<< eig_feast << ") given. Use true/false"<<endl;
+      exit(0);
+    }
+    i++;
+    ret = 0;
+    goto out;
+  }
+
+  // Eigensolver FEAST init guess
+  if( strcmp(argv[i], "--eig-feast-init-guess") == 0){
+    if (i+1 >= argc){
+      usage(argv);
+    }  
+    std::string eig_feast_init(argv[i+1]);
+    if (eig_feast_init == "yes" || eig_feast_init == "YES" ||
+	eig_feast_init == "true" || eig_feast_init == "TRUE" ||
+	eig_feast_init == "1") {
+      eig_param.feast_init_guess = true;
+    }
+    else if (eig_feast_init == "no" || eig_feast_init == "NO" ||
+	     eig_feast_init == "false" || eig_feast_init == "FALSE" ||
+	     eig_feast_init == "0") {
+      eig_param.feast_init_guess = false;
+    } else {
+      cout<<"Invalid Eigensolver FEAST init guess condition ("<< eig_feast_init << ") given. Use true/false"<<endl;
       exit(0);
     }
     i++;

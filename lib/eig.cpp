@@ -42,6 +42,7 @@ Eig::Eig(EigParam eig_param_in) {
   feast_Ncontour = eig_param.feast_Ncontour;
   feast_M0 = eig_param.feast_M0;
   feast_Emax = eig_param.feast_Emax;
+  feast_init_guess = eig_param.feast_init_guess;
   
   if(Nx%block_scheme[0] != 0) {
     cout << "Eig: Error: x block_scheme = " << block_scheme[0] << " does not divide Nx = " << Nx << endl;
@@ -728,7 +729,7 @@ void Eig::feast(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   Emid[1] = feast_Emax;;
 
   // Extend FEAST space and evals
-  if(inspection_counter == 0) {
+  if(inspection_counter == 0 && feast_init_guess) {
     kSpace_feast.resize(M0);
     for(int i=0; i<M0; i++) kSpace_feast[i] = new field<Complex>(gauge->p);
     evals_feast.resize(M0);
@@ -742,7 +743,7 @@ void Eig::feast(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   fpm[1] = feast_Ncontour;                  // FEAST contour points
   fpm[2] = (int)(-log10(tol)); // FEAST tol
   fpm[3] = max_restarts;
-  fpm[4] = inspection_counter > 0 ? 1 : 0;
+  fpm[4] = inspection_counter > 0 && feast_init_guess ? 1 : 0;
   fpm[9] = 0;
   fpm[13] = 0;
   fpm[15] = 0; // gauss/trap/zolatorov

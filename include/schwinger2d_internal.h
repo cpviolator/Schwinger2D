@@ -62,6 +62,7 @@ typedef struct EigParam {
   int feast_Ncontour = 8;
   int feast_M0 = 32;
   double feast_Emax = 1.0;
+  bool feast_init_guess = true;
   
 } EigParam_t;
 
