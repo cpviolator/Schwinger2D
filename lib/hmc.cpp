@@ -399,7 +399,7 @@ void HMC::forceGradient(field<double> *mom, std::vector<field<Complex>*> phi, fi
   
   delete gauge_copy;
   delete mom_copy;
-  delete fD;
+  if(fD) delete fD;
 }
 
 void HMC::forceGradient(field<double> *mom, field<Complex> *gauge,
@@ -462,9 +462,9 @@ void HMC::innerFGI(field<double> *mom, field<Complex> *gauge, double tau, int st
     update_gauge(gauge, mom, dtauby2);
 
     fU = computeGaugeForce(gauge);
-    update_mom(fU, mom, k == steps - 1 ? lambda_dt : two_lambda_dt);
-    
+    update_mom(fU, mom, k == steps - 1 ? lambda_dt : two_lambda_dt);    
   }
+  if(fU) delete fU;
 }
 
 field<double>* HMC::computeGaugeForce(field<Complex> *gauge) {
