@@ -20,10 +20,10 @@ EIG_VERBOSITY=0
 # Physics params
 #-----------------------------------------------
 # Lattice dims
-LX=${1}
-LY=${1}
+LX=16
+LY=16
 # The value of the coupling in the U(1) 2D theory
-BETA=${2}
+BETA=4
 # Dynamic fermion parameters
 # 0 = pure gauge
 # 2 = two light degenerate fermions
@@ -39,7 +39,7 @@ MASS_HEAVY=0.5
 # The total number of thermalised HMC iterations to perform.
 HMC_ITER=10000
 # The number of HMC iterations for thermalisation (accept + accept/reject).
-HMC_THERM=10000
+HMC_THERM=100
 # The number of HMC iterations to skip bewteen measurements.
 HMC_SKIP=10
 # Dump the gauge field every HMC_CHKPT iterations after thermalisation.
@@ -78,6 +78,8 @@ EIG_FEAST_M0=40
 EIG_FEAST_NCONTOUR=8
 # FEAST Max Eval
 EIG_FEAST_EMAX=0.8
+# FEAST Use previous space as init guess
+EIG_FEAST_INIT_GUESS=1
 
 NKR=128
 NEV=64
@@ -145,7 +147,7 @@ EIG_PARAMS="--eig-n-ev ${NEV} --eig-n-kr ${NKR} --eig-n-conv ${NCONV} --eig-n-de
             --eig-tol ${EIG_TOL} --eig-operator ${EIG_OP} --eig-spectrum ${EIG_SPEC} --eig-block-scheme ${X_BLK} ${Y_BLK} \
             --eig-low-modes ${N_LOW} --eig-verbosity ${EIG_VERBOSITY} --eig-deflate ${EIG_DEFLATE} --eig-inspection ${EIG_INSPECTION} \
             --eig-use-comp-space ${EIG_USE_COMP_SPACE} --eig-feast ${EIG_USE_FEAST} \
-            --eig-feast-M0 ${EIG_FEAST_M0} --eig-feast-Emax ${EIG_FEAST_EMAX} --eig-feast-Ncontour ${EIG_FEAST_NCONTOUR} "
+            --eig-feast-M0 ${EIG_FEAST_M0} --eig-feast-Emax ${EIG_FEAST_EMAX} --eig-feast-Ncontour ${EIG_FEAST_NCONTOUR} --eig-feast-init-guess ${EIG_FEAST_INIT_GUESS} "
 
 MEASUREMENTS="--ape-alpha ${APE_ALPHA} --ape-iter ${APE_ITER} --wilson-steps ${WILSON_STEPS} --wilson-time ${WILSON_TIME} --smear-type ${SMEAR_TYPE} \
 	      --meas-pl ${MEAS_PL} --meas-wl ${MEAS_WL} --meas-pc ${MEAS_PC} --meas-vt ${MEAS_VT} "
