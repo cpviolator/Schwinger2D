@@ -279,6 +279,7 @@ field<double>* HMC::computeFermionForce(field<Complex> *gauge, std::vector<field
     fD_rat = new field<double>(gauge->p);
     forceMultiD(fD_rat, phi[1], gauge);
     blas::axpy(1.0, fD_rat, fD);
+    delete fD_rat;
   }
   return fD;
 }
@@ -361,6 +362,9 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
     break;
   default: cout << "Error: unknown integrator type" << endl; exit(0);
   }
+
+  if(fU) delete fU;
+  if(fD) delete fD;
   // HMC trajectory complete
   //----------------------------------------------------------
 }
@@ -395,6 +399,7 @@ void HMC::forceGradient(field<double> *mom, std::vector<field<Complex>*> phi, fi
   
   delete gauge_copy;
   delete mom_copy;
+  delete fD;
 }
 
 void HMC::forceGradient(field<double> *mom, field<Complex> *gauge,
@@ -427,6 +432,7 @@ void HMC::forceGradient(field<double> *mom, field<Complex> *gauge,
   
   delete gauge_copy;
   delete mom_copy;
+  delete fU;
 }
 
 
@@ -489,7 +495,7 @@ field<double>* HMC::computeGaugeForce(field<Complex> *gauge) {
       temp = beta*(imag(plaq) - imag(plaq0));
       fU->write(x,y,1, temp);
     }
-  }
+  }  
   return fU;
 }
 
