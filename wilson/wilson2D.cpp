@@ -244,6 +244,9 @@ int main(int argc, char **argv) {
 #endif
     }
   }
+
+  delete HMCStep;
+  delete gauge;  
   return 0;
 }
 //-------------------------------------------------------------------------------
