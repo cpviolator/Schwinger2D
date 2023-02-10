@@ -223,7 +223,7 @@ int main(int argc, char **argv) {
       
       blas::copy(gauge_old, gauge);	
       double wilson_flow_tau = 1.0;
-      int wilson_flow_steps = 50;
+      int wilson_flow_steps = 500;
       double dt = wilson_flow_tau/wilson_flow_steps;
       for(int i=0; i<wilson_flow_steps; i++) wilsonFlow(gauge_old, dt);
       for(int i=0; i<wilson_flow_steps; i++) wilsonFlow(gauge_old, -dt);

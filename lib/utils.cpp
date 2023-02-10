@@ -45,8 +45,7 @@ void Param::usage(char **argv) {
   printf("--eig-n-ev <N>                   Size of IRAM search space (16).\n");
   printf("--eig-n-kr <N>                   Size of IRAM Krylov space (32).\n");
   printf("--eig-n-conv <N>                 Number of required converged eigenpairs (16).\n");
-  printf("--eig-n-deflate <N>              Number of eigenpairs to use in CG deflation. (0)\n"
-	 "                                 If set to 0, eigensolver will not be called.\n");
+  printf("--eig-n-deflate <N>              Number of eigenpairs to use in CG deflation. (0)\n");
   printf("--eig-max-restarts <N>           Maximum number of IRAM restarts (100).\n");
   printf("--eig-tol <float>                Residual norm of eigenvectors (1e-9).\n");
   printf("--eig-operator <M,Mdag,MdagM, MMdag> Operator to eigensolve (MdagM).\n");
@@ -57,6 +56,7 @@ void Param::usage(char **argv) {
   printf("--eig-verbosity <bool>           Sets IRAM verbosity as verbose or quiet (false).\n");
   printf("--eig-deflate <bool>             Compute a deflation space at the start of the HMC trajectory\n"
 	 "                                 and use it throughout the HMC integration (false)\n");
+  printf("--eig-feast <bool>               Use FEAST eigensolver (false: use Lanczos)\n");
   printf("--eig-inspection <bool>          Inspect the eigenspectrum at each call of CG (false).\n");
   printf("--eig-use-comp-space <bool>      Use the compressed space for deflation (false).\n");
   printf("\nMEASUREMENT PARAMS\n");
@@ -524,7 +524,31 @@ int Param::init(int argc, char **argv, int *idx) {
     goto out;
   }
 
- // Eigensolver deflation
+ // Eigensolver FEAST
+  if( strcmp(argv[i], "--eig-feast") == 0){
+    if (i+1 >= argc){
+      usage(argv);
+    }  
+    std::string eig_feast(argv[i+1]);
+    if (eig_feast == "yes" || eig_feast == "YES" ||
+	eig_feast == "true" || eig_feast == "TRUE" ||
+	eig_feast == "1") {
+      use_feast = true;
+    }
+    else if (eig_feast == "no" || eig_feast == "NO" ||
+	     eig_feast == "false" || eig_feast == "FALSE" ||
+	     eig_feast == "0") {
+      use_feast = false;
+    } else {
+      cout<<"Invalid Eigensolver FEAST condition ("<< eig_feast << ") given. Use true/false"<<endl;
+      exit(0);
+    }
+    i++;
+    ret = 0;
+    goto out;
+  } 
+  
+  // Eigensolver deflation
   if( strcmp(argv[i], "--eig-deflate") == 0){
     if (i+1 >= argc){
       usage(argv);
@@ -833,12 +857,13 @@ void gaussComplex(field<Complex> *field) {
 //APE smearing: project back on U(1)       
 void smearLink(field<Complex> *smeared, field<Complex> *gauge){
 
-  double alpha = gauge->p.alpha;
-  int iter = gauge->p.smear_iter;
-  Complex tmp = 0;
-  field<Complex> *smeared_tmp = new field<Complex>(gauge->p);
   blas::copy(smeared, gauge);
+  double wilson_flow_tau = 1.0;
+  int wilson_flow_steps = 10;
+  double dt = wilson_flow_tau/wilson_flow_steps;
+  for(int i=0; i<wilson_flow_steps; i++) wilsonFlow(smeared, dt);
   
+  /*
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
   for(int i=0; i<iter; i++) {
@@ -878,6 +903,7 @@ void smearLink(field<Complex> *smeared, field<Complex> *gauge){
   }
 
   delete smeared_tmp;
+  */
 }
 
 // staple x is 0th, y is 1st.

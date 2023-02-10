@@ -17,6 +17,12 @@ if(ENABLE_OPENMP)
   find_package(OpenMP)
 endif()
 
+# Add HDF5 for experimental binary IO
+option(ENABLE_HDF5 "enable HDF5" OFF)
+option(DOWNLOAD_HDF5 "download HDF5" OFF)
+option(ENABLE_FEAST "enable FEAST" OFF)
+option(ENABLE_ALG_REMEZ "enable AlgRemez" OFF)
+
 # Add Eigen for small, dense algebra
 set(EIGEN_VERSION 3.3.7)
 set(EIGEN_DOWNLOAD_LOCATION ${CMAKE_SOURCE_DIR}/externals/eigen/${EIGEN_VERSION}.tar.bz2)
@@ -49,9 +55,6 @@ ExternalProject_Add(
 ExternalProject_Get_Property(Eigen source_dir)
 set(EIGEN_INCLUDE_DIRS ${source_dir})
 
-# Add HDF5 for experimental binary IO
-option(ENABLE_HDF5 "enable HDF5" OFF)
-option(DOWNLOAD_HDF5 "download HDF5" OFF)
 
 if(ENABLE_HDF5)
   if(NOT DOWNLOAD_HDF5)
@@ -82,7 +85,6 @@ if(ENABLE_HDF5)
   endif()
 endif()
 
-option(ENABLE_ALG_REMEZ "enable AlgRemez" OFF)
 if(ENABLE_ALG_REMEZ)
   find_package(MPFR REQUIRED)
   ExternalProject_Add(
@@ -102,7 +104,21 @@ if(ENABLE_ALG_REMEZ)
   set(ALG_REMEZ_INCLUDE_DIRS ${source_dir}/include)
 endif()
 
-option(ENABLE_FEAST "enable FEAST" OFF)
+if(ENABLE_FEAST)
+  set(FEAST_HOME CACHE PATH "path to FEAST")
+  set(MKL_HOME CACHE PATH "path to MKL")
+  enable_language(Fortran)
+  
+  add_library(feast STATIC IMPORTED)
+  #add_dependencies(feast FEAST)
+  set_target_properties(feast PROPERTIES IMPORTED_LOCATION ${FEAST_HOME}/lib/x64/libfeast.a)
+  
+  set(FEAST_INCLUDE_DIRS ${FEAST_HOME}/include)
+  set(FEAST_LIB_DIRS ${FEAST_HOME}/lib/x64)
+
+  set(MKL_INCLUDE_DIRS ${MKL_HOME}/mkl/latest/include)
+  set(MKL_LIB_DIRS ${MKL_HOME}/mkl/latest/lib/intel64)
+endif()
 
 add_subdirectory(lib)
 add_subdirectory(wilson)

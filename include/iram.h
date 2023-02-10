@@ -21,11 +21,14 @@ private:
   std::vector<field<Complex>*> kSpace_mg;
   std::vector<Complex> evals_mg;
 
+  // Store an eigendecomposition for FEAST guess  
+  std::vector<field<Complex>*> kSpace_feast;
+  std::vector<Complex> evals_feast;
+  
   // Object to hold the block orthonormal low mode space
   std::vector<std::vector<Complex>> block_data_ortho;
   // Object to hold the projection coeffiecients of the high modes on the ow space
   std::vector<std::vector<Complex>> block_coeffs;
-  
   
   EigParam eig_param; 
   bool verbosity;

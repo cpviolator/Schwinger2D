@@ -110,6 +110,7 @@ public:
   EigParam eig_param;
   bool inspect_spectrum = false;
   bool deflate = false;
+  bool use_feast = true;
 
   //Smearing
   double alpha = 0.5;

@@ -39,14 +39,14 @@ public:
     for(int x=0; x<p.Nx; x++) {
       for(int y=0; y<p.Ny; y++) {
 	for(int mu=0; mu<2; mu++) {      
-	  cout << "elem("<<x<<","<<y<<":" << mu << ") = " << data[2*(x + p.Nx * y) + mu] << endl;
+	  cout << "elem("<<x<<","<<y<<":" << mu << ") = " << data[2*(x + p.Nx * y) + mu] << " " << abs(data[2*(x + p.Nx * y) + mu]) << endl;
 	}
       }
     }
   }
   
   void print(int n) {
-    cout << "elem " << n << " = " << data[n] << endl;
+    cout << "elem " << n << " = " << data[n] << " " << abs(data[n]) << " " << atan2(data[n].imag(), data[n].real()) << endl;
   }
   
 };
