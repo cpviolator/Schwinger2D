@@ -614,7 +614,7 @@ void Eig::feast(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   input_file.open(name);
   string val;
   if(input_file.is_open()) {
-    //cout << "IO: CRS wisdom found for " << name << endl;
+    if(verbosity) cout << "IO: CRS wisdom found for " << name << endl;
     getline(input_file, val);
     int n_row = 2*Nx*Ny + 1;
     int n_col = stoi(val);
@@ -628,12 +628,13 @@ void Eig::feast(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
       getline(input_file, val);
       crs_row_idx.push_back(stoi(val));    
     }
-      
+
     crs_elems.reserve(crs_row_idx[n_row-1]);
     // Get the ith column data, conjugate it, it becomes the
     // the data on the ith row. 
     field<Complex> *op_column = new field<Complex>(gauge->p);
     field<Complex> *point_source = new field<Complex>(gauge->p);
+    int col_idx = 0;
     for(int i=0; i<2*Nx*Ny; i++) {
       blas::zero(point_source);
       point_source->write(i, cUnit);
@@ -641,17 +642,19 @@ void Eig::feast(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
       
       // Store the current row index
       // Loop over this row, get non-zero data
-      int count = crs_row_idx[i+1] - crs_row_idx[i];
-      for(int j=0; j<count; j++) {      	  
+      for(int j=0; j<crs_row_idx[i+1] - crs_row_idx[i]; j++) {      	  
 	// Store data in the array
-	crs_elems.push_back( op_column->elem(crs_col_idx[j] - 1).real());
-	crs_elems.push_back(-op_column->elem(crs_col_idx[j] - 1).imag());	  
+	crs_elems.push_back( op_column->elem(crs_col_idx[col_idx] - 1).real());
+	crs_elems.push_back(-op_column->elem(crs_col_idx[col_idx] - 1).imag());
+	col_idx++;
       }
     }
+
     delete op_column;
-    delete point_source;      
+    delete point_source;
+
   } else {
-    //cout << "IO: NO CRS wisdom found for " << name << endl;
+    if(verbosity) cout << "IO: NO CRS wisdom found for " << name << endl;
     // Row index always starts at 1
     int current_crs_row_idx = 1;  
 
@@ -669,7 +672,7 @@ void Eig::feast(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
       crs_row_idx.push_back(current_crs_row_idx);
       // Loop over this row, get non-zero data
       for(int j=0; j<2*Nx*Ny; j++) {      
-	if(fabs(op_column->elem(j).real()) >= 1e-12 || fabs(op_column->elem(j).imag()) >= 1e-12) {
+	if(fabs(op_column->elem(j).real()) >= 1e-12 || fabs(op_column->elem(j).imag()) > 1e-12) {
 	  
 	  // Store data in the array
 	  crs_elems.push_back( op_column->elem(j).real());
@@ -686,16 +689,14 @@ void Eig::feast(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
     delete op_column;
     delete point_source;
     crs_row_idx.push_back(current_crs_row_idx);
-
-    /*
-      cout << "IO: Writing CRS data " << name << endl;
-      fstream output_file;
-      output_file.open(name,ios::in|ios::out|ios::trunc);  
-      
-      output_file << crs_col_idx.size() << endl;
-      for(int i=0; i<crs_col_idx.size(); i++) output_file << crs_col_idx[i] << endl;
-      for(int i=0; i<crs_row_idx.size(); i++) output_file << crs_row_idx[i] << endl;
-    */
+    
+    cout << "IO: Writing CRS data " << name << endl;
+    fstream output_file;
+    output_file.open(name,ios::in|ios::out|ios::trunc);  
+    
+    output_file << crs_col_idx.size() << endl;
+    for(int i=0; i<crs_col_idx.size(); i++) output_file << crs_col_idx[i] << endl;
+    for(int i=0; i<crs_row_idx.size(); i++) output_file << crs_row_idx[i] << endl;
   }
     
   gettimeofday(&end, NULL);  

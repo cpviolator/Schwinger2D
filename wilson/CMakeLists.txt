@@ -10,8 +10,9 @@ if(ENABLE_ALG_REMEZ)
 endif()
 
 if(ENABLE_FEAST)
-  target_link_libraries(wilson2D feast ${MKL_LIB_DIRS}/libmkl_gf_lp64.so.2 ${MKL_LIB_DIRS}/libmkl_gnu_thread.so.2 ${MKL_LIB_DIRS}/libmkl_core.so.2 m gfortran)
-  include_directories(${FEAST_INCLUDE_DIRS})
+  #target_link_libraries(wilson2D feast ${MKL_LIB_DIRS}/libmkl_gf_lp64.so.2 ${MKL_LIB_DIRS}/libmkl_gnu_thread.so.2 ${MKL_LIB_DIRS}/libmkl_core.so.2 m gfortran)
+  #target_link_libraries(wilson2D feast m gfortran)
+  #include_directories(${FEAST_INCLUDE_DIRS})
 endif()
 
 

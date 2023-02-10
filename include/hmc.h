@@ -18,7 +18,7 @@ private:
   std::vector<field<Complex>*> guess_stack;  
   int guess_counter;
 
-#ifdef ENABLE_ALG_REMEZ
+#ifdef USE_ALG_REMEZ
   AlgRemez *remez;
 #endif
   PFE heatbath_pfe;

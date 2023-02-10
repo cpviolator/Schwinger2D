@@ -13,7 +13,7 @@ HMC::HMC(Param param) {
   g3Dphi = new field<Complex>(param);
 
   if(param.flavours == 3) {
-#ifdef ENABLE_ALG_REMEZ
+#ifdef USE_ALG_REMEZ
     int n = param.pfe_degree; // The degree of the numerator polynomial
     int d = param.pfe_degree; // The degree of the denominator polynomial
     int y = 1;  // The numerator of the exponent

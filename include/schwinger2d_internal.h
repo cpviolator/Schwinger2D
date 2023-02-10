@@ -11,7 +11,7 @@
 #include <sys/time.h>
 
 //Externals
-#ifdef ENABLE_ALG_REMEZ
+#ifdef USE_ALG_REMEZ
 #include "alg_remez.h"
 #endif
 
