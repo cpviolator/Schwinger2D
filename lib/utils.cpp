@@ -1078,6 +1078,15 @@ void wilsonFlow(field<Complex> *gauge, double dt) {
   }
   
   blas::copy(gauge, w3);
+
+  delete z0;
+  delete z1;
+  delete z2;
+  
+  delete w0;
+  delete w1;
+  delete w2;
+  delete w3;  
 }
 
 Complex staple(field<Complex> *gauge, int x, int y, int mu) {

@@ -170,6 +170,7 @@ bool HMC::hmc_reversibility(field<Complex> *gauge, int iter) {
   delete phi[0]; delete phi[1];
   delete chi[0]; delete chi[1];
   delete gauge_old;
+  delete inv;
   return (abs(H2 - H0) < 1e-4 ? true : false);
 }
 

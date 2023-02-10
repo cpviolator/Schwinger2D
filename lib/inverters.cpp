@@ -144,6 +144,7 @@ int inverterCG::solveMulti(std::vector<field<Complex> *> &x,
     }
     
     blas::axpby(1.0, res, beta, p);
+    for(int i=0; i<p_arr.size(); i++) delete p_arr[i];
     
   } // End loop over iter
   //---------------------------------------

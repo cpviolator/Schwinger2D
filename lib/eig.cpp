@@ -869,6 +869,7 @@ void Eig::feast(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
   }
   
   // Clean up
+  for(int i=n_conv; i>kSpace.size(); i++) delete kSpace[i];
   kSpace.resize(n_conv);
   evals.resize(n_conv);
   
@@ -1156,8 +1157,11 @@ void Eig::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace
   }
   
   // Clean up
+  for(int i=n_conv; i>kSpace.size(); i++) delete kSpace[i];
   kSpace.resize(n_conv);
-  evals.resize(n_conv);    
+  evals.resize(n_conv);
+
+  delete r;
 }
 
 void Eig::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {

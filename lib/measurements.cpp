@@ -206,11 +206,11 @@ double measTopCharge(field<Complex> *gauge){
     for(int y=0; y<Ny; y++){
       int yp1 = (y+1)%Ny;
       Complex w = smeared->read(x,y,0) * smeared->read(xp1,y,1) * conj(smeared->read(x,yp1,0)) * conj(smeared->read(x,y,1));
-      top += arg(w)/TWO_PI;  // -pi < arg(w) < pi  Geometric value is an integer.
+      top += arg(w);  
     }
   }
   delete smeared;
-  //return top/TWO_PI;
+  return top/TWO_PI; // -pi < arg(w) < pi  Geometric value is an integer.
   return top;
 }
 
