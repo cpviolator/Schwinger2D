@@ -57,6 +57,10 @@ typedef struct EigParam {
   Operator op = MdagM;  
   int block_scheme[2];
   int n_low = 16;
+
+  int feast_Ncontour = 8;
+  int feast_M0 = 32;
+  double feast_Emax = 1.0;
   
 } EigParam_t;
 

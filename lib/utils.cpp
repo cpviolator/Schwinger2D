@@ -57,6 +57,9 @@ void Param::usage(char **argv) {
   printf("--eig-deflate <bool>             Compute a deflation space at the start of the HMC trajectory\n"
 	 "                                 and use it throughout the HMC integration (false)\n");
   printf("--eig-feast <bool>               Use FEAST eigensolver (false: use Lanczos)\n");
+  printf("--eig-feast-M0 <N>               M0 (search space size) value for FEAST (32) \n");
+  printf("--eig-feast-Emax <float>         Maximum eigenvalue size for FEAST (1.0) \n");
+  printf("--eig-feast-Ncontour <N>         Contour integration points for FEAST (8)\n");
   printf("--eig-inspection <bool>          Inspect the eigenspectrum at each call of CG (false).\n");
   printf("--eig-use-comp-space <bool>      Use the compressed space for deflation (false).\n");
   printf("\nMEASUREMENT PARAMS\n");
@@ -524,7 +527,40 @@ int Param::init(int argc, char **argv, int *idx) {
     goto out;
   }
 
- // Eigensolver FEAST
+  // Number of contour integration points
+  if( strcmp(argv[i], "--eig-feast-Ncontour") == 0){
+    if (i+1 >= argc){
+      usage(argv);
+    }
+    eig_param.feast_Ncontour = atoi(argv[i+1]);
+    i++;
+    ret = 0;
+    goto out;
+  }
+
+  // M0 search space size
+  if( strcmp(argv[i], "--eig-feast-M0") == 0){
+    if (i+1 >= argc){
+      usage(argv);
+    }
+    eig_param.feast_M0 = atoi(argv[i+1]);
+    i++;
+    ret = 0;
+    goto out;
+  }
+
+  // Tolerance on eigenvector residual
+  if( strcmp(argv[i], "--eig-feast-Emax") == 0){
+    if (i+1 >= argc){
+      usage(argv);
+    }
+    eig_param.feast_Emax = atof(argv[i+1]);
+    i++;
+    ret = 0;
+    goto out;
+  }
+  
+  // Eigensolver FEAST
   if( strcmp(argv[i], "--eig-feast") == 0){
     if (i+1 >= argc){
       usage(argv);

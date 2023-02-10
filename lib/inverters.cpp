@@ -194,17 +194,17 @@ int inverterCG::solve(field<Complex> *x, const field<Complex> *b, const field<Co
     // so we construct an eigensolver and a deflation space
     if (!eig) {
       if(verbosity) cout << "CG: Computing deflation space for CG" << endl;
-      eig = new IRAM(gauge->p.eig_param);
+      eig = new Eig(gauge->p.eig_param);
       eig->computeDeflationSpace(gauge);
     }
 
-    // If we are inspecting the spectrum, recompute the eigenspace. IRAM
+    // If we are inspecting the spectrum, recompute the eigenspace. Eig
     // will dump the data to files.
-    if(inspect_spectrum) {
-      if(verbosity) cout << "CG: Computing spectrum for inspection" << endl;
-      eig->inspectEvolvedSpectrum(gauge, gauge->p.current_hmc_iter);
-    }
+    if(inspect_spectrum) eig->inspectEvolvedSpectrum(gauge, gauge->p.current_hmc_iter);
   }
+
+  struct timeval start, end;
+  gettimeofday(&start, NULL);
   
   // compute initial residual
   //---------------------------------------  
@@ -301,7 +301,11 @@ int inverterCG::solve(field<Complex> *x, const field<Complex> *b, const field<Co
   OPERATOR(temp, x, gauge);
   blas::axpy(-1.0, temp, b, res);
   double truersq = blas::norm2(res);
-  if(verbosity) printf("CG: Converged iter = %d, res = %.16e, truersq = %.16e\n", success, sqrt(rsq), sqrt(truersq)/bsqrt);
+  
+  gettimeofday(&end, NULL);
+  double cg_time = ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+  
+  if(verbosity) printf("CG: cg_time = %.3e Converged iter = %d, res = %.16e, truersq = %.16e\n", cg_time, success, sqrt(rsq), sqrt(truersq)/bsqrt);
   
   return success;  
 }

@@ -1,4 +1,4 @@
-set (SCHWINGER_2D_OBJS utils.cpp hmc.cpp inverters.cpp dirac_op.cpp measurements.cpp blas.cpp io.cpp iram.cpp)
+set (SCHWINGER_2D_OBJS utils.cpp hmc.cpp inverters.cpp dirac_op.cpp measurements.cpp blas.cpp io.cpp eig.cpp)
 
 add_library(schwinger2d STATIC ${SCHWINGER_2D_OBJS})
 target_include_directories(schwinger2d PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include/)
@@ -18,10 +18,7 @@ if(ENABLE_HDF5)
 endif()
 
 if(ENABLE_FEAST)
-  #target_link_libraries(schwinger2d PUBLIC feast)
   target_link_libraries(schwinger2d PUBLIC feast ${MKL_LIB_DIRS}/libmkl_gf_lp64.so.2 ${MKL_LIB_DIRS}/libmkl_gnu_thread.so.2 ${MKL_LIB_DIRS}/libmkl_core.so.2 m gfortran)
-  #target_link_libraries(schwinger2d PUBLIC feast )
-  #add_dependencies(schwinger2d feast)
   target_include_directories(schwinger2d PUBLIC ${FEAST_INCLUDE_DIRS})
   target_include_directories(schwinger2d PUBLIC ${MKL_INCLUDE_DIRS})
   target_compile_definitions(schwinger2d PUBLIC USE_FEAST)

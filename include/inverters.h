@@ -3,7 +3,7 @@
 #include "schwinger2d_internal.h"
 #include "utils.h"
 #include "dirac_op.h"
-#include "iram.h"
+#include "eig.h"
 #include "blas.h"
 
 //===============================================================
@@ -43,7 +43,7 @@ private:
 
   Operator op;
 
-  IRAM *eig = nullptr;
+  Eig *eig = nullptr;
   
 public:
 

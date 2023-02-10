@@ -1,4 +1,4 @@
-#include "iram.h"
+#include "eig.h"
 
 #ifdef USE_FEAST
 #include "feast.h"
@@ -10,7 +10,7 @@ int int_round(double d)
   return (int)floor(d + 0.5);
 }
 
-IRAM::IRAM(EigParam eig_param_in) {
+Eig::Eig(EigParam eig_param_in) {
   
   eig_param = eig_param_in;
   verbosity = eig_param.verbosity;
@@ -28,7 +28,7 @@ IRAM::IRAM(EigParam eig_param_in) {
   max_restarts = eig_param.max_restarts;
   tol = eig_param.tol;
   spectrum = eig_param.spectrum;
-  iram_verbose = eig_param.iram_verbose;
+  eig_verbose = eig_param.iram_verbose;
   op = eig_param.op;
   block_scheme[0] = eig_param.block_scheme[0];
   block_scheme[1] = eig_param.block_scheme[1];
@@ -39,12 +39,16 @@ IRAM::IRAM(EigParam eig_param_in) {
   n_blocks = block_scheme[0]*block_scheme[1];
   block_size = 2 * x_block_size * y_block_size;
 
+  feast_Ncontour = eig_param.feast_Ncontour;
+  feast_M0 = eig_param.feast_M0;
+  feast_Emax = eig_param.feast_Emax;
+  
   if(Nx%block_scheme[0] != 0) {
-    cout << "IRAM: Error: x block_scheme = " << block_scheme[0] << " does not divide Nx = " << Nx << endl;
+    cout << "Eig: Error: x block_scheme = " << block_scheme[0] << " does not divide Nx = " << Nx << endl;
     exit(0);
   }
   if(Ny%block_scheme[1] != 0) {
-    cout << "IRAM: Error: y block_scheme = " << block_scheme[1] << " does not divide Ny = " << Ny << endl;
+    cout << "Eig: Error: y block_scheme = " << block_scheme[1] << " does not divide Ny = " << Ny << endl;
     exit(0);
   }
 
@@ -55,25 +59,25 @@ IRAM::IRAM(EigParam eig_param_in) {
   }
 }
 
-void IRAM::OPERATOR(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge){
+void Eig::OPERATOR(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge){
   switch(op) {
   case M: Dpsi(out, in, gauge); break;
   case Mdag: Ddagpsi(out, in, gauge); break;
   case MdagM: DdagDpsi(out, in, gauge); break;
   case MMdag: DDdagpsi(out, in, gauge); break;
-  default: cout << "IRAM: Undefined operator type requested: " << op << endl;
+  default: cout << "Eig: Undefined operator type requested: " << op << endl;
     exit(0);
   }
 }
 
-void IRAM::deflate(field<Complex> *guess, field<Complex> *phi) {
+void Eig::deflate(field<Complex> *guess, field<Complex> *phi) {
 
   if(kSpace_defl.size() == 0) {
-    cout << "IRAM Error: No deflation space evecs exist" << endl;
+    cout << "Eig Error: No deflation space evecs exist" << endl;
     exit(0);
   }
   if(evals_defl.size() == 0) {
-    cout << "IRAM: Error: No deflation space evals exist" << endl;
+    cout << "Eig: Error: No deflation space evals exist" << endl;
     exit(0);
   }
   
@@ -82,7 +86,7 @@ void IRAM::deflate(field<Complex> *guess, field<Complex> *phi) {
   
   // Deflate each converged eigenpair from the guess  
   // guess_defl = (v * lambda^-1 * v^dag) * guess
-  if(verbosity) cout << "IRAM: Deflating " << n_deflate << " eigenpairs." << endl;
+  if(verbosity) cout << "Eig: Deflating " << n_deflate << " eigenpairs." << endl;
   for(int i=0; i<n_deflate; i++) {
     
     if(use_compressed_space) { 
@@ -102,7 +106,7 @@ void IRAM::deflate(field<Complex> *guess, field<Complex> *phi) {
   }
 }
 
-void IRAM::zsortc(Spectrum which, int n, std::vector<Complex> &x, std::vector<Complex> &y) {
+void Eig::zsortc(Spectrum which, int n, std::vector<Complex> &x, std::vector<Complex> &y) {
   
   std::vector<std::pair<Complex, Complex>> array(n);
   for(int i=0; i<n; i++) array[i] = std::make_pair(x[i], y[i]);
@@ -138,7 +142,7 @@ void IRAM::zsortc(Spectrum which, int n, std::vector<Complex> &x, std::vector<Co
 			const pair<Complex,Complex> &b) {
 		      return (a.first).imag() > (b.first).imag(); } );
     break;
-  default: cout << "IRAM: Undefined sort" << endl;
+  default: cout << "Eig: Undefined sort" << endl;
   }
 
   // Repopulate x and y arrays with sorted elements
@@ -149,7 +153,7 @@ void IRAM::zsortc(Spectrum which, int n, std::vector<Complex> &x, std::vector<Co
 }
 
 // Overloaded version of zsortc to deal with real y array.
-void IRAM::zsortc(Spectrum which, int n, std::vector<Complex> &x, std::vector<double> &y) {
+void Eig::zsortc(Spectrum which, int n, std::vector<Complex> &x, std::vector<double> &y) {
 
   std::vector<Complex> y_tmp(n,0.0);
   for(int i=0; i<n; i++) y_tmp[i].real(y[i]);
@@ -158,7 +162,7 @@ void IRAM::zsortc(Spectrum which, int n, std::vector<Complex> &x, std::vector<do
 }
 
 // Overloaded version of zsortc to deal with real x array.
-void IRAM::zsortc(Spectrum which, int n, std::vector<double> &x, std::vector<Complex> &y) {
+void Eig::zsortc(Spectrum which, int n, std::vector<double> &x, std::vector<Complex> &y) {
 
   std::vector<Complex> x_tmp(n,0.0);
   for(int i=0; i<n; i++) x_tmp[i].real(x[i]);
@@ -167,7 +171,7 @@ void IRAM::zsortc(Spectrum which, int n, std::vector<double> &x, std::vector<Com
 }
 
 // Overloaded version of zsortc to deal with real x and y array.
-void IRAM::zsortc(Spectrum which, int n, std::vector<double> &x, std::vector<double> &y) {
+void Eig::zsortc(Spectrum which, int n, std::vector<double> &x, std::vector<double> &y) {
 
   std::vector<Complex> x_tmp(n,0.0);
   std::vector<Complex> y_tmp(n,0.0);
@@ -182,9 +186,7 @@ void IRAM::zsortc(Spectrum which, int n, std::vector<double> &x, std::vector<dou
   }
 }
 
-
-
-void IRAM::arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
+void Eig::arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
 		       Eigen::MatrixXcd &upperHessEigen,
 		       field<Complex> *r, double &beta, int j) {
 
@@ -301,12 +303,12 @@ void IRAM::arnoldiStep(const field<Complex> *gauge, std::vector<field<Complex> *
     //%---------------------------------------%
     //| RESID is numerically in the span of V |
     //%---------------------------------------%
-    cout << "IRAM: Unable to orthonormalise r" << endl;
+    cout << "Eig: Unable to orthonormalise r" << endl;
     exit(0);
   }
 }
 
-void IRAM::reorder(std::vector<field<Complex> *> kSpace, std::vector<Complex> evals, std::vector<double> residua, int n_kr, Spectrum spectrum) {
+void Eig::reorder(std::vector<field<Complex> *> kSpace, std::vector<Complex> evals, std::vector<double> residua, int n_kr, Spectrum spectrum) {
 
   int n = n_kr;
   std::vector<std::tuple<Complex, double, field<Complex>* >> array(n);
@@ -349,7 +351,7 @@ void IRAM::reorder(std::vector<field<Complex> *> kSpace, std::vector<Complex> ev
 		  const std::tuple<Complex, double, field<Complex>*> &b) {
 		return (std::get<0>(a).imag() < std::get<0>(b).imag()); } );
     break;
-  default: printf("IRAM: Undefined spectrum type %d given", spectrum);
+  default: printf("Eig: Undefined spectrum type %d given", spectrum);
     exit(0);
   }
   
@@ -361,7 +363,7 @@ void IRAM::reorder(std::vector<field<Complex> *> kSpace, std::vector<Complex> ev
   }
 }
 
-void IRAM::eigensolveFromUpperHess(MatrixXcd &upperHessEigen, MatrixXcd &Qmat,
+void Eig::eigensolveFromUpperHess(MatrixXcd &upperHessEigen, MatrixXcd &Qmat,
 				   std::vector<Complex> &evals,
 				   std::vector<double> &residua,
 				   const double beta, int n_kr)
@@ -386,7 +388,7 @@ void IRAM::eigensolveFromUpperHess(MatrixXcd &upperHessEigen, MatrixXcd &Qmat,
   }  
 }
 
-void IRAM::qriteration(MatrixXcd &Rmat, MatrixXcd &Qmat, const int n_kr, const double tol)
+void Eig::qriteration(MatrixXcd &Rmat, MatrixXcd &Qmat, const int n_kr, const double tol)
 {  
   Complex T11, T12, T21, T22, U1, U2;
   double dV;
@@ -458,7 +460,7 @@ void IRAM::qriteration(MatrixXcd &Rmat, MatrixXcd &Qmat, const int n_kr, const d
   }
 }
 
-int IRAM::qrFromUpperHess(MatrixXcd &upperHess, MatrixXcd &Qmat, std::vector<Complex> &evals, std::vector<double> &residua, const double beta, const int n_kr, const double tol)
+int Eig::qrFromUpperHess(MatrixXcd &upperHess, MatrixXcd &Qmat, std::vector<Complex> &evals, std::vector<double> &residua, const double beta, const int n_kr, const double tol)
 {
 
   MatrixXcd Rmat = MatrixXcd::Zero(n_kr, n_kr);
@@ -517,12 +519,12 @@ int IRAM::qrFromUpperHess(MatrixXcd &upperHess, MatrixXcd &Qmat, std::vector<Com
     residua[i] = abs(beta * Qmat.col(i)[n_kr-1]);
   }
   
-  if(iram_verbose) printf("IRAM: eigensystem iterations = %d\n", iter);
+  if(eig_verbose) printf("Eig: eigensystem iterations = %d\n", iter);
 
   return iter;  
 }
 
-void IRAM::rotateVecsComplex(std::vector<field<Complex> *> vecs, Eigen::MatrixXcd mat, int num_locked, int iter_keep, int n_kr) {
+void Eig::rotateVecsComplex(std::vector<field<Complex> *> vecs, Eigen::MatrixXcd mat, int num_locked, int iter_keep, int n_kr) {
 
   //loop over rows of V_k
   int Nx = vecs[0]->p.Nx;
@@ -552,7 +554,7 @@ void IRAM::rotateVecsComplex(std::vector<field<Complex> *> vecs, Eigen::MatrixXc
       }
 }
 
-void IRAM::computeEvals(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace, std::vector<double> &residua, std::vector<Complex> &evals, int n_ev) {
+void Eig::computeEvals(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace, std::vector<double> &residua, std::vector<Complex> &evals, int n_ev) {
   
   //temp vector
   field<Complex> *temp = new field<Complex>(gauge->p);
@@ -571,56 +573,97 @@ void IRAM::computeEvals(const field<Complex> *gauge, std::vector<field<Complex> 
   }
   for (int i = 0; i < n_conv; i++) {
     double norm = sqrt(blas::norm2(kSpace[i]));
-    if (residua[i] > 10*tol) printf("IRAM CHECK FAIL: EigValue[%04d]:||(%+.8e, %+.8e)|| = %+.8e residual %.8e norm = %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), residua[i], norm);
+    if (residua[i] > 10*tol) printf("Eig CHECK FAIL: EigValue[%04d]:||(%+.8e, %+.8e)|| = %+.8e residual %.8e norm = %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), residua[i], norm);
   }
   delete temp;
 }
 
-void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
+void Eig::solve(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
 		std::vector<Complex> &evals) {
-  
+  if(gauge->p.use_feast) feast(gauge, kSpace, evals);
+  else                   iram(gauge, kSpace, evals);  
+}
+
+void Eig::feast(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
+		std::vector<Complex> &evals) {
+
   struct timeval start, end, total_start, total_end;
   gettimeofday(&total_start, NULL);  
   // timing variables
   double t_total =  0.0;
   double t_init = 0;
-  double t_sort = 0;
-  double t_eigen = 0.0;
-  double t_compute = 0.0;
-  double t_QR = 0.0;
-  double t_EV = 0.0;  
   double t_crs = 0.0;
+  double t_feast = 0.0;
 
   bool converged = false;
   
+#ifdef USE_FEAST
   // START init
   //---------------------------------------------------------  
   gettimeofday(&start, NULL);  
-  
-  if(gauge->p.use_feast) {
-#ifdef USE_FEAST
-
-    // Compute CRS matrix for FEAST
-    // Fortran indexing applies... be careful!
-    std::vector<double> crs_elems;
-    std::vector<int> crs_col_idx;
-    std::vector<int> crs_row_idx;
-    // Row index always starts at 1
-    int current_crs_row_idx = 1;  
     
-    std::vector<field<Complex>*> op_column(2*Nx*Ny);
-    for(int i=0; i<2*Nx*Ny; i++) {
+  // Compute CRS matrix for FEAST
+  // Fortran indexing applies... be careful!
+  std::vector<double> crs_elems;
+  std::vector<int> crs_col_idx;
+  std::vector<int> crs_row_idx;
+
+  string name;
+  name = "data/eig/crs_LX" + to_string(Nx) + "_LY" + to_string(Ny) + ".dat";
+  fstream input_file;
+  input_file.open(name);
+  string val;
+  if(input_file.is_open()) {
+    //cout << "IO: CRS wisdom found for " << name << endl;
+    getline(input_file, val);
+    int n_row = 2*Nx*Ny + 1;
+    int n_col = stoi(val);
+    crs_col_idx.reserve(n_col);
+    for(int i=0; i<n_col; i++) {
+      getline(input_file, val);
+      crs_col_idx.push_back(stoi(val));    
+    }
       
-      // Get the ith column data, conjugate it, it becomes the
-      // the data on the ith row. 
-      field<Complex> *op_column = new field<Complex>(gauge->p);
-      field<Complex> *point_source = new field<Complex>(gauge->p);
+    for(int i=0; i<n_row; i++) {
+      getline(input_file, val);
+      crs_row_idx.push_back(stoi(val));    
+    }
+      
+    crs_elems.reserve(crs_row_idx[n_row-1]);
+    // Get the ith column data, conjugate it, it becomes the
+    // the data on the ith row. 
+    field<Complex> *op_column = new field<Complex>(gauge->p);
+    field<Complex> *point_source = new field<Complex>(gauge->p);
+    for(int i=0; i<2*Nx*Ny; i++) {
       blas::zero(point_source);
       point_source->write(i, cUnit);
-      //op = MMdag;
       OPERATOR(op_column, point_source, gauge);
-      //op = MdagM;
-      delete point_source;
+      
+      // Store the current row index
+      // Loop over this row, get non-zero data
+      int count = crs_row_idx[i+1] - crs_row_idx[i];
+      for(int j=0; j<count; j++) {      	  
+	// Store data in the array
+	crs_elems.push_back( op_column->elem(crs_col_idx[j] - 1).real());
+	crs_elems.push_back(-op_column->elem(crs_col_idx[j] - 1).imag());	  
+      }
+    }
+    delete op_column;
+    delete point_source;      
+  } else {
+    //cout << "IO: NO CRS wisdom found for " << name << endl;
+    // Row index always starts at 1
+    int current_crs_row_idx = 1;  
+
+    field<Complex> *op_column = new field<Complex>(gauge->p);
+    field<Complex> *point_source = new field<Complex>(gauge->p);
+      
+    for(int i=0; i<2*Nx*Ny; i++) {      
+      // Get the ith column data, conjugate it, it becomes the
+      // the data on the ith row. 
+      blas::zero(point_source);
+      point_source->write(i, cUnit);
+      OPERATOR(op_column, point_source, gauge);
       
       // Store the current row index
       crs_row_idx.push_back(current_crs_row_idx);
@@ -639,395 +682,457 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
 	  current_crs_row_idx++;
 	}
       }
-      delete op_column;
     }
+    delete op_column;
+    delete point_source;
     crs_row_idx.push_back(current_crs_row_idx);
-    
-    gettimeofday(&end, NULL);  
-    t_crs += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
 
-    if(verbosity) {
-      cout << "FEAST: CRS construction time = " << t_crs << endl;
-      cout << "FEAST: CRS elems = " << crs_elems.size()/2 << endl;
-      cout << "FEAST: CRS row idx size = " << crs_row_idx.size() << " Should equal " << 2*Nx*Ny + 1<< endl;
-      //for(int g=0; g<crs_row_idx.size(); g++) cout << "crs_row_idx["<<g<<"] = " << crs_row_idx[g] << endl;
-      //for(int g=0; g<crs_col_idx.size(); g++) cout << "crs_col_idx["<<g<<"] = " << crs_col_idx[g] << " elem: " << crs_elems[2*g] << " " << crs_elems[2*g+1] << endl;
-    }
-    
-    int  M = n_conv;
-    char UPLO='F';
-    
-    int N = 2*Nx*Ny;
-    int M0= n_conv + n_conv/5; // M0 >= M
-    
-    int fpm[64];
-    double epsout;
-    int loop; 
-    int info;
-    double Emid[2];
-    Emid[0] = 0.0;
-    Emid[1] = 1.6;
-
-    // Extend FEAST space and evals
-    if(kSpace_feast.size() == 0) {
-      kSpace_feast.resize(M0);
-      for(int i=0; i<M0; i++) kSpace_feast[i] = new field<Complex>(gauge->p);
-      evals_feast.resize(M0);
-    }
-    
-    // FEAST defaults
-    feastinit(fpm);  
-
-    // Adjust FEAST params for this problem
-    fpm[0] = verbosity ? 1 : 0;  // FEAST verbosity
-    fpm[2] = (int)(-log10(tol)); // FEAST tol
-    fpm[3] = max_restarts;
-    //fpm[4] = inspection_counter > 0 ? 1 : 0;
-    fpm[9] = 1;
-    fpm[15] = 0; // gauss/trap/zolatorov
-    fpm[39] = 0; // Provide search interval Emid[0] -> Emid[1]
-    fpm[42] = 0; // IFEAST
-    
-    std::vector<double> E(M0, 0.0);     // eigenvalues
-    std::vector<double> res(M0, 0.0);   // residua (if needed)
-    std::vector<double> X(2*N*M0, 0.0); // eigenvectors:factor 2 for complex
-    if(fpm[4] == 1) {
-      // Transfer data from krylov space to FEAST
-      Complex elem;
+    /*
+      cout << "IO: Writing CRS data " << name << endl;
+      fstream output_file;
+      output_file.open(name,ios::in|ios::out|ios::trunc);  
       
-      for(int vec=0; vec<M0; vec++) {
-	E[vec] = evals_feast[vec].real();
-	for(int x=0; x<gauge->p.Nx; x++) {
-	  for(int y=0; y<gauge->p.Ny; y++) {
-	    for(int mu=0; mu<2; mu++) {
-	      int glo_idx = 2*((y * gauge->p.Nx) + x) + mu; // Global index
+      output_file << crs_col_idx.size() << endl;
+      for(int i=0; i<crs_col_idx.size(); i++) output_file << crs_col_idx[i] << endl;
+      for(int i=0; i<crs_row_idx.size(); i++) output_file << crs_row_idx[i] << endl;
+    */
+  }
+    
+  gettimeofday(&end, NULL);  
+  t_crs += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+    
+  if(verbosity) {
+    cout << "FEAST: CRS construction time = " << t_crs << endl;
+    cout << "FEAST: CRS elems = " << crs_elems.size()/2 << endl;
+    cout << "FEAST: CRS row idx size = " << crs_row_idx.size() << " Should equal " << 2*Nx*Ny + 1<< endl;
+    //for(int g=0; g<crs_row_idx.size(); g++) cout << "crs_row_idx["<<g<<"] = " << crs_row_idx[g] << endl;
+    //for(int g=0; g<crs_col_idx.size(); g++) cout << "crs_col_idx["<<g<<"] = " << crs_col_idx[g] << " elem: " << crs_elems[2*g] << " " << crs_elems[2*g+1] << endl;
+  }
+
+  // START init
+  gettimeofday(&start, NULL);  
+
+  int  M = n_conv;
+  char UPLO='F';
+    
+  int N  = 2*Nx*Ny;
+  int M0 = feast_M0; // M0 >= M
+    
+  int fpm[64];
+  double epsout;
+  int loop; 
+  int info;
+  double Emid[2];
+  Emid[0] = 0.0;
+  Emid[1] = feast_Emax;;
+
+  // Extend FEAST space and evals
+  if(inspection_counter == 0) {
+    kSpace_feast.resize(M0);
+    for(int i=0; i<M0; i++) kSpace_feast[i] = new field<Complex>(gauge->p);
+    evals_feast.resize(M0);
+  }
+    
+  // FEAST defaults
+  feastinit(fpm);  
+
+  // Adjust FEAST params for this problem
+  fpm[0] = eig_verbose ? 1 : 0;  // FEAST verbosity
+  fpm[1] = feast_Ncontour;                  // FEAST contour points
+  fpm[2] = (int)(-log10(tol)); // FEAST tol
+  fpm[3] = max_restarts;
+  fpm[4] = inspection_counter > 0 ? 1 : 0;
+  fpm[9] = 0;
+  fpm[13] = 0;
+  fpm[15] = 0; // gauss/trap/zolatorov
+  fpm[39] = 0; // Provide search interval Emid[0] -> Emid[1]
+  fpm[42] = 0; // IFEAST
+    
+  std::vector<double> E(M0, 0.0);     // eigenvalues
+  std::vector<double> res(M0, 0.0);   // residua (if needed)
+  std::vector<double> X(2*N*M0, 0.0); // eigenvectors:factor 2 for complex
+  if(fpm[4] == 1) {
+    // Transfer data from krylov space to FEAST
+    Complex elem;      
+    for(int vec=0; vec<M0; vec++) {
+      E[vec] = evals_feast[vec].real();
+      for(int x=0; x<Nx; x++) {
+	for(int y=0; y<Ny; y++) {
+	  for(int mu=0; mu<2; mu++) {
+	    int glo_idx = 2*((y * gauge->p.Nx) + x) + mu; // Global index
 	      
-	      elem = kSpace_feast[vec]->read(x, y, mu);
-	      X[2*(glo_idx + N*vec)    ] = elem.real();
-	      X[2*(glo_idx + N*vec) + 1] = elem.imag();
-	    }
+	    elem = kSpace_feast[vec]->read(x, y, mu);
+	    X[2*(glo_idx + N*vec)    ] = elem.real();
+	    X[2*(glo_idx + N*vec) + 1] = elem.imag();
 	  }
 	}
       }
     }
+  }
+  gettimeofday(&end, NULL);  
+  t_init += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+
+  // FEST SOLVER
+  gettimeofday(&start, NULL);  
+  zfeast_hcsrev(&UPLO, &N, crs_elems.data(), crs_row_idx.data(), crs_col_idx.data(), fpm, &epsout, &loop, &Emid[0], &Emid[1], &M0, E.data(), X.data(), &M, res.data(), &info);
+  gettimeofday(&end, NULL);  
+  t_feast += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
     
-    zfeast_hcsrev(&UPLO, &N, crs_elems.data(), crs_row_idx.data(), crs_col_idx.data(), fpm, &epsout, &loop, &Emid[0], &Emid[1], &M0, E.data(), X.data(), &M, res.data(), &info);
-
-    if (info!=0) {
-      // Post computation report  
-      printf("FEAST ERROR: Failed to compute the requested %d vectors with with a %d search space and a %d Krylov space: error %d\n", n_conv, M, M0, info);
-      exit(0);
-    } else {
-      // Migrate data to kSpace space
-      Complex elem;
-      
-      for(int vec=0; vec<n_conv; vec++) {
-	evals[vec].real(E[vec]);
-	evals[vec].imag(0.0);
-	if(deflationSpaceExists()) {
-	  evals_defl[vec].real(E[vec]);
-	  evals_defl[vec].imag(0.0);
-	}
-	
-	for(int x=0; x<gauge->p.Nx; x++) {
-	  for(int y=0; y<gauge->p.Ny; y++) {
-	    for(int mu=0; mu<2; mu++) {
-	      int glo_idx = 2*((y * gauge->p.Nx) + x) + mu; // Global index
-	      
-	      elem.real(X[2*(glo_idx   + N*vec)]);
-	      elem.imag(X[2*(glo_idx   + N*vec)+1]);	
-	      kSpace[vec]->write(glo_idx, elem);
-	      if(deflationSpaceExists()) kSpace_defl[vec]->write(glo_idx, elem);
-	    }
-	  }
-	}
-      }
-
-      if(fpm[4] == 1) {
-	// Migrate data to FEAST space
-	for(int vec=0; vec<M0; vec++) {
-	  evals_feast[vec].real(E[vec]);
-	  evals_feast[vec].imag(0.0);
-	  for(int x=0; x<gauge->p.Nx; x++) {
-	    for(int y=0; y<gauge->p.Ny; y++) {
-	      for(int mu=0; mu<2; mu++) {
-		int glo_idx = 2*((y * gauge->p.Nx) + x) + mu; // Global index
-		
-		elem.real(X[2*(glo_idx   + N*vec)]);
-		elem.imag(X[2*(glo_idx   + N*vec)+1]);	
-		kSpace_feast[vec]->write(glo_idx, elem);
-	      }
-	    }
-	  }
-	}
-      }
-      
-      if(iram_verbose) {
-	// Measure the kSpace inner products
-	std::vector<Complex> inner_products(n_conv * n_conv, 0.0);
-	for(int i=0; i<n_conv; i++) {
-	  for(int j=0; j<n_conv; j++) {
-	    inner_products[i + n_conv * j] = blas::cDotProd(kSpace[j], kSpace[i]);
-	    if(i==j && 1 - abs(inner_products[i + n_conv * j]) > 1e-12) cout << "FEAST ortho fail at (" <<i<< "," <<j<< ")" << endl;
-	    if(i!=j && abs(inner_products[i + n_conv * j]) > 1e-12) cout << "FEAST ortho fail at (" <<i<< "," <<j<< ")" << endl;
-	  }
-	}
-      }
-
-      converged = true;
-
-      if(verbosity) {
-	printf("FEAST: Computed the requested %d vectors with a %d search space and a %d Krylov space\n", n_conv, M, M0);    
-	for (int i = 0; i < n_conv; i++) {
-	  printf("FEAST: EigValue[%04d]:||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), res[i]);
-	}
-      }    
-    }
-#else
-    cout << "ERROR: FEAST not installed " << endl;
+  if (info!=0) {
+    // Post computation report  
+    printf("FEAST ERROR: Failed to compute the requested %d vectors with with a %d search space and a %d Krylov space: error %d\n", n_conv, M, M0, info);
     exit(0);
-#endif
   } else {
 
-    if (!(n_kr > n_ev + 6) && n_kr != (gauge->p.Nx * gauge->p.Ny * 2)) {
-      printf("IRAM WARNING: n_kr=%d must be greater than n_ev+6=%d\n", n_kr, n_ev + 6);
-      exit(0);
+    converged = true;
+    
+    // FINISH init      
+    gettimeofday(&start, NULL);
+      
+    // Migrate data to kSpace space
+    Complex elem;
+      
+    for(int vec=0; vec<n_conv; vec++) {
+      evals[vec].real(E[vec]);
+      evals[vec].imag(0.0);
+      if(deflationSpaceExists()) {
+	evals_defl[vec].real(E[vec]);
+	evals_defl[vec].imag(0.0);
+      }
+	
+      for(int x=0; x<Nx; x++) {
+	for(int y=0; y<Ny; y++) {
+	  for(int mu=0; mu<2; mu++) {
+	    int glo_idx = 2*((y * gauge->p.Nx) + x) + mu; // Global index
+	      
+	    elem.real(X[2*(glo_idx   + N*vec)]);
+	    elem.imag(X[2*(glo_idx   + N*vec)+1]);	
+	    kSpace[vec]->write(glo_idx, elem);
+	    if(deflationSpaceExists()) kSpace_defl[vec]->write(glo_idx, elem);
+	  }
+	}
+      }
     }
 
-    if(iram_verbose) {
-      printf("IRAM: n_kr = %d\n", n_kr);
-      printf("IRAM: n_ev = %d\n", n_ev);
-      printf("IRAM: n_conv = %d\n", n_conv);
-      printf("IRAM: Restarts = %d\n", max_restarts);
-      printf("IRAM: tol = %e\n", tol);
+    if(kSpace_feast.size() > 0) {
+      // Migrate data to FEAST space
+      for(int vec=0; vec<M0; vec++) {
+	evals_feast[vec].real(E[vec]);
+	evals_feast[vec].imag(0.0);
+	for(int x=0; x<Nx; x++) {
+	  for(int y=0; y<Ny; y++) {
+	    for(int mu=0; mu<2; mu++) {
+	      int glo_idx = 2*((y * gauge->p.Nx) + x) + mu; // Global index
+		
+	      elem.real(X[2*(glo_idx   + N*vec)  ]);
+	      elem.imag(X[2*(glo_idx   + N*vec)+1]);	
+	      kSpace_feast[vec]->write(glo_idx, elem);
+	    }
+	  }
+	}
+      }
     }
 
-    // Construct objects for IRAM.
-    //---------------------------------------------------------------------
-    //Eigenvalues and their residua
-    std::vector<double> residua(n_kr, 0.0);
-    
-    // Upper Hessenberg matrix
-    MatrixXcd upperHessEigen = MatrixXcd::Zero(n_kr, n_kr);
-    
-    // Residual vector. Also used as temp vector(s)
-    field<Complex> *r = new field<Complex>(gauge->p);
-    
-    // Extend Krylov space and evals
-    kSpace.resize(n_kr);
-    for(int i=n_conv; i<n_kr; i++) kSpace[i] = new field<Complex>(gauge->p);
-    evals.resize(n_kr);
-    
-    // Eigen objects for Arnoldi vector rotation and QR shifts
-    MatrixXcd Qmat = MatrixXcd::Identity(n_kr, n_kr);
-    MatrixXcd sigma = MatrixXcd::Identity(n_kr, n_kr);
-    
-    double epsilon = 2e-16;
-    double epsilon23 = pow(epsilon, 2.0/3.0);
-    double beta = 0.0;
-    int iter = 0;
-    int restart_iter = 0;
-    int iter_converged = 0;
-    int iter_keep = 0;
-    int num_converged = 0;
-    int num_keep = 0;
-    // END init
-    //---------------------------------------------------------
+    if(eig_verbose) {
+      // Measure the kSpace inner products
+      std::vector<Complex> inner_products(n_conv * n_conv, 0.0);
+      for(int i=0; i<n_conv; i++) {
+	for(int j=0; j<n_conv; j++) {
+	  inner_products[i + n_conv * j] = blas::cDotProd(kSpace[j], kSpace[i]);
+	  if(i==j && 1 - abs(inner_products[i + n_conv * j]) > 1e-12) cout << "FEAST ortho fail at (" <<i<< "," <<j<< ")" << endl;
+	  if(i!=j && abs(inner_products[i + n_conv * j]) > 1e-12) cout << "FEAST ortho fail at (" <<i<< "," <<j<< ")" << endl;
+	}
+      }
+    }
+
     gettimeofday(&end, NULL);  
     t_init += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+
+    gettimeofday(&total_end, NULL);  
+    t_total += ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
+      
+    if(verbosity) {
+      printf("FEAST: Computed the requested %d vectors with a %d search space and a %d Krylov space\n", n_conv, M, M0);    
+      for (int i = 0; i < n_conv; i++) {
+	printf("FEAST: EigValue[%04d]:||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), res[i]);
+      }
+	
+      cout << "FEAST: Timings:" << endl;
+      cout << "FEAST: crs = " << t_crs << endl;
+      cout << "FEAST: init = " << t_init << endl;
+      cout << "FEAST: compute = " << t_feast << endl;
+      double t_sum = t_feast + t_init + t_crs;
+      cout << "FEAST: missing = " << t_total << " - " << t_sum << " = " << t_total - t_sum << " ("<<100*(t_total - t_sum)/t_total<<"%)" << endl;  
+    }      
+  }
+  
+  // Clean up
+  kSpace.resize(n_conv);
+  evals.resize(n_conv);
+  
+#else
+  cout << "ERROR: FEAST not installed " << endl;
+  exit(0);
+#endif
+}
+  
+void Eig::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
+	       std::vector<Complex> &evals) {
+  
+  struct timeval start, end, total_start, total_end;
+  gettimeofday(&total_start, NULL);
+  
+  // timing variables
+  double t_total =  0.0;
+  double t_init = 0;
+  double t_sort = 0;
+  double t_eigen = 0.0;
+  double t_compute = 0.0;
+  double t_QR = 0.0;
+  double t_EV = 0.0;  
+
+  bool converged = false;
     
-    // START compute 
-    //---------------------------------------------------------
-    gettimeofday(&start, NULL);  
-    // Populate source with randoms.
-    for(int x=0; x<Nx; x++) {
-      for(int y=0; y<Ny; y++) {
-	for(int mu=0; mu<2; mu++) {
-	  Complex temp(drand48(), drand48());
-	  r->write(x,y,mu, temp);  
-	}
+  if (!(n_kr > n_ev + 6) && n_kr != (gauge->p.Nx * gauge->p.Ny * 2)) {
+    printf("IRAM WARNING: n_kr=%d must be greater than n_ev+6=%d\n", n_kr, n_ev + 6);
+    exit(0);
+  }
+
+  if(eig_verbose) {
+    printf("IRAM: n_kr = %d\n", n_kr);
+    printf("IRAM: n_ev = %d\n", n_ev);
+    printf("IRAM: n_conv = %d\n", n_conv);
+    printf("IRAM: Restarts = %d\n", max_restarts);
+    printf("IRAM: tol = %e\n", tol);
+  }
+
+  // Construct objects for IRAM.
+  //---------------------------------------------------------------------
+  //Eigenvalues and their residua
+  std::vector<double> residua(n_kr, 0.0);
+    
+  // Upper Hessenberg matrix
+  MatrixXcd upperHessEigen = MatrixXcd::Zero(n_kr, n_kr);
+    
+  // Residual vector. Also used as temp vector(s)
+  field<Complex> *r = new field<Complex>(gauge->p);
+    
+  // Extend Krylov space and evals
+  kSpace.resize(n_kr);
+  for(int i=n_conv; i<n_kr; i++) kSpace[i] = new field<Complex>(gauge->p);
+  evals.resize(n_kr);
+    
+  // Eigen objects for Arnoldi vector rotation and QR shifts
+  MatrixXcd Qmat = MatrixXcd::Identity(n_kr, n_kr);
+  MatrixXcd sigma = MatrixXcd::Identity(n_kr, n_kr);
+    
+  double epsilon = 2e-16;
+  double epsilon23 = pow(epsilon, 2.0/3.0);
+  double beta = 0.0;
+  int iter = 0;
+  int restart_iter = 0;
+  int iter_converged = 0;
+  int iter_keep = 0;
+  int num_converged = 0;
+  int num_keep = 0;
+  // END init
+  //---------------------------------------------------------
+  gettimeofday(&end, NULL);  
+  t_init += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+    
+  // START compute 
+  //---------------------------------------------------------
+  gettimeofday(&start, NULL);  
+  // Populate source with randoms.
+  for(int x=0; x<Nx; x++) {
+    for(int y=0; y<Ny; y++) {
+      for(int mu=0; mu<2; mu++) {
+	Complex temp(drand48(), drand48());
+	r->write(x,y,mu, temp);  
       }
     }
+  }
     
-    //Place initial source in range of mat
-    OPERATOR(kSpace[0], r, gauge);
-    blas::copy(r, kSpace[0]);
+  //Place initial source in range of mat
+  OPERATOR(kSpace[0], r, gauge);
+  blas::copy(r, kSpace[0]);
     
-    // START IRAM
-    // Implicitly restarted Arnoldi method for asymmetric eigenvalue problems
-    if(iram_verbose) printf("IRAM: Start IRAM solution\n");
-    //----------------------------------------------------------------------
+  // START Eig
+  // Implicitly restarted Arnoldi method for asymmetric eigenvalue problems
+  if(eig_verbose) printf("IRAM: Start IRAM solution\n");
+  //----------------------------------------------------------------------
     
-    // Loop over restart iterations.
-    num_keep = 0;
-    while(restart_iter < max_restarts && !converged) {
-      gettimeofday(&start, NULL); 
-      for (int step = num_keep; step < n_kr; step++) arnoldiStep(gauge, kSpace, upperHessEigen, r, beta, step);
-      iter += (n_kr - num_keep);
-      gettimeofday(&end, NULL);  
-      t_compute += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+  // Loop over restart iterations.
+  num_keep = 0;
+  while(restart_iter < max_restarts && !converged) {
+    gettimeofday(&start, NULL); 
+    for (int step = num_keep; step < n_kr; step++) arnoldiStep(gauge, kSpace, upperHessEigen, r, beta, step);
+    iter += (n_kr - num_keep);
+    gettimeofday(&end, NULL);  
+    t_compute += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
       
-      // Compute Ritz and bounds
+    // Compute Ritz and bounds
+    gettimeofday(&start, NULL);
+    qrFromUpperHess(upperHessEigen, Qmat, evals, residua, beta, n_kr, tol/10);
+    gettimeofday(&end, NULL);  
+    t_EV += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+      
+    num_keep = n_ev;    
+    int nshifts = n_kr - num_keep;
+      
+    // Emulate zngets: sort the unwanted Ritz to the start of the arrays, then
+    // sort the first (n_kr - n_ev) bounds to be first for forward stability
+    gettimeofday(&start, NULL); 
+    // Sort to put unwanted Ritz(evals) first
+    zsortc(spectrum, n_kr, evals, residua);    
+    // Sort to put smallest Ritz errors(residua) first
+    zsortc(LM, nshifts, residua, evals);
+      
+    // Convergence test
+    iter_converged = 0;
+    for(int i=0; i<n_ev; i++) {
+      int idx = n_kr - 1 - i;
+      double rtemp = std::max(epsilon23, abs(evals[idx]));
+      if(residua[idx] < tol * rtemp) {
+	iter_converged++;
+	if(eig_verbose) printf("IRAM: residuum[%d] = %e, cond = %e\n", i, residua[idx], tol * abs(evals[idx]));
+      } else {
+	break;
+      }
+    }    
+      
+    //%---------------------------------------------------------%
+    //| Count the number of unwanted Ritz values that have zero |
+    //| Ritz estimates. If any Ritz estimates are equal to zero |
+    //| then a leading block of H of order equal to at least    |
+    //| the number of Ritz values with zero Ritz estimates has  |
+    //| split off. None of these Ritz values may be removed by  |
+    //| shifting. Decrease NP the number of shifts to apply. If |
+    //| no shifts may be applied, then prepare to exit          |
+    //%---------------------------------------------------------%
+      
+    int num_keep0 = num_keep;
+    iter_keep = std::min(iter_converged + (n_kr - num_converged) / 2, n_kr - 12);
+      
+    num_converged = iter_converged;
+    num_keep = iter_keep;      
+    nshifts = n_kr - num_keep;
+      
+    if(verbosity) printf("IRAM: %04d converged eigenvalues at iter %d\n", num_converged, restart_iter);
+      
+    int nshifts0 = nshifts;
+    for(int i=0; i<nshifts0; i++) {
+      if(residua[i] <= epsilon) {
+	nshifts--;
+      }
+    }
+      
+    if(nshifts == 0 && num_converged < n_ev) {
+      cout << "IRAM ERROR: No shifts can be applied" << endl;
+      exit(0);
+    }    
+      
+    gettimeofday(&end, NULL);
+    t_sort += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+      
+    if (num_converged >= n_conv) {
+      converged = true;
+	
+      // Compute Eigenvalues
       gettimeofday(&start, NULL);
-      qrFromUpperHess(upperHessEigen, Qmat, evals, residua, beta, n_kr, tol/10);
+      Qmat.setIdentity();
+      qrFromUpperHess(upperHessEigen, Qmat, evals, residua, beta, n_kr, 1e-15);
       gettimeofday(&end, NULL);  
       t_EV += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-      
-      num_keep = n_ev;    
-      int nshifts = n_kr - num_keep;
-      
-      // Emulate zngets: sort the unwanted Ritz to the start of the arrays, then
-      // sort the first (n_kr - n_ev) bounds to be first for forward stability
+	
+      gettimeofday(&start, NULL);
+      rotateVecsComplex(kSpace, Qmat, 0, n_kr, n_kr);
+      reorder(kSpace, evals, residua, n_kr, spectrum);
+      computeEvals(gauge, kSpace, residua, evals, n_kr);
+      gettimeofday(&end, NULL);  
+      t_compute += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+	
+    } else if (restart_iter < max_restarts) {
+	
+      //%-------------------------------------------------%
+      //| Do not have all the requested eigenvalues yet.  |
+      //| To prevent possible stagnation, adjust the size |
+      //| of NEV.                                         |
+      //| If the size of NEV was just increased resort    |
+      //| the eigenvalues.                                |
+      //%-------------------------------------------------%
+	
+      if(num_keep0 < num_keep) {
+	gettimeofday(&start, NULL); 
+	// Emulate zngets: sort the unwanted Ritz to the start of the arrays, then
+	// sort the first (n_kr - n_ev) bounds to be first for forward stability	
+	// Sort to put unwanted Ritz(evals) first
+	zsortc(spectrum, n_kr, evals, residua);
+	// Sort to put smallest Ritz errors(residua) first
+	zsortc(LM, nshifts, residua, evals);
+	gettimeofday(&end, NULL);  
+	t_sort += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+      }
+	
+      //%---------------------------------------------------------%
+      //| Apply the NP implicit shifts by QR bulge chasing.       |
+      //| Each shift is applied to the whole upper Hessenberg     |
+      //| matrix H.                                               |
+      //%---------------------------------------------------------%
+	
       gettimeofday(&start, NULL); 
-      // Sort to put unwanted Ritz(evals) first
-      zsortc(spectrum, n_kr, evals, residua);    
-      // Sort to put smallest Ritz errors(residua) first
-      zsortc(LM, nshifts, residua, evals);
-      
-      // Convergence test
-      iter_converged = 0;
-      for(int i=0; i<n_ev; i++) {
-	int idx = n_kr - 1 - i;
-	double rtemp = std::max(epsilon23, abs(evals[idx]));
-	if(residua[idx] < tol * rtemp) {
-	  iter_converged++;
-	  if(iram_verbose) printf("IRAM: residuum[%d] = %e, cond = %e\n", i, residua[idx], tol * abs(evals[idx]));
-	} else {
-	  break;
-	}
-      }    
-      
-      //%---------------------------------------------------------%
-      //| Count the number of unwanted Ritz values that have zero |
-      //| Ritz estimates. If any Ritz estimates are equal to zero |
-      //| then a leading block of H of order equal to at least    |
-      //| the number of Ritz values with zero Ritz estimates has  |
-      //| split off. None of these Ritz values may be removed by  |
-      //| shifting. Decrease NP the number of shifts to apply. If |
-      //| no shifts may be applied, then prepare to exit          |
-      //%---------------------------------------------------------%
-      
-      int num_keep0 = num_keep;
-      iter_keep = std::min(iter_converged + (n_kr - num_converged) / 2, n_kr - 12);
-      
-      num_converged = iter_converged;
-      num_keep = iter_keep;      
-      nshifts = n_kr - num_keep;
-      
-      if(verbosity) printf("IRAM: %04d converged eigenvalues at iter %d\n", num_converged, restart_iter);
-      
-      int nshifts0 = nshifts;
-      for(int i=0; i<nshifts0; i++) {
-	if(residua[i] <= epsilon) {
-	  nshifts--;
-	}
+      Qmat.setIdentity();
+      sigma.setIdentity();      
+      for(int i=0; i<nshifts; i++){	
+	sigma.setIdentity();
+	sigma *= evals[i];
+	upperHessEigen -= sigma;
+	qriteration(upperHessEigen, Qmat, n_kr, tol/10);	
+	upperHessEigen += sigma;	
       }
-      
-      if(nshifts == 0 && num_converged < n_ev) {
-	cout << "IRAM ERROR: No shifts can be applied" << endl;
+      gettimeofday(&end, NULL);  
+      t_QR += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+	
+      gettimeofday(&start, NULL); 
+      rotateVecsComplex(kSpace, Qmat, 0, num_keep+1, n_kr);
+	
+      //%-------------------------------------%
+      //| Update the residual vector:         |
+      //|    r <- sigmak*r + betak*v(:,kev+1) |
+      //| where                               |
+      //|    sigmak = (e_{kev+p}'*Q)*e_{kev}  |
+      //|    betak = e_{kev+1}'*H*e_{kev}     |
+      //%-------------------------------------%
+	
+      blas::axpby(upperHessEigen(num_keep, num_keep-1), kSpace[num_keep], Qmat(n_kr-1, num_keep-1), r);
+      gettimeofday(&end, NULL);  
+      t_compute += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+	
+      if(sqrt(blas::norm2(r)) < epsilon) {
+	printf("IRAM ERROR: Congratulations! You have reached an invariant subspace at iter %d, beta = %e\n", restart_iter, sqrt(blas::norm2(r)));
 	exit(0);
-      }    
-      
-      gettimeofday(&end, NULL);
-      t_sort += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-      
-      if (num_converged >= n_conv) {
-	converged = true;
-	
-	// Compute Eigenvalues
-	gettimeofday(&start, NULL);
-	Qmat.setIdentity();
-	qrFromUpperHess(upperHessEigen, Qmat, evals, residua, beta, n_kr, 1e-15);
-	gettimeofday(&end, NULL);  
-	t_EV += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-	
-	gettimeofday(&start, NULL);
-	rotateVecsComplex(kSpace, Qmat, 0, n_kr, n_kr);
-	reorder(kSpace, evals, residua, n_kr, spectrum);
-	computeEvals(gauge, kSpace, residua, evals, n_kr);
-	gettimeofday(&end, NULL);  
-	t_compute += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-	
-      } else if (restart_iter < max_restarts) {
-	
-	//%-------------------------------------------------%
-	//| Do not have all the requested eigenvalues yet.  |
-	//| To prevent possible stagnation, adjust the size |
-	//| of NEV.                                         |
-	//| If the size of NEV was just increased resort    |
-	//| the eigenvalues.                                |
-	//%-------------------------------------------------%
-	
-	if(num_keep0 < num_keep) {
-	  gettimeofday(&start, NULL); 
-	  // Emulate zngets: sort the unwanted Ritz to the start of the arrays, then
-	  // sort the first (n_kr - n_ev) bounds to be first for forward stability	
-	  // Sort to put unwanted Ritz(evals) first
-	  zsortc(spectrum, n_kr, evals, residua);
-	  // Sort to put smallest Ritz errors(residua) first
-	  zsortc(LM, nshifts, residua, evals);
-	  gettimeofday(&end, NULL);  
-	  t_sort += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-	}
-	
-	//%---------------------------------------------------------%
-	//| Apply the NP implicit shifts by QR bulge chasing.       |
-	//| Each shift is applied to the whole upper Hessenberg     |
-	//| matrix H.                                               |
-	//%---------------------------------------------------------%
-	
-	gettimeofday(&start, NULL); 
-	Qmat.setIdentity();
-	sigma.setIdentity();      
-	for(int i=0; i<nshifts; i++){	
-	  sigma.setIdentity();
-	  sigma *= evals[i];
-	  upperHessEigen -= sigma;
-	  qriteration(upperHessEigen, Qmat, n_kr, tol/10);	
-	  upperHessEigen += sigma;	
-	}
-	gettimeofday(&end, NULL);  
-	t_QR += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-	
-	gettimeofday(&start, NULL); 
-	rotateVecsComplex(kSpace, Qmat, 0, num_keep+1, n_kr);
-	
-	//%-------------------------------------%
-	//| Update the residual vector:         |
-	//|    r <- sigmak*r + betak*v(:,kev+1) |
-	//| where                               |
-	//|    sigmak = (e_{kev+p}'*Q)*e_{kev}  |
-	//|    betak = e_{kev+1}'*H*e_{kev}     |
-	//%-------------------------------------%
-	
-	blas::axpby(upperHessEigen(num_keep, num_keep-1), kSpace[num_keep], Qmat(n_kr-1, num_keep-1), r);
-	gettimeofday(&end, NULL);  
-	t_compute += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-	
-	if(sqrt(blas::norm2(r)) < epsilon) {
-	  printf("IRAM ERROR: Congratulations! You have reached an invariant subspace at iter %d, beta = %e\n", restart_iter, sqrt(blas::norm2(r)));
-	  exit(0);
-	}
       }
-      restart_iter++;    
     }
+    restart_iter++;    
+  }
     
-    gettimeofday(&total_end, NULL);  
-    t_total = ((total_end.tv_sec - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
+  gettimeofday(&total_end, NULL);  
+  t_total = ((total_end.tv_sec - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
   
-    // Post computation report  
-    if (!converged) {    
-      printf("IRAM ERROR: Failed to compute the requested %d vectors with with a %d search space and a %d Krylov space in %d restart_steps and %d OPs.\n", n_conv, n_ev, n_kr, restart_iter, iter);
-      exit(0);
-    } else {
-      if(verbosity) {
-	printf("IRAM: Computed the requested %d vectors with a %d search space and a %d Krylov space in %d restart_steps and %d OPs in %e secs.\n", n_conv, n_ev, n_kr, restart_iter, iter, (t_compute + t_sort + t_EV + t_QR));    
-	for (int i = 0; i < n_conv; i++) {
-	  printf("IRAM: EigValue[%04d]:||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), residua[i]);
-	}
-      }    
-    }  
-    
+  // Post computation report  
+  if (!converged) {    
+    printf("IRAM ERROR: Failed to compute the requested %d vectors with with a %d search space and a %d Krylov space in %d restart_steps and %d OPs.\n", n_conv, n_ev, n_kr, restart_iter, iter);
+    exit(0);
+  } else {
+    if(verbosity) {
+      printf("IRAM: Computed the requested %d vectors with a %d search space and a %d Krylov space in %d restart_steps and %d OPs in %e secs.\n", n_conv, n_ev, n_kr, restart_iter, iter, (t_compute + t_sort + t_EV + t_QR));    
+      for (int i = 0; i < n_conv; i++) {
+	printf("IRAM: EigValue[%04d]:||(%+.8e, %+.8e)|| = %+.8e residual %.8e\n", i, evals[i].real(), evals[i].imag(), abs(evals[i]), residua[i]);
+      }
+    }    
+  }  
+
+  if(eig_verbose) {
     // Measure the kSpace inner products
     std::vector<Complex> inner_products(n_conv * n_conv, 0.0);
     for(int i=0; i<n_conv; i++) {
@@ -1037,32 +1142,23 @@ void IRAM::iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpac
 	if(i!=j && (abs(inner_products[i + n_conv * j]) > 1e-12)) cout << "IRAM ortho fail at (" <<i<< "," <<j<< "): " << abs(inner_products[i + n_conv * j]) << endl;
       }
     }
-    
-    Complex elem;
-    for(int vec=0; vec<n_conv; vec++) {
-      for(int i=0; i<2*Nx*Ny; i++) {	  
-	//if(vec==0 && i < 2*Nx*Ny) kSpace[vec]->print(i);
-      }
-    }
-    
-  
-    if(iram_verbose) {
-      cout << "IRAM: Timings:" << endl;
-      cout << "IRAM: init = " << t_init << endl;
-      cout << "IRAM: compute = " << t_compute << endl;
-      cout << "IRAM: sort = " << t_sort << endl;
-      cout << "IRAM: EV = " << t_EV << endl;
-      cout << "IRAM: QR = " << t_QR << endl;
-      cout << "IRAM: missing = " << (t_total) << " - " << (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen) << " = " << (t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen)) << " ("<<(100*((t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen))))/t_total<<"%)" << endl;  
-    }
-
-    // Clean up
-    kSpace.resize(n_conv);
-    evals.resize(n_conv);    
   }
+  if(verbosity) {
+    cout << "IRAM: Timings:" << endl;
+    cout << "IRAM: init = " << t_init << endl;
+    cout << "IRAM: compute = " << t_compute << endl;
+    cout << "IRAM: sort = " << t_sort << endl;
+    cout << "IRAM: EV = " << t_EV << endl;
+    cout << "IRAM: QR = " << t_QR << endl;
+    cout << "IRAM: missing = " << (t_total) << " - " << (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen) << " = " << (t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen)) << " ("<<(100*((t_total - (t_compute + t_init + t_sort + t_EV + t_QR + t_eigen))))/t_total<<"%)" << endl;  
+  }
+  
+  // Clean up
+  kSpace.resize(n_conv);
+  evals.resize(n_conv);    
 }
 
-void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
+void Eig::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
   
   std::vector<field<Complex>*> kSpace;
   std::vector<Complex> evals;
@@ -1080,7 +1176,7 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
   if(inspection_counter == 0) {
     // A deflation space was just constructed, copy it to the
     // kSpace container and save.
-    if(iram_verbose) cout << "IRAM: First inspection call, copy deflation space" << endl;
+    if(eig_verbose) cout << "Eig: First inspection call, copy deflation space" << endl;
     for(int i=0; i<n_conv; i++) {
       blas::copy(kSpace[i], kSpace_defl[i]);
       evals[i] = evals_defl[i];
@@ -1089,8 +1185,8 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
   } else {
     // If inspection_counter > 0, the gauge field has changed and
     // we need to recompute the space for inspecton
-    if(iram_verbose) cout << "IRAM: Computing new spectrum" << endl;
-    iram(gauge, kSpace, evals);
+    if(eig_verbose) cout << "Eig: Computing new spectrum" << endl;
+    solve(gauge, kSpace, evals);
   }
     
   string name;
@@ -1264,9 +1360,9 @@ void IRAM::inspectEvolvedSpectrum(const field<Complex> *gauge, int iter) {
   inspection_counter++;
 }
 
-void IRAM::computeDeflationSpace(const field<Complex> *gauge){
+void Eig::computeDeflationSpace(const field<Complex> *gauge){
   prepareKrylovSpace(kSpace_defl, evals_defl, gauge->p);
-  iram(gauge, kSpace_defl, evals_defl);  
+  solve(gauge, kSpace_defl, evals_defl);  
 
   if(use_compressed_space) {
     prepareKrylovSpace(kSpace_mg, evals_mg, gauge->p);
@@ -1274,7 +1370,7 @@ void IRAM::computeDeflationSpace(const field<Complex> *gauge){
   }
 }
 
-void IRAM::computeMGDeflationSpace(std::vector<field<Complex>*> &kSpace_out, const std::vector<field<Complex>*> &kSpace_in,
+void Eig::computeMGDeflationSpace(std::vector<field<Complex>*> &kSpace_out, const std::vector<field<Complex>*> &kSpace_in,
 				   const field<Complex> *gauge){
 
   struct timeval start, end;
@@ -1307,7 +1403,7 @@ void IRAM::computeMGDeflationSpace(std::vector<field<Complex>*> &kSpace_out, con
   }
 }
 
-void IRAM::prepareKrylovSpace(std::vector<field<Complex>*> &kSpace,
+void Eig::prepareKrylovSpace(std::vector<field<Complex>*> &kSpace,
 			      std::vector<Complex> &evals,
 			      const Param p) {  
   
@@ -1317,7 +1413,7 @@ void IRAM::prepareKrylovSpace(std::vector<field<Complex>*> &kSpace,
 }
 
 // Read the block data from the (iEig)th vector in kSpace 
-void IRAM::readVectorToBlock(const std::vector<field<Complex>*> &kSpace, std::vector<std::vector<Complex>> &block_data) {
+void Eig::readVectorToBlock(const std::vector<field<Complex>*> &kSpace, std::vector<std::vector<Complex>> &block_data) {
   
   for(int i=0; i<n_conv; i++) {
     for(int by=0; by<block_scheme[1]; by++) {
@@ -1342,7 +1438,7 @@ void IRAM::readVectorToBlock(const std::vector<field<Complex>*> &kSpace, std::ve
   }
 }
 
-void IRAM::blockCompress(const std::vector<field<Complex>*> &kSpace) {
+void Eig::blockCompress(const std::vector<field<Complex>*> &kSpace) {
   
   // Object to hold the blocked eigenvector data
   std::vector<std::vector<Complex>> block_data(n_blocks, std::vector<Complex> (n_conv * block_size, 0.0));
@@ -1426,7 +1522,7 @@ void IRAM::blockCompress(const std::vector<field<Complex>*> &kSpace) {
   }
 }
 
-void IRAM::blockExpand(std::vector<field<Complex>*> &kSpace) {
+void Eig::blockExpand(std::vector<field<Complex>*> &kSpace) {
   
   // Loop over the desired eigenvalues.
 #pragma omp parallel for 

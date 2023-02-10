@@ -1,7 +1,7 @@
 #include "schwinger2d_internal.h"
 #include "utils.h"
 #include "hmc.h"
-#include "iram.h"
+#include "eig.h"
 #include "io.h"
 
 int main(int argc, char **argv) {

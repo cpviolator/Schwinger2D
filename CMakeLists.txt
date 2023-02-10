@@ -110,14 +110,13 @@ if(ENABLE_FEAST)
   enable_language(Fortran)
   
   add_library(feast STATIC IMPORTED)
-  #add_dependencies(feast FEAST)
   set_target_properties(feast PROPERTIES IMPORTED_LOCATION ${FEAST_HOME}/lib/x64/libfeast.a)
   
   set(FEAST_INCLUDE_DIRS ${FEAST_HOME}/include)
   set(FEAST_LIB_DIRS ${FEAST_HOME}/lib/x64)
 
-  set(MKL_INCLUDE_DIRS ${MKL_HOME}/mkl/latest/include)
-  set(MKL_LIB_DIRS ${MKL_HOME}/mkl/latest/lib/intel64)
+  set(MKL_INCLUDE_DIRS ${MKL_HOME}/include)
+  set(MKL_LIB_DIRS ${MKL_HOME}/lib/intel64)
 endif()
 
 add_subdirectory(lib)

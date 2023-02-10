@@ -5,7 +5,7 @@
 #include "utils.h"
 #include "blas.h"
 
-class IRAM {
+class Eig {
   
 private:
 
@@ -48,7 +48,7 @@ private:
   double amax;
   double amin;
   Spectrum spectrum;
-  bool iram_verbose;
+  bool eig_verbose;
   Operator op;
 
   int x_block_size;
@@ -57,14 +57,24 @@ private:
   int block_scheme[2];
   int block_size;
   int n_low;
+
+  int feast_Ncontour;
+  int feast_M0;
+  double feast_Emax;  
   
 public:  
   
-  IRAM(EigParam param);
+  Eig(EigParam param);
 
   bool deflationSpaceExists() {return kSpace_defl.size() > 0 ? true : false;};
   
   void OPERATOR(field<Complex> *out, const field<Complex> *in, const field<Complex> *gauge);
+
+  void solve(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
+	     std::vector<Complex> &evals);
+  
+  void feast(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
+	     std::vector<Complex> &evals);
   
   void iram(const field<Complex> *gauge, std::vector<field<Complex> *> kSpace,
 	    std::vector<Complex> &evals);
@@ -117,7 +127,7 @@ public:
   
   void blockExpand(std::vector<field<Complex>*> &kSpace);
   
-  ~IRAM() {
+  ~Eig() {
     for (int i=0; i<kSpace_pre.size(); i++) delete kSpace_pre[i];
     for (int i=0; i<kSpace_defl.size(); i++) delete kSpace_defl[i];
     for (int i=0; i<kSpace_mg.size(); i++) delete kSpace_mg[i];
