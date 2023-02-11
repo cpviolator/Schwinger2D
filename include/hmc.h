@@ -46,8 +46,8 @@ public:
   void forceGradient(field<double> *mom, std::vector<field<Complex>*> phi, field<Complex> *gauge, double one_minus_2lambda_dt, double xi_dtdt);
   void forceGradient(field<double> *mom, field<Complex> *gauge, double one_minus_2lambda_dt, double xi_dtdt);
   void innerFGI(field<double> *mom, field<Complex> *gauge, double tau, int steps);
-  field<double>* computeFermionForce(field<Complex> *gauge, std::vector<field<Complex>*> &phi);
-  field<double>* computeGaugeForce(field<Complex> *gauge);
+  void computeFermionForce(field<double> *fD, field<Complex> *gauge, std::vector<field<Complex>*> &phi);
+  void computeGaugeForce(field<double> *fU, field<Complex> *gauge);
   
   double measGaugeAction(field<Complex> *gauge);
   double measMomAction(field<double> *mom);
