@@ -49,6 +49,9 @@ public:
   field<double>* computeFermionForce(field<Complex> *gauge, std::vector<field<Complex>*> &phi);
   field<double>* computeGaugeForce(field<Complex> *gauge);
   
+  void langevin_noise(field<double> *mom,field<Complex> *gauge);
+  void update_mom_mchmc(field<double> *f, field<double> *mom, double dtau);
+    
   double measGaugeAction(field<Complex> *gauge);
   double measMomAction(field<double> *mom);
   double measFermAction(field<Complex> *gauge, field<Complex> *phi, PFE &pfe, bool rational);

@@ -15,6 +15,18 @@ namespace blas {
     }
     return Complex(re_prod, im_prod);
   }
+    
+      // Real Inner product
+  double DotProd(const field<double> *x, const field<double> *y) {
+    double re_prod = 0.0;
+    assertVectorLength(x,y,__func__);
+#pragma omp parallel for reduction(+:re_prod, im_prod)
+    for(int i=0; i<(int)x->size(); i++) {
+      double prod = x->data[i] * y->data[i];
+      re_prod += prod;
+    }
+    return re_prod;
+  }
   
   // Print the vector elements
   void printVector(const std::vector<Complex> &x){

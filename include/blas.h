@@ -84,6 +84,9 @@ namespace blas {
 
   // Complex inner product
   Complex cDotProd(const field<Complex> *x, const field<Complex> *y);
+    
+  // Real inner product
+  double DotProd(const field<double> *x, const field<double> *y);
   
   // Print the vector elements
   void printVector(const std::vector<Complex> &x);
