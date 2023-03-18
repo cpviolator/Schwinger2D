@@ -20,7 +20,7 @@ namespace blas {
   double DotProd(const field<double> *x, const field<double> *y) {
     double re_prod = 0.0;
     assertVectorLength(x,y,__func__);
-#pragma omp parallel for reduction(+:re_prod, im_prod)
+#pragma omp parallel
     for(int i=0; i<(int)x->size(); i++) {
       double prod = x->data[i] * y->data[i];
       re_prod += prod;

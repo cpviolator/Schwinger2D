@@ -32,6 +32,7 @@ enum Integrator { LEAPFROG = 0, FGI = 1};
 enum Operator { M = 0, Mdag = 1, MMdag = 2, MdagM = 3};
 // (L)argest (S)mallest (R)eal (I)maginary
 enum Spectrum { LM = 0, SM = 1, LR = 2, SR = 3, LI = 4, SI = 6};
+enum Sampler { S_HMC = 0, S_MCHMC = 1};
 
 using namespace std;
 
@@ -104,6 +105,7 @@ public:
   double tol_cg = 1e-9;
   bool cg_verbosity = false;
   Integrator integrator = FGI;
+  Sampler sampler = S_HMC;
   int reverse = 100;
       
   // Eigensolver params

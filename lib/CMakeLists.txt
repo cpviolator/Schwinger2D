@@ -1,4 +1,4 @@
-set (SCHWINGER_2D_OBJS utils.cpp inverters.cpp dirac_op.cpp measurements.cpp blas.cpp io.cpp iram.cpp mchmc.cpp)
+set (SCHWINGER_2D_OBJS utils.cpp inverters.cpp dirac_op.cpp measurements.cpp blas.cpp io.cpp iram.cpp hmc.cpp)
 
 add_library(schwinger2d STATIC ${SCHWINGER_2D_OBJS})
 target_include_directories(schwinger2d PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include/)

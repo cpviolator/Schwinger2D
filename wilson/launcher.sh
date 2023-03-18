@@ -55,6 +55,8 @@ HMC_TAU=1.0
 # FYI, aim for 70% acceptance with Leapfrog
 # and 90% with FGI for optimal FLOP usage
 HMC_INTEGRATOR=1
+#Type of Sampler: HMC = 0, MCHMC = 1
+HMC_SAMPLER=0
 # Maximum CG iterations
 MAX_CG_ITER=10000
 # CG residual tolerance 

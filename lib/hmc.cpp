@@ -227,6 +227,8 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   
   // Perfrom trajectory
   trajectory(mom, gauge, phi, iter);
+  if ( !(gauge->p.sampler == S_HMC) && (gauge->p.sampler == S_MCHMC)) langevin_noise(mom,gauge);
+      
   
   if(iter >= gauge->p.therm) {
     // H_evolved = P^2 + S(U) + <phi| (Ddag D)^-1 |phi>
@@ -239,12 +241,12 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
     hmc_count++;
   }
   
-  exp_dH = exp(-(H-H_old));
+  if (gauge->p.sampler == S_HMC ) exp_dH = exp(-(H-H_old));
   dH = (H-H_old);
-
+    std::cout<<dH<<"\n";
   // Metropolis accept/reject step
   if (iter >= gauge->p.therm) {    
-    if ( drand48() > exp(-(H-H_old)) ) {
+    if ( ( drand48() > exp(-(H-H_old)) ) && !(gauge->p.sampler == S_MCHMC ) ) {
 
       // Reject the configuration
       blas::copy(gauge, gauge_old);
@@ -317,7 +319,10 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       fU = computeGaugeForce(gauge);
       fD = computeFermionForce(gauge, phi);
       blas::axpy(-1.0, fD, fU);
-      update_mom(fU, mom, dtau);
+      if (gauge->p.sampler == S_HMC) 
+          update_mom_s(fU, mom, dtau,gauge->p.sampler);
+      else if (gauge->p.sampler == S_MCHMC) 
+          update_mom_mchmc(fU, mom, dtau);
       
       //Final half step.
       //U_{k+1} = exp(i (dtau/2) P_{k+1/2}) * U_{k}
@@ -337,7 +342,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       innerFGI(mom, gauge, dtauby2/2, inner_step);
 
       fD = computeFermionForce(gauge, phi);
-      update_mom(fD, mom, -two_lambda_dt);
+      update_mom_s(fD, mom, -two_lambda_dt,gauge->p.sampler);
       
       innerFGI(mom, gauge, dtauby2/2, inner_step);
       forceGradient(mom, phi, gauge, one_minus_2lambda_dt/2, xi_dtdt/2);
@@ -346,7 +351,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       //PQPQP: more efficient
       if(k == 0) {
 	fD = computeFermionForce(gauge, phi);
-	update_mom(fD, mom, -lambda_dt);
+	update_mom_s(fD, mom, -lambda_dt, gauge->p.sampler);
       }
       
       innerFGI(mom, gauge, dtauby2, inner_step);
@@ -354,7 +359,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       innerFGI(mom, gauge, dtauby2, inner_step);
       
       fD = computeFermionForce(gauge, phi);
-      update_mom(fD, mom, k == gauge->p.n_step - 1 ? -lambda_dt : -two_lambda_dt);
+      update_mom_s(fD, mom, k == gauge->p.n_step - 1 ? -lambda_dt : -two_lambda_dt,gauge->p.sampler);
 #endif
     }    
     break;
@@ -377,7 +382,7 @@ void HMC::forceGradient(field<double> *mom, std::vector<field<Complex>*> phi, fi
   blas::zero(mom);
 
   fD = computeFermionForce(gauge, phi);
-  update_mom(fD, mom, -xi_dtdt / one_minus_2lambda_dt);
+  update_mom_s(fD, mom, -xi_dtdt / one_minus_2lambda_dt, gauge->p.sampler);
   
   // Given the momentum kick (force), update the links to U'
   update_gauge(gauge, mom, 1.0);
@@ -387,7 +392,7 @@ void HMC::forceGradient(field<double> *mom, std::vector<field<Complex>*> phi, fi
   
   // Add our kick to the momentum
   fD = computeFermionForce(gauge, phi);
-  update_mom(fD, mom, -one_minus_2lambda_dt);
+  update_mom_s(fD, mom, -one_minus_2lambda_dt, gauge->p.sampler);
   
   // Restore the gauge field
   blas::copy(gauge, gauge_copy);
@@ -409,7 +414,7 @@ void HMC::forceGradient(field<double> *mom, field<Complex> *gauge,
 
   // Compute the forces
   fU = computeGaugeForce(gauge);
-  update_mom(fU, mom, xi_dtdt / one_minus_2lambda_dt);
+  update_mom_s(fU, mom, xi_dtdt / one_minus_2lambda_dt, gauge->p.sampler);
   
   // Given the momentum kick (force), update the links to U'
   update_gauge(gauge, mom, 1.0);
@@ -419,7 +424,7 @@ void HMC::forceGradient(field<double> *mom, field<Complex> *gauge,
 
   // Add our kick to the momentum
   fU = computeGaugeForce(gauge);
-  update_mom(fU, mom, one_minus_2lambda_dt);
+  update_mom_s(fU, mom, one_minus_2lambda_dt, gauge->p.sampler);
   
   // Restore the gauge field
   blas::copy(gauge, gauge_copy);
@@ -447,7 +452,7 @@ void HMC::innerFGI(field<double> *mom, field<Complex> *gauge, double tau, int st
 
     if(k == 0) {
       fU = computeGaugeForce(gauge);
-      update_mom(fU, mom, lambda_dt);
+      update_mom_s(fU, mom, lambda_dt, gauge->p.sampler);
     }
 
     update_gauge(gauge, mom, dtauby2);
@@ -455,7 +460,7 @@ void HMC::innerFGI(field<double> *mom, field<Complex> *gauge, double tau, int st
     update_gauge(gauge, mom, dtauby2);
 
     fU = computeGaugeForce(gauge);
-    update_mom(fU, mom, k == steps - 1 ? lambda_dt : two_lambda_dt);
+    update_mom_s(fU, mom, k == steps - 1 ? lambda_dt : two_lambda_dt, gauge->p.sampler);
     
   }
 }
@@ -491,7 +496,6 @@ field<double>* HMC::computeGaugeForce(field<Complex> *gauge) {
   }
   return fU;
 }
-
 //P_{k+1/2} = P_{k-1/2} - dtau * (f)
 void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
   
@@ -503,6 +507,127 @@ void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
       for(int mu=0; mu<2; mu++) {
 	temp = mom->read(x,y,mu) - dtau*(f->read(x,y,mu));
 	mom->write(x,y,mu, temp);
+      }
+}
+
+
+
+//P_{k+1/2} = P_{k-1/2} - dtau * (f)
+void HMC::update_mom_s(field<double> *f, field<double> *mom, double dtau, Sampler sampler){
+  
+  int Nx = f->p.Nx;
+  int Ny = f->p.Ny;
+  int d = Nx * Ny * 2;
+  double temp = 0.0;
+   
+  if (sampler == S_HMC) {  
+      for(int x=0; x<Nx; x++)
+        for(int y=0; y<Ny; y++)
+          for(int mu=0; mu<2; mu++) {
+        temp = mom->read(x,y,mu) - dtau*(f->read(x,y,mu));
+        mom->write(x,y,mu, temp);
+          }
+  }
+  else if (sampler == S_MCHMC) {
+      
+      int f_norm = sqrt(blas::norm2(f)); 
+      double ue = -1.0 * blas::DotProd(f,mom)/f_norm;
+      double sh = sinh(dtau * f_norm / (d-1));
+      double ch = cosh(dtau * f_norm / (d-1));
+      double th = tanh(dtau * f_norm / (d-1));
+      double delta_r = log(ch) + log1p(ue*th);
+      
+//                   double g_norm = sqrt(blas::norm2(f)); 
+
+//             //update u
+//             double ue = -blas::DotProd(f,mom) / g_norm;
+//             double delta = eps * g_norm / (d-1);
+//             double zeta = exp(-delta);
+//             for(int i = 0; i < d; ++i)u[i] = (-g[i]/g_norm) *(1-zeta)*(1+zeta + ue * (1-zeta)) + 2*zeta* u[i];
+
+//             //normalize u
+//             double u_norm = norm(u, d);
+//             for(int i = 0; i < d; ++i)u[i] /= u_norm;
+      
+//         for(int x=0; x<Nx; x++)
+//                 for(int y=0; y<Ny; y++)
+//                   for(int mu=0; mu<2; mu++) {
+//                 temp = (mom->read(x,y,mu) - f->read(x,y,mu)/f_norm * (sh + ue * (ch - 1)))/ (ch + ue * sh);
+//                 mom->write(x,y,mu, temp);
+
+//                   }
+      
+      
+      for(int x=0; x<Nx; x++)
+        for(int y=0; y<Ny; y++)
+          for(int mu=0; mu<2; mu++) {
+        temp = (mom->read(x,y,mu) - f->read(x,y,mu)/f_norm * (sh + ue * (ch - 1)))/ (ch + ue * sh);
+        mom->write(x,y,mu, temp);
+    
+          }
+  }
+ 
+}
+
+
+void HMC::langevin_noise(field<double> *mom,field<Complex> *gauge){
+  
+  int Nx = gauge->p.Nx;
+  int Ny = gauge->p.Ny;
+  double temp = 0.0;
+  int d = Nx * Ny * 2;
+  double dtau = gauge->p.tau/gauge->p.n_step;
+  double nu = sqrt((exp(2 * dtau / sqrt(d)) - 1.0) / d);
+  double langevined_norm2 = 0.;
+  double langevined_norm = 0.;
+  for(int x=0; x<Nx; x++)
+    for(int y=0; y<Ny; y++)
+      for(int mu=0; mu<2; mu++) {
+        temp = mom->read(x,y,mu) + nu * drand48();
+        langevined_norm2 += abs(temp*temp);
+        mom->write(x,y,mu, temp);
+      }
+  langevined_norm = sqrt(langevined_norm2);
+  for(int x=0; x<Nx; x++)
+    for(int y=0; y<Ny; y++)
+      for(int mu=0; mu<2; mu++) {
+        temp = mom->read(x,y,mu)/langevined_norm;
+        mom->write(x,y,mu, temp);
+      }
+}
+
+//P_{k+1/2} = P_{k-1/2} - dtau * (f)
+void HMC::update_mom_mchmc(field<double> *f, field<double> *mom, double dtau){
+  
+  int Nx = f->p.Nx;
+  int Ny = f->p.Ny;
+  int d = Nx * Ny * 2;
+  double temp = 0.0;
+
+  int f_norm = sqrt(blas::norm2(f));
+  // field<double> *f_normed;
+  // blas::copy(f_normed,f);
+	// for(int x=0; x<Nx; x++)
+	// for(int y=0; y<Ny; y++)
+	// for(int mu=0; mu<2; mu++) {
+	// f_normed->write(x,y,mu, f_normed->read(x,y,mu)/f_norm);
+	// }
+  double ue = -1.0 * blas::DotProd(f,mom)/f_norm;
+  // double ue = -1.0 * f->dot(mom)/f_norm;
+  double sh = sinh(dtau * f_norm / (d-1));
+  double ch = cosh(dtau * f_norm / (d-1));
+  double th = tanh(dtau * f_norm / (d-1));
+  double delta_r = log(ch) + log1p(ue*th);
+      
+  for(int x=0; x<Nx; x++)
+    for(int y=0; y<Ny; y++)
+      for(int mu=0; mu<2; mu++) {
+          
+          
+	temp = (mom->read(x,y,mu) + f->read(x,y,mu)/f_norm * (sh + ue * (ch - 1)))/ (ch + ue * sh);
+	mom->write(x,y,mu, temp);
+          
+          
       }
 }
 

@@ -297,6 +297,27 @@ int Param::init(int argc, char **argv, int *idx) {
     goto out;
   } 
   
+  // Sampler Choice
+  if( strcmp(argv[i], "--hmc-sampler") == 0){
+    if (i+1 >= argc){
+      usage(argv);
+    }    
+    std::string hmc_sampler(argv[i+1]);
+    if (hmc_sampler == "0") {
+      sampler = S_HMC;
+    } else if(hmc_sampler == "1") {
+      sampler  = S_MCHMC;
+    } else {
+      cout<<"Invalid sampler ("<< hmc_sampler <<") given. Use S_HMC or S_MCHMC"<<endl;
+      exit(0);
+    }
+    i++;
+    ret = 0;
+    goto out;  
+  
+  
+  }
+    
   // Degree of partial fraction expansion
   if( strcmp(argv[i], "--pfe-degree") == 0){
     if (i+1 >= argc){
@@ -733,6 +754,7 @@ void Param::print() {
   cout << "              Data Points = " << iter_hmc << endl;
   cout << "              Start Point = " << checkpoint_start << endl;
   cout << "              Integrator = " << (integrator == LEAPFROG ? "LEAPFROG" : "FGI") << endl;
+  cout << "              Sampler = " << (sampler == S_HMC ? "S_HMC" : "S_MCHMC") << endl;
   cout << "              Trajectory Length = " << tau << endl;
   cout << "              Trajectory Steps = " << n_step << endl;
   if  (integrator == FGI) {

@@ -42,6 +42,7 @@ public:
   
   void update_mom(field<double> *fU, field<double> *fD, field<double> *mom, double dtau);
   void update_mom(field<double> *f, field<double> *mom, double dtau);
+  void update_mom_s(field<double> *f, field<double> *mom, double dtau, Sampler sampler);
   void update_gauge(field<Complex> *gauge, field<double> *mom, double dtau);
   void forceGradient(field<double> *mom, std::vector<field<Complex>*> phi, field<Complex> *gauge, double one_minus_2lambda_dt, double xi_dtdt);
   void forceGradient(field<double> *mom, field<Complex> *gauge, double one_minus_2lambda_dt, double xi_dtdt);
