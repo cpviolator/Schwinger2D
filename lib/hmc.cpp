@@ -228,7 +228,6 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   // Perfrom trajectory
   trajectory(mom, gauge, phi, iter);
   if ( !(gauge->p.sampler == S_HMC) && (gauge->p.sampler == S_MCHMC)) langevin_noise(mom,gauge);
-      
   
   if(iter >= gauge->p.therm) {
     // H_evolved = P^2 + S(U) + <phi| (Ddag D)^-1 |phi>
@@ -332,7 +331,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
     //----------------------------------------------------------
     for(int k=0; k<gauge->p.n_step; k++) {
 
-#if 0
+#if 1
       // QPQPQ: less efficient
       innerFGI(mom, gauge, dtauby2/2, inner_step);
       forceGradient(mom, phi, gauge, one_minus_2lambda_dt/2, xi_dtdt/2);
@@ -517,13 +516,14 @@ void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
     double ch = cosh(dtau * f_norm / (d-1));
     double th = tanh(dtau * f_norm / (d-1));
     double delta_r = log(ch) + log1p(ue*th);
+
+    cout << "ue = << " << ue << " sh = << " << sh << " th = << " << th << " delta_r = " << delta_r << endl;
     
     for(int x=0; x<Nx; x++)
       for(int y=0; y<Ny; y++)
 	for(int mu=0; mu<2; mu++) {
 	  temp = (mom->read(x,y,mu) - f->read(x,y,mu)/f_norm * (sh + ue * (ch - 1)))/ (ch + ue * sh);
 	  mom->write(x,y,mu, temp);
-	  
 	}
   }
 }
