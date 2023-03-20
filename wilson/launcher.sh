@@ -16,12 +16,12 @@ VERBOSITY=0
 LX=8
 LY=8
 # The value of the coupling in the U(1) 2D theory
-BETA=4.0
+BETA=7.0
 # Dynamic fermion parameters
 # 0 = pure gauge
 # 2 = two light degenerate fermions
 # 3 = two light degenerate, one heavy fermion
-FLAVOURS=2
+FLAVOURS=0
 # Light Fermions (degenerate) mass
 MASS=0.05
 # Heavy Fermion mass
@@ -30,19 +30,19 @@ MASS_HEAVY=0.5
 # HMC params
 #-----------------------------------------------
 # The total number of thermalised HMC iterations to perform.
-HMC_ITER=1000
+HMC_ITER=100
 # The number of HMC iterations for thermalisation (accept + accept/reject).
-HMC_THERM=000
+HMC_THERM=100
 # The number of HMC iterations to skip bewteen measurements.
 HMC_SKIP=10
 # Dump the gauge field every HMC_CHKPT iterations after thermalisation.
 HMC_CHKPT=100
 # If non-zero, read in the HMC_CHKPT_START gauge field. 
-HMC_CHKPT_START=100
+HMC_CHKPT_START=000
 # Reverse the gauge fields for ergodicity check
-HMC_REVERSE=100
+HMC_REVERSE=10000
 # HMC time steps in the integration 
-HMC_NSTEP=4
+HMC_NSTEP=100
 # HMC inner time steps in the integration 
 HMC_INNER_NSTEP=1
 # Degree of polynomial for AlgRemez
@@ -54,9 +54,9 @@ HMC_TAU=1.0
 # Integrator type: leapfrog = 0, fgi = 1
 # FYI, aim for 70% acceptance with Leapfrog
 # and 90% with FGI for optimal FLOP usage
-HMC_INTEGRATOR=1
-#Type of Sampler: HMC = 0, MCHMC = 1
-HMC_SAMPLER=0
+HMC_INTEGRATOR=0
+# Sampler type: HMC = 0, MCHMC = 1
+HMC_SAMPLER=1
 # Maximum CG iterations
 MAX_CG_ITER=10000
 # CG residual tolerance 
@@ -119,7 +119,7 @@ BASIC_PARAMS="--seed ${SEED} --verbosity ${VERBOSITY} --beta ${BETA} --dim ${LX}
 HMC_PARAMS="--hmc-traj-length ${HMC_TAU} --hmc-n-step ${HMC_NSTEP} --hmc-inner-step ${HMC_INNER_NSTEP} \
 	    --hmc-n-trajectories ${HMC_ITER} --hmc-therm ${HMC_THERM} --hmc-checkpoint ${HMC_CHKPT} \
 	    --hmc-checkpoint-start ${HMC_CHKPT_START} --hmc-skip ${HMC_SKIP} --hmc-reverse ${HMC_REVERSE} \
-            --hmc-integrator ${HMC_INTEGRATOR} \
+            --hmc-integrator ${HMC_INTEGRATOR} --hmc-sampler ${HMC_SAMPLER} \
 	    --pfe-degree ${HMC_AR_DEGREE} --pfe-prec ${HMC_AR_GMP_PREC} \
 	    --cg-max-iter ${MAX_CG_ITER} --cg-tol ${CG_TOL} --cg-verbosity ${CG_VERBOSITY}"
 

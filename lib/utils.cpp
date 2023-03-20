@@ -36,6 +36,7 @@ void Param::usage(char **argv) {
   printf("--hmc-skip <N>                   Skip this number of trajectories between measurements (5).\n");
   printf("--hmc-reverse <N>                Perform a reversibility check with this frequency (100).\n");  
   printf("--hmc-integrator <LEAPFROG/FGI>  Sets the HMC integrator (FGI).\n");
+  printf("--hmc-sampler <S_HMC/S_MCHMC>    Sets the HMC sampler method (S_MCHMC).\n");
   printf("--pfe-degree <N>                 Degree of the rational polynomial required for heavy mass fermion (15).\n");
   printf("--pfe-prec <N>                   GMP bit-wise precision of the rational polynomal computation (50).\n");
   printf("--cg-max-iter <N>                Maximum CG iterations before failure exit (1000).\n");
@@ -303,10 +304,10 @@ int Param::init(int argc, char **argv, int *idx) {
       usage(argv);
     }    
     std::string hmc_sampler(argv[i+1]);
-    if (hmc_sampler == "0") {
+    if (hmc_sampler == "s_hmc" || hmc_sampler == "S_HMC" || hmc_sampler == "0") {
       sampler = S_HMC;
-    } else if(hmc_sampler == "1") {
-      sampler  = S_MCHMC;
+    } else if(hmc_sampler == "s_mchmc" || hmc_sampler == "S_MCHMC" || hmc_sampler == "1") {
+      sampler = S_MCHMC;
     } else {
       cout<<"Invalid sampler ("<< hmc_sampler <<") given. Use S_HMC or S_MCHMC"<<endl;
       exit(0);
@@ -314,8 +315,6 @@ int Param::init(int argc, char **argv, int *idx) {
     i++;
     ret = 0;
     goto out;  
-  
-  
   }
     
   // Degree of partial fraction expansion
