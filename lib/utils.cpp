@@ -779,7 +779,9 @@ void Param::print() {
 void constructName(string &name, Param p) {
 
   // Basics
-  name += "_LX" + to_string(p.Nx) + "_LY" + to_string(p.Ny) + "_B" + to_string(p.beta);
+  string sampler_string = p.sampler == S_HMC ? "_HMC" : "_MCHMC";
+
+  name += "_LX" + to_string(p.Nx) + "_LY" + to_string(p.Ny) + "_B" + to_string(p.beta) + sampler_string;
 
   // Fermions
   if(p.flavours == 2) {
@@ -849,6 +851,7 @@ void gaussComplex(field<Complex> *field) {
     }
   }
 }
+
 
 //staple x is 0th, y is 1st.
 //APE smearing: project back on U(1)       

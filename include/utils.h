@@ -2,6 +2,7 @@
 
 #include "schwinger2d_internal.h"
 #include "lattice.h"
+#include <random>
 #ifdef ENABLE_HDF5
 #include "hdf5.h"
 #endif

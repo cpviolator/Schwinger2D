@@ -32,6 +32,13 @@ int main(int argc, char **argv) {
     p.loop_max = std::min(p.Nx/2, p.Ny/2);
   }
   
+  if(p.sampler == S_MCHMC){
+      cout << "Warning: manually changing tau from " << p.tau<< " to ";
+      double d = p.Nx * p.Ny * 2.;
+      p.tau = p.n_step * 0.2 * sqrt(d);
+      cout << p.tau << endl;
+  }
+    
   //Pseudo RNG seed
   srand48((long)p.seed);
   
@@ -109,6 +116,8 @@ int main(int argc, char **argv) {
     iter_offset += p.therm;
   }
     
+  
+    
   //Begin thermalised trajectories
   //---------------------------------------------------------------------
   for(iter=iter_offset; iter<p.iter_hmc + iter_offset; iter++){
@@ -123,7 +132,7 @@ int main(int argc, char **argv) {
     constructName(name, p);
     name += ".dat";
     snprintf(fname, 100, "%s", name.c_str());
-    fp = fopen(fname, "a");
+    fp = fopen(fname, iter==iter_offset ? "w" : "a");
     fprintf(fp, "%d %d\n", iter, top_int);
     fclose(fp);
     

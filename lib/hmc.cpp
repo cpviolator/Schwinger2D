@@ -116,7 +116,7 @@ bool HMC::hmc_reversibility(field<Complex> *gauge, int iter) {
   
   // init mom[LX][LY][D]  <mom^2> = 1;
   gaussReal(mom); 
-
+  
   // Create CG solver
   inv = new inverterCG(gauge->p);
   
@@ -192,7 +192,7 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   
   // init momentum
   gaussReal(mom);
-
+  
   // Create CG solver
   inv = new inverterCG(gauge->p);
   
@@ -227,7 +227,7 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   
   // Perfrom trajectory
   trajectory(mom, gauge, phi, iter);
-  if ( !(gauge->p.sampler == S_HMC) && (gauge->p.sampler == S_MCHMC)) langevin_noise(mom,gauge);
+    
   
   if(iter >= gauge->p.therm) {
     // H_evolved = P^2 + S(U) + <phi| (Ddag D)^-1 |phi>
@@ -242,7 +242,7 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   
   if (gauge->p.sampler == S_HMC ) exp_dH = exp(-(H-H_old));
   dH = (H-H_old);
-    std::cout<<dH<<"\n";
+
   // Metropolis accept/reject step
   if (iter >= gauge->p.therm) {    
     if ( ( drand48() > exp(-(H-H_old)) ) && !(gauge->p.sampler == S_MCHMC ) ) {
@@ -323,6 +323,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       //Final half step.
       //U_{k+1} = exp(i (dtau/2) P_{k+1/2}) * U_{k}
       update_gauge(gauge, mom, dtauby2);
+      if ( !(gauge->p.sampler == S_HMC) && (gauge->p.sampler == S_MCHMC)) langevin_noise(mom,gauge);
     }    
     break;
 
@@ -508,29 +509,47 @@ void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
 	  mom->write(x,y,mu, temp);
 	}
   }
-  else if (mom->p.sampler == S_MCHMC) {
-    int d = Nx * Ny * 2;
-    int f_norm = sqrt(blas::norm2(f)); 
-    double ue = -1.0 * blas::DotProd(f,mom)/f_norm;
-    double sh = sinh(dtau * f_norm / (d-1));
-    double ch = cosh(dtau * f_norm / (d-1));
-    double th = tanh(dtau * f_norm / (d-1));
-    double delta_r = log(ch) + log1p(ue*th);
+//   ALTERNATE MCMHC DEFINITION, WHICH 
+//   else if (mom->p.sampler == S_MCHMC) {
+//     int d = Nx * Ny * 2;
+//     int f_norm = sqrt(blas::norm2(f)); 
+//     double ue = -1.0 * blas::DotProd(f,mom)/f_norm;
+//     double sh = sinh(dtau * f_norm / (d-1));
+//     double ch = cosh(dtau * f_norm / (d-1));
+//     double th = tanh(dtau * f_norm / (d-1));
+//     double delta_r = log(ch) + log1p(ue*th);
 
-    cout << "ue = << " << ue << " sh = << " << sh << " th = << " << th << " delta_r = " << delta_r << endl;
+//     // cout << "ue = << " << ue << " sh = << " << sh << " th = << " << th << " delta_r = " << delta_r << endl;
     
-    for(int x=0; x<Nx; x++)
-      for(int y=0; y<Ny; y++)
-	for(int mu=0; mu<2; mu++) {
-	  temp = (mom->read(x,y,mu) - f->read(x,y,mu)/f_norm * (sh + ue * (ch - 1)))/ (ch + ue * sh);
-	  mom->write(x,y,mu, temp);
-	}
-  }
+//     for(int x=0; x<Nx; x++)
+//       for(int y=0; y<Ny; y++)
+// 	for(int mu=0; mu<2; mu++) {
+// 	  temp = (mom->read(x,y,mu) - f->read(x,y,mu)/f_norm * (sh + ue * (ch - 1)))/ (ch + ue * sh);
+// 	  mom->write(x,y,mu, temp);
+// 	}
+//   }
+  else if (mom->p.sampler == S_MCHMC) {
+    double f_norm = sqrt(blas::norm2(f)); 
+    int d = Nx * Ny * 2;
+    //update u
+    double ue = -blas::DotProd(f,mom) / f_norm;
+    double delta = dtau * f_norm / (d-1);
+
+    double zeta = exp(-delta);
+        for(int x=0; x<Nx; x++)
+                for(int y=0; y<Ny; y++)
+                  for(int mu=0; mu<2; mu++)  
+                {
+                temp = 2*zeta*(mom->read(x,y,mu)) - (f->read(x,y,mu)/f_norm )* (1-zeta) * (1+zeta+ue *(1-zeta));
+                mom->write(x,y,mu, temp);}
+  } 
+    
 }
 
 
 void HMC::langevin_noise(field<double> *mom,field<Complex> *gauge){
-  
+  std::normal_distribution<double> distribution(0.0,1.0);
+  std::default_random_engine generator;
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
   double temp = 0.0;
@@ -542,7 +561,8 @@ void HMC::langevin_noise(field<double> *mom,field<Complex> *gauge){
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++)
       for(int mu=0; mu<2; mu++) {
-        temp = mom->read(x,y,mu) + nu * drand48();
+        double randomN = distribution(generator);
+        temp = mom->read(x,y,mu) + nu * randomN;
         langevined_norm2 += abs(temp*temp);
         mom->write(x,y,mu, temp);
       }
