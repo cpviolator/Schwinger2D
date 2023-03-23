@@ -106,6 +106,7 @@ public:
   bool cg_verbosity = false;
   Integrator integrator = FGI;
   Sampler sampler = S_HMC;
+  double beta_eps = 0.2;
   int reverse = 100;
       
   // Eigensolver params

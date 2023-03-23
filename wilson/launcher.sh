@@ -57,6 +57,8 @@ HMC_TAU=1.0
 HMC_INTEGRATOR=0
 # Sampler type: HMC = 0, MCHMC = 1
 HMC_SAMPLER=1
+# beta-eps coefficient
+HMC_BETA_EPS=0.2
 # Maximum CG iterations
 MAX_CG_ITER=10000
 # CG residual tolerance 
@@ -119,7 +121,7 @@ BASIC_PARAMS="--seed ${SEED} --verbosity ${VERBOSITY} --beta ${BETA} --dim ${LX}
 HMC_PARAMS="--hmc-traj-length ${HMC_TAU} --hmc-n-step ${HMC_NSTEP} --hmc-inner-step ${HMC_INNER_NSTEP} \
 	    --hmc-n-trajectories ${HMC_ITER} --hmc-therm ${HMC_THERM} --hmc-checkpoint ${HMC_CHKPT} \
 	    --hmc-checkpoint-start ${HMC_CHKPT_START} --hmc-skip ${HMC_SKIP} --hmc-reverse ${HMC_REVERSE} \
-            --hmc-integrator ${HMC_INTEGRATOR} --hmc-sampler ${HMC_SAMPLER} \
+            --hmc-integrator ${HMC_INTEGRATOR} --hmc-sampler ${HMC_SAMPLER} --beta-eps ${HMC_BETA_EPS} \
 	    --pfe-degree ${HMC_AR_DEGREE} --pfe-prec ${HMC_AR_GMP_PREC} \
 	    --cg-max-iter ${MAX_CG_ITER} --cg-tol ${CG_TOL} --cg-verbosity ${CG_VERBOSITY}"
 

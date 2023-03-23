@@ -33,9 +33,9 @@ int main(int argc, char **argv) {
   }
   
   if(p.sampler == S_MCHMC){
-      cout << "Warning: manually changing tau from " << p.tau<< " to ";
-      double d = p.Nx * p.Ny * 2.;
-      p.tau = p.n_step * 0.2 * sqrt(d);
+      cout << "Warning: manually changing tau from " << p.tau << " to ";
+      double d = p.Nx * p.Ny * 2;
+      p.tau = p.n_step * p.beta_eps * sqrt(d);
       cout << p.tau << endl;
   }
     

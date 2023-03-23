@@ -227,7 +227,6 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   
   // Perfrom trajectory
   trajectory(mom, gauge, phi, iter);
-    
   
   if(iter >= gauge->p.therm) {
     // H_evolved = P^2 + S(U) + <phi| (Ddag D)^-1 |phi>
@@ -303,7 +302,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
   double two_lambda_dt = lambda_dt*2;
   double xi_dtdt = 2*dtau*dtau*dtau*xi;
   double inner_step = gauge->p.inner_step;
-  
+
   switch(gauge->p.integrator) {
   case LEAPFROG:
     // Start LEAPFROG HMC trajectory
