@@ -28,7 +28,7 @@ typedef complex<double> Complex;
 #define I Complex(0,1.0)
 #define cUnit Complex(1.0,0)
 
-enum Integrator { LEAPFROG = 0, FGI = 1};
+enum Integrator { LEAPFROG = 0, OMELYAN = 1, FGI = 2};
 enum Operator { M = 0, Mdag = 1, MMdag = 2, MdagM = 3};
 // (L)argest (S)mallest (R)eal (I)maginary
 enum Spectrum { LM = 0, SM = 1, LR = 2, SR = 3, LI = 4, SI = 6};

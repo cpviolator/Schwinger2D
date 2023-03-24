@@ -288,10 +288,12 @@ int Param::init(int argc, char **argv, int *idx) {
     std::string hmc_integrator(argv[i+1]);
     if (hmc_integrator == "LEAPFROG" || hmc_integrator == "leapfrog" || hmc_integrator == "0") {
       integrator = LEAPFROG;
-    } else if(hmc_integrator == "FGI" || hmc_integrator == "fgi" || hmc_integrator == "1") {
+    } else if (hmc_integrator == "OMELYAN" || hmc_integrator == "omelyan" || hmc_integrator == "1") {
+      integrator = OMELYAN;
+    } else if(hmc_integrator == "FGI" || hmc_integrator == "fgi" || hmc_integrator == "2") {
       integrator  = FGI;
     } else {
-      cout<<"Invalid integrator ("<< hmc_integrator <<") given. Use LEAPFROG or FGI"<<endl;
+      cout<<"Invalid integrator ("<< hmc_integrator <<") given. Use LEAPFROG, OMELYAN, or FGI"<<endl;
       exit(0);
     }
     i++;
@@ -793,9 +795,9 @@ void Param::print() {
 void constructName(string &name, Param p) {
 
   // Basics
-  string sampler_string = p.sampler == S_HMC ? "_HMC" : "_MCHMC";
+  //string sampler_string = p.sampler == S_HMC ? "_HMC" : "_MCHMC";
 
-  name += "_LX" + to_string(p.Nx) + "_LY" + to_string(p.Ny) + "_B" + to_string(p.beta) + sampler_string;
+  name += "_LX" + to_string(p.Nx) + "_LY" + to_string(p.Ny) + "_B" + to_string(p.beta);
 
   // Fermions
   if(p.flavours == 2) {

@@ -23,6 +23,9 @@ private:
 #endif
   PFE heatbath_pfe;
   PFE force_pfe;
+
+  // Backup for MCHMC
+  field<double> *mom_old;
   
 public:
 

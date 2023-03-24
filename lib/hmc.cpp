@@ -96,6 +96,11 @@ HMC::HMC(Param param) {
     cout << "Error: flavours must be 0, 2, or 3: flavours passed = " << param.flavours << endl;
     exit(0);    
   }
+
+  mom_old = new field<double>(param);
+  gaussReal(mom_old);
+  double norm = blas::norm2(mom_old);
+  blas::ax(1/sqrt(norm), mom_old);
 };
 
 bool HMC::hmc_reversibility(field<Complex> *gauge, int iter) {
@@ -191,7 +196,8 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   blas::copy(gauge_old, gauge);
   
   // init momentum
-  gaussReal(mom);
+  if (gauge->p.sampler == S_HMC ) gaussReal(mom);
+  else blas::copy(mom, mom_old);
   
   // Create CG solver
   inv = new inverterCG(gauge->p);
@@ -259,6 +265,9 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
     }
   }
 
+  // init momentum
+  if (gauge->p.sampler == S_MCHMC ) blas::copy(mom_old, mom);
+  
   delete mom;
   delete phi[0]; delete phi[1];
   delete chi[0]; delete chi[1];
@@ -294,6 +303,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
   // fermion force (D operator)
   field<double> *fD;
 
+  double lambda_c = 0.1931833275037836; 
   double lambda = 1.0/6.0;
   double xi = 1.0/72.0;  
   double lambda_dt = dtau*lambda;
@@ -322,6 +332,36 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       //Final half step.
       //U_{k+1} = exp(i (dtau/2) P_{k+1/2}) * U_{k}
       update_gauge(gauge, mom, dtauby2);
+      if ( !(gauge->p.sampler == S_HMC) && (gauge->p.sampler == S_MCHMC)) langevin_noise(mom,gauge);
+    }    
+    break;
+    
+  case OMELYAN:
+    // Start OMELYAN HMC trajectory
+    //----------------------------------------------------------
+    for(int k=0; k<gauge->p.n_step; k++) {
+      
+      //U_{k} = exp(i (dtau/2) P_{k-1/2}) * U_{k-1}
+      update_gauge(gauge, mom, dtau * lambda_c);
+      
+      //P_{k+1/2} = P_{k-1/2} - dtau * (fU - fD)
+      fU = computeGaugeForce(gauge);
+      fD = computeFermionForce(gauge, phi);
+      blas::axpy(-1.0, fD, fU);
+      update_mom(fU, mom, dtauby2);
+      
+      //U_{k} = exp(i (dtau/2) P_{k-1/2}) * U_{k-1}
+      update_gauge(gauge, mom, dtau * (1-2*lambda_c));
+
+      //P_{k+1/2} = P_{k-1/2} - dtau * (fU - fD)
+      fU = computeGaugeForce(gauge);
+      fD = computeFermionForce(gauge, phi);
+      blas::axpy(-1.0, fD, fU);
+      update_mom(fU, mom, dtauby2);
+      
+      //Final half step.
+      //U_{k+1} = exp(i (dtau/2) P_{k+1/2}) * U_{k}
+      update_gauge(gauge, mom, dtau * lambda_c);
       if ( !(gauge->p.sampler == S_HMC) && (gauge->p.sampler == S_MCHMC)) langevin_noise(mom,gauge);
     }    
     break;
@@ -456,8 +496,7 @@ void HMC::innerFGI(field<double> *mom, field<Complex> *gauge, double tau, int st
     update_gauge(gauge, mom, dtauby2);
 
     fU = computeGaugeForce(gauge);
-    update_mom(fU, mom, k == steps - 1 ? lambda_dt : two_lambda_dt);
-    
+    update_mom(fU, mom, k == steps - 1 ? lambda_dt : two_lambda_dt);    
   }
 }
 
@@ -553,7 +592,7 @@ void HMC::langevin_noise(field<double> *mom,field<Complex> *gauge){
   int Ny = gauge->p.Ny;
   double temp = 0.0;
   int d = Nx * Ny * 2;
-  double dtau = gauge->p.tau/gauge->p.n_step;
+  double dtau = gauge->p.beta_eps * gauge->p.tau/gauge->p.n_step;
   double nu = sqrt((exp(2 * dtau / sqrt(d)) - 1.0) / d);
   double langevined_norm2 = 0.;
   double langevined_norm = 0.;
@@ -872,5 +911,6 @@ HMC::~HMC() {
   for(int i=0; i<10; i++) delete guess_stack[i];
   delete phip;
   delete g3Dphi;
-  
+
+  delete mom_old;
 };
