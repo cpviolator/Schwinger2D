@@ -51,9 +51,9 @@ HMC_AR_DEGREE=12
 HMC_AR_GMP_PREC=40
 # HMC trajectory time
 HMC_TAU=1.0
-# Integrator type: leapfrog = 0, fgi = 1
+# Integrator type: leapfrog = 0, omelyan = 1, fgi = 2
 # FYI, aim for 70% acceptance with Leapfrog
-# and 90% with FGI for optimal FLOP usage
+# and 90% with FGI or OMELYAN for optimal FLOP usage
 HMC_INTEGRATOR=0
 # Sampler type: HMC = 0, MCHMC = 1
 HMC_SAMPLER=1
