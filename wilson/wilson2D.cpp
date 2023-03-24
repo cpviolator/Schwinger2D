@@ -34,11 +34,12 @@ int main(int argc, char **argv) {
   
   if(p.sampler == S_MCHMC){
     double d = p.Nx * p.Ny * 2;
+    cout << "Warning: manually changing tau from " << p.tau;
     p.tau = p.beta_eps * sqrt(d);
     p.n_step = 1;
     p.skip = 1;
       
-    cout << "Warning: manually changing tau from " << p.tau << " to " << p.tau << ", n_step from " << p.n_step << " to 1 and skip from " << p.skip << " to 1." << endl;
+    cout << " to " << p.tau << ", n_step from " << p.n_step << " to 1 and skip from " << p.skip << " to 1." << endl;
   }
   
   //Pseudo RNG seed

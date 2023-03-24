@@ -649,7 +649,7 @@ void HMC::langevin_noise(field<double> *mom,field<Complex> *gauge){
   int Ny = gauge->p.Ny;
   double temp = 0.0;
   int d = Nx * Ny * 2;
-  double dtau = gauge->p.beta_eps * gauge->p.tau/gauge->p.n_step;
+  double dtau = gauge->p.tau;
   double nu = sqrt((exp(2 * dtau / sqrt(d)) - 1.0) / d);
 
   // Peturb the momentum
