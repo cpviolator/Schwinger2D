@@ -97,10 +97,12 @@ HMC::HMC(Param param) {
     exit(0);    
   }
 
-  mom_old = new field<double>(param);
-  gaussReal(mom_old);
-  double norm = blas::norm2(mom_old);
-  blas::ax(1/sqrt(norm), mom_old);
+  if (param.sampler == S_MCHMC) {
+    mom_old = new field<double>(param);
+    gaussReal(mom_old);
+    double norm = blas::norm2(mom_old);
+    blas::ax(1/sqrt(norm), mom_old);
+  }
 };
 
 bool HMC::hmc_reversibility(field<Complex> *gauge, int iter) {
@@ -195,9 +197,10 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   field<Complex> *gauge_old = new field<Complex>(gauge->p);  
   blas::copy(gauge_old, gauge);
   
-  // init momentum
-  if (gauge->p.sampler == S_HMC ) gaussReal(mom);
-  else blas::copy(mom, mom_old);
+  // Init momentum. For MCHMC, copy from last call. If
+  // HMC, refresh. 
+  if (gauge->p.sampler == S_MCHMC ) blas::copy(mom, mom_old);    
+  else gaussReal(mom);
   
   // Create CG solver
   inv = new inverterCG(gauge->p);
@@ -265,7 +268,7 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
     }
   }
 
-  // init momentum
+  // Backup momentum for MCHMC
   if (gauge->p.sampler == S_MCHMC ) blas::copy(mom_old, mom);
   
   delete mom;
@@ -303,7 +306,10 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
   // fermion force (D operator)
   field<double> *fD;
 
-  double lambda_c = 0.1931833275037836; 
+  // Omelyan lambda critical
+  double lambda_c = 0.1931833275037836;
+
+  // FGI constants
   double lambda = 1.0/6.0;
   double xi = 1.0/72.0;  
   double lambda_dt = dtau*lambda;
@@ -317,8 +323,10 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
   case LEAPFROG:
     // Start LEAPFROG HMC trajectory
     //----------------------------------------------------------
+    // NB: Two fermion inversion per PQP call, and one for QPQ
     for(int k=0; k<gauge->p.n_step; k++) {
-      
+#if 1
+      //QPQ: more efficient, fewer fermion inversions
       //Initial half step.
       //U_{k} = exp(i (dtau/2) P_{k-1/2}) * U_{k-1}
       update_gauge(gauge, mom, dtauby2);
@@ -332,59 +340,95 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       //Final half step.
       //U_{k+1} = exp(i (dtau/2) P_{k+1/2}) * U_{k}
       update_gauge(gauge, mom, dtauby2);
-      if ( !(gauge->p.sampler == S_HMC) && (gauge->p.sampler == S_MCHMC)) langevin_noise(mom,gauge);
+#else
+      //PQP: less efficient, more fermion inversions
+      //Initial half step.
+      //P_{k+1/2} = P_{k-1/2} - dtau/2 * (fU - fD)
+      fU = computeGaugeForce(gauge);
+      fD = computeFermionForce(gauge, phi);
+      blas::axpy(-1.0, fD, fU);
+      update_mom(fU, mom, dtauby2);
+
+      //U_{k} = exp(i (dtau) P_{k-1/2}) * U_{k-1}
+      update_gauge(gauge, mom, dtau);
+      
+      //Final half step.
+      //P_{k+1/2} = P_{k-1/2} - dtau/2 * (fU - fD)
+      fU = computeGaugeForce(gauge);
+      fD = computeFermionForce(gauge, phi);
+      blas::axpy(-1.0, fD, fU);
+      update_mom(fU, mom, dtauby2);
+#endif
+      if (gauge->p.sampler == S_MCHMC) langevin_noise(mom, gauge);
     }    
     break;
     
   case OMELYAN:
     // Start OMELYAN HMC trajectory
     //----------------------------------------------------------
+    // NB: Three fermion inversion per PQPQP call, and two for QPQPQ
     for(int k=0; k<gauge->p.n_step; k++) {
-      
-      //U_{k} = exp(i (dtau/2) P_{k-1/2}) * U_{k-1}
+#if 1
+      //QPQPQ: more efficient, fewer fermion inversions
+      //U_{k} = exp(i (dtau * lambda) P_{k-1/2}) * U_{k-1}
       update_gauge(gauge, mom, dtau * lambda_c);
       
-      //P_{k+1/2} = P_{k-1/2} - dtau * (fU - fD)
+      //P_{k+1/2} = P_{k-1/2} - dtau/2 * (fU - fD)
       fU = computeGaugeForce(gauge);
       fD = computeFermionForce(gauge, phi);
       blas::axpy(-1.0, fD, fU);
       update_mom(fU, mom, dtauby2);
       
-      //U_{k} = exp(i (dtau/2) P_{k-1/2}) * U_{k-1}
+      //U_{k} = exp(i (dtau * (1-2*lambda) * P_{k-1/2}) * U_{k-1})
       update_gauge(gauge, mom, dtau * (1-2*lambda_c));
 
-      //P_{k+1/2} = P_{k-1/2} - dtau * (fU - fD)
+      //P_{k+1/2} = P_{k-1/2} - dtau/2 * (fU - fD)
       fU = computeGaugeForce(gauge);
       fD = computeFermionForce(gauge, phi);
       blas::axpy(-1.0, fD, fU);
       update_mom(fU, mom, dtauby2);
       
       //Final half step.
-      //U_{k+1} = exp(i (dtau/2) P_{k+1/2}) * U_{k}
+      //U_{k+1} = exp(i (dtau * lambda) P_{k+1/2}) * U_{k}
       update_gauge(gauge, mom, dtau * lambda_c);
-      if ( !(gauge->p.sampler == S_HMC) && (gauge->p.sampler == S_MCHMC)) langevin_noise(mom,gauge);
+#else
+      // PQPQP: less efficient, more fermion inversions
+      //P_{k+1/2} = P_{k-1/2} - (dtau * lambda) * (fU - fD)
+      fU = computeGaugeForce(gauge);
+      fD = computeFermionForce(gauge, phi);
+      blas::axpy(-1.0, fD, fU);
+      update_mom(fU, mom, dtau * lambda_c);
+      
+      //U_{k} = exp(i dtau/2 P_{k-1/2}) * U_{k-1}
+      update_gauge(gauge, mom, dtauby2);
+
+      //P_{k+1/2} = P_{k-1/2} - dtau * (1-2*lambda_c) * (fU - fD)
+      fU = computeGaugeForce(gauge);
+      fD = computeFermionForce(gauge, phi);
+      blas::axpy(-1.0, fD, fU);
+      update_mom(fU, mom, dtau * (1-2*lambda_c));
+      
+      //U_{k} = exp(i dtau/2 * P_{k-1/2}) * U_{k-1})
+      update_gauge(gauge, mom, dtauby2);
+
+      //P_{k+1/2} = P_{k-1/2} - dtau * lambda_c * (fU - fD)
+      fU = computeGaugeForce(gauge);
+      fD = computeFermionForce(gauge, phi);
+      blas::axpy(-1.0, fD, fU);
+      update_mom(fU, mom, dtau * lambda_c);
+#endif
+      if (gauge->p.sampler == S_MCHMC) langevin_noise(mom, gauge);
     }    
     break;
 
   case FGI:  
     // Start FGI trajectory
     //----------------------------------------------------------
+    // NB: Three fermion inversion per call, either for QPQPQ or PQPQP
+    // DMH: not working yet with MCHMC
     for(int k=0; k<gauge->p.n_step; k++) {
-
 #if 1
-      // QPQPQ: less efficient
-      innerFGI(mom, gauge, dtauby2/2, inner_step);
-      forceGradient(mom, phi, gauge, one_minus_2lambda_dt/2, xi_dtdt/2);
-      innerFGI(mom, gauge, dtauby2/2, inner_step);
-
-      fD = computeFermionForce(gauge, phi);
-      update_mom(fD, mom, -two_lambda_dt);
-      
-      innerFGI(mom, gauge, dtauby2/2, inner_step);
-      forceGradient(mom, phi, gauge, one_minus_2lambda_dt/2, xi_dtdt/2);
-      innerFGI(mom, gauge, dtauby2/2, inner_step);
-#else
-      //PQPQP: more efficient
+      //PQPQP: more efficient, `easier` fermion inversions
       if(k == 0) {
 	fD = computeFermionForce(gauge, phi);
 	update_mom(fD, mom, -lambda_dt);
@@ -396,8 +440,21 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       
       fD = computeFermionForce(gauge, phi);
       update_mom(fD, mom, k == gauge->p.n_step - 1 ? -lambda_dt : -two_lambda_dt);
+#else
+      // QPQPQ: less efficient, `harder` fermion inversions
+      innerFGI(mom, gauge, dtauby2/2, inner_step);
+      forceGradient(mom, phi, gauge, one_minus_2lambda_dt/2, xi_dtdt/2);
+      innerFGI(mom, gauge, dtauby2/2, inner_step);
+
+      fD = computeFermionForce(gauge, phi);
+      update_mom(fD, mom, -two_lambda_dt);
+      
+      innerFGI(mom, gauge, dtauby2/2, inner_step);
+      forceGradient(mom, phi, gauge, one_minus_2lambda_dt/2, xi_dtdt/2);
+      innerFGI(mom, gauge, dtauby2/2, inner_step);
 #endif
-    }    
+      if (gauge->p.sampler == S_MCHMC) langevin_noise(mom, gauge);
+    }
     break;
   default: cout << "Error: unknown integrator type" << endl; exit(0);
   }
@@ -594,23 +651,19 @@ void HMC::langevin_noise(field<double> *mom,field<Complex> *gauge){
   int d = Nx * Ny * 2;
   double dtau = gauge->p.beta_eps * gauge->p.tau/gauge->p.n_step;
   double nu = sqrt((exp(2 * dtau / sqrt(d)) - 1.0) / d);
-  double langevined_norm2 = 0.;
-  double langevined_norm = 0.;
+
+  // Peturb the momentum
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++)
       for(int mu=0; mu<2; mu++) {
         double randomN = distribution(generator);
         temp = mom->read(x,y,mu) + nu * randomN;
-        langevined_norm2 += abs(temp*temp);
         mom->write(x,y,mu, temp);
       }
-  langevined_norm = sqrt(langevined_norm2);
-  for(int x=0; x<Nx; x++)
-    for(int y=0; y<Ny; y++)
-      for(int mu=0; mu<2; mu++) {
-        temp = mom->read(x,y,mu)/langevined_norm;
-        mom->write(x,y,mu, temp);
-      }
+  
+  // Normalise the momentum
+  double norm = blas::norm2(mom);
+  blas::ax(1/sqrt(norm), mom);
 }
 
 //U_{k} = exp(i dtau P_{k-1/2}) * U_{k-1}
