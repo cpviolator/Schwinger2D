@@ -77,55 +77,25 @@ int main(int argc, char **argv) {
   cout << setprecision(16);
   
   HMC *HMCStep = new HMC(p);
-  
-  if(p.checkpoint_start > 0) {
-    
-    //Read in gauge field if requested
-    //---------------------------------------------------------------------
-    name = "gauge/gauge";
-    constructName(name, p);
-    name += "_traj" + to_string(p.checkpoint_start) + ".dat";	
-    readGauge(gauge,name);
-    iter_offset = p.checkpoint_start;    
-  } else {
-    
-    //Thermalise from random start
-    //---------------------------------------------------------------------
-    gettimeofday(&start, NULL);  
-    for(iter=iter_offset; iter<p.therm + iter_offset; iter++){      
 
-      //Perform HMC step
-      accept = HMCStep->hmc(gauge, iter);
-      gettimeofday(&total_end, NULL);  
-      t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
-      cout << fixed << setprecision(16) << iter+1 << " "; //Iteration
-      cout << t_total << " " << endl;                     //Time
+  //Thermalise
+  //---------------------------------------------------------------------
+  gettimeofday(&start, NULL);  
+  for(iter=p.checkpoint_start; iter<p.therm; iter++){      
       
-      // Write thermalised gauge
-      if((iter+1)%p.chkpt == 0 && p.checkpoint_start == 0) {	  
-	name = "gauge/gauge";
-	constructName(name, p);
-	name += "_traj" + to_string(iter+1) + ".dat";
-	writeGauge(gauge, name);
-#ifdef ENABLE_HDF5
-	//hdf5Example();
-#endif
-      }      
-    }
-    
-    gettimeofday(&end, NULL);  
-    t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-    
-    iter_offset += p.therm;
+    //Perform HMC step
+    accept = HMCStep->hmc(gauge, iter);
+    gettimeofday(&total_end, NULL);  
+    t_total = ((total_end.tv_sec  - total_start.tv_sec) * 1000000u + total_end.tv_usec - total_start.tv_usec) / 1.e6;
+    cout << fixed << setprecision(16) << iter +1 << " "; //Iteration
+    cout << t_total << " " << endl;                      //Time   
   }
-    
-  
+  gettimeofday(&end, NULL);  
+  t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
     
   //Begin thermalised trajectories
   //---------------------------------------------------------------------
-  for(iter=iter_offset; iter<p.iter_hmc + iter_offset; iter++){
-
-    gauge->p.current_hmc_iter = iter;
+  for(;iter<p.iter_hmc + p.therm; iter++){
     
     //Measure the topological charge at each step if trajectory is accepted
     //---------------------------------------------------------------------
@@ -176,41 +146,6 @@ int main(int argc, char **argv) {
     for(int i=0; i<histL; i++) fprintf(fp, "%d %d\n", i - (histL-1)/2, histQ[i]);
     fclose(fp);    
     
-    //Perform Measurements
-    //---------------------------------------------------------------------
-    if((iter)%p.skip == 0 && iter > p.therm && iter != p.checkpoint_start) {
-      
-      count++; //Number of measurements taken
-      
-      //Dump simulation data to stdout
-      gettimeofday(&total_end, NULL);  
-      cout << fixed << setprecision(16) << iter << " ";   // Iteration
-      cout << t_total << " ";                             // Time
-      cout << plaq << " ";                                // Action
-      cout << plaqSum/(count*p.skip) << " ";              // Average Action
-      cout << HMCStep->exp_dH << " ";                     // exp(-dH)
-      cout << HMCStep->exp_dH_ave/(count*p.skip) << " ";  // Average exp(-dH)
-      printf("%+.16f ", HMCStep->dH);                     // dH
-      cout << HMCStep->dH_ave/(count*p.skip) << " ";      // Average dH
-      cout << (double)accepted/(count*p.skip) << " ";     // Average Acceptance
-      cout << top_int << endl;                            // T charge
-      
-      //Physical observables
-      //-------------------------------------------------------------      
-      //Polyakov Loops      
-      //if(p.meas_pl) measPolyakovLoops(gauge, iter, p);
-      
-      //Creutz Ratios (for string tension)
-      if(p.meas_wl) measWilsonLoops(gauge, plaq, iter);
-
-      //Pion Correlation
-      if(p.meas_pc) measPionCorrelation(gauge, iter);
-
-      //Vacuum Trace
-      //if(p.meas_vt) measVacuumTrace(gauge, top_old, iter, p);
-      //-------------------------------------------------------------
-    }
-    
     //Perform HMC step
     gettimeofday(&start, NULL);
     accept = HMCStep->hmc(gauge, iter);
@@ -219,7 +154,7 @@ int main(int argc, char **argv) {
     t_hmc += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
 
     // Do a reversibility check
-    if((iter+1)%p.reverse == 0) {	  
+    if((iter+1)%p.reverse == 0 && p.sampler == S_HMC) {	  
       
       field<Complex> *gauge_old = new field<Complex>(p);
       blas::copy(gauge_old, gauge);
@@ -245,16 +180,40 @@ int main(int argc, char **argv) {
       cout << "L2 norm of gauge(t0) - flowed_gauge(t0->t1->t0) = " << std::scientific << blas::norm2(gauge_old)/(p.Nx * p.Ny * 2) << endl;
     }
     
-    //Checkpoint the gauge field?
-    if((iter+1)%p.chkpt == 0) {	  
-      name = "gauge/gauge";
-      constructName(name, p);
-      name += "_traj" + to_string(iter+1) + ".dat";
-      writeGauge(gauge, name);
-#ifdef ENABLE_HDF5
-      //hdf5Example();
-#endif
-    }
+    //Perform Measurements
+    //---------------------------------------------------------------------
+    if((iter+1)%p.skip == 0 && iter >= p.therm) {
+      
+      count++; //Number of measurements taken
+
+      //Dump simulation data to stdout
+      gettimeofday(&total_end, NULL);  
+      cout << fixed << setprecision(16) << iter +1 << " ";// Iteration
+      cout << t_total << " ";                             // Time
+      cout << plaq << " ";                                // Action
+      cout << plaqSum/(count*p.skip) << " ";              // Average Action
+      cout << HMCStep->exp_dH << " ";                     // exp(-dH)
+      cout << HMCStep->exp_dH_ave/(count*p.skip) << " ";  // Average exp(-dH)
+      printf("%+.16f ", HMCStep->dH);                     // dH
+      cout << HMCStep->dH_ave/(count*p.skip) << " ";      // Average dH
+      cout << (double)accepted/(count*p.skip) << " ";     // Average Acceptance
+      cout << top_int << endl;                            // T charge
+      
+      //Physical observables
+      //-------------------------------------------------------------      
+      //Polyakov Loops      
+      //if(p.meas_pl) measPolyakovLoops(gauge, iter, p);
+      
+      //Creutz Ratios (for string tension)
+      if(p.meas_wl) measWilsonLoops(gauge, plaq, iter);
+
+      //Pion Correlation
+      if(p.meas_pc) measPionCorrelation(gauge, iter);
+
+      //Vacuum Trace
+      //if(p.meas_vt) measVacuumTrace(gauge, top_old, iter, p);
+      //-------------------------------------------------------------
+    }    
   }
   return 0;
 }

@@ -196,10 +196,30 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   
   field<Complex> *gauge_old = new field<Complex>(gauge->p);  
   blas::copy(gauge_old, gauge);
+
+  string name;
+  char fname[256];
+
+  //Read in gauge field and momentum if requested
+  //---------------------------------------------------------------------
+  if(gauge->p.checkpoint_start == iter && iter > 0) {
+    // Read gauge
+    name = "gauge/gauge";
+    constructName(name, gauge->p);
+    name += "_traj" + to_string(gauge->p.checkpoint_start) + ".dat";	
+    readGauge(gauge,name);
+
+    if (gauge->p.sampler == S_MCHMC) {
+      // Read momentum
+      name = "mom/mom";
+      constructName(name, gauge->p);
+      name += "_traj" + to_string(gauge->p.checkpoint_start) + ".dat";
+      readMom(mom_old, name);
+    }
+  }
   
-  // Init momentum. For MCHMC, copy from last call. If
-  // HMC, refresh. 
-  if (gauge->p.sampler == S_MCHMC ) blas::copy(mom, mom_old);    
+  // Init momentum. For MCHMC, copy from last call. If HMC, refresh.
+  if (gauge->p.sampler == S_MCHMC) blas::copy(mom, mom_old);    
   else gaussReal(mom);
   
   // Create CG solver
@@ -253,8 +273,8 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
 
   // Metropolis accept/reject step
   if (iter >= gauge->p.therm) {    
-    if ( ( drand48() > exp(-(H-H_old)) ) && !(gauge->p.sampler == S_MCHMC ) ) {
-
+    if ( ( drand48() > exp(-(H-H_old)) ) && (gauge->p.sampler == S_HMC ) ) {
+      
       // Reject the configuration
       blas::copy(gauge, gauge_old);
     }
@@ -269,7 +289,24 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   }
 
   // Backup momentum for MCHMC
-  if (gauge->p.sampler == S_MCHMC ) blas::copy(mom_old, mom);
+  if (gauge->p.sampler == S_MCHMC ) {
+    blas::copy(mom_old, mom);
+    // Write momentum
+    if((iter+1)%gauge->p.chkpt == 0) {
+      name = "mom/mom";
+      constructName(name, gauge->p);
+      name += "_traj" + to_string(iter+1) + ".dat";
+      writeMom(mom, name);
+    }
+  }
+
+  // Write thermalised gauge
+  if((iter+1)%gauge->p.chkpt == 0) {	  
+    name = "gauge/gauge";
+    constructName(name, gauge->p);
+    name += "_traj" + to_string(iter+1) + ".dat";
+    writeGauge(gauge, name);
+  }
   
   delete mom;
   delete phi[0]; delete phi[1];
@@ -280,18 +317,15 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   return accept;
 }
 
-field<double>* HMC::computeFermionForce(field<Complex> *gauge, std::vector<field<Complex>*> &phi) {
-  
-  field<double> *fD = new field<double>(gauge->p);
-  field<double> *fD_rat;
+void HMC::computeFermionForce(field<double>* fD, field<Complex> *gauge, std::vector<field<Complex>*> &phi) {
   
   forceD(fD, phi[0], gauge);
   if(gauge->p.flavours == 3) {
-    fD_rat = new field<double>(gauge->p);
+    field<double> *fD_rat = new field<double>(gauge->p);
     forceMultiD(fD_rat, phi[1], gauge);
     blas::axpy(1.0, fD_rat, fD);
+    delete fD_rat;
   }
-  return fD;
 }
 
 void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<field<Complex>*> &phi, int iter){
@@ -301,11 +335,11 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
   double ave_iter = 0;
   
   // gauge force (U field)
-  field<double> *fU;
+  field<double> *fU = new field<double>(gauge->p);
   
   // fermion force (D operator)
-  field<double> *fD;
-
+  field<double> *fD = new field<double>(gauge->p);
+  
   // Omelyan lambda critical
   double lambda_c = 0.1931833275037836;
 
@@ -332,8 +366,8 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       update_gauge(gauge, mom, dtauby2);
       
       //P_{k+1/2} = P_{k-1/2} - dtau * (fU - fD)
-      fU = computeGaugeForce(gauge);
-      fD = computeFermionForce(gauge, phi);
+      computeGaugeForce(fU, gauge);
+      computeFermionForce(fD, gauge, phi);
       blas::axpy(-1.0, fD, fU);
       update_mom(fU, mom, dtau);
       
@@ -344,8 +378,8 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       //PQP: less efficient, more fermion inversions
       //Initial half step.
       //P_{k+1/2} = P_{k-1/2} - dtau/2 * (fU - fD)
-      fU = computeGaugeForce(gauge);
-      fD = computeFermionForce(gauge, phi);
+      computeGaugeForce(fU, gauge);
+      computeFermionForce(fD, gauge, phi);
       blas::axpy(-1.0, fD, fU);
       update_mom(fU, mom, dtauby2);
 
@@ -354,13 +388,13 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       
       //Final half step.
       //P_{k+1/2} = P_{k-1/2} - dtau/2 * (fU - fD)
-      fU = computeGaugeForce(gauge);
-      fD = computeFermionForce(gauge, phi);
+      computeGaugeForce(gauge);
+      computeFermionForce(gauge, phi);
       blas::axpy(-1.0, fD, fU);
       update_mom(fU, mom, dtauby2);
 #endif
       if (gauge->p.sampler == S_MCHMC) langevin_noise(mom, gauge);
-    }    
+    }
     break;
     
   case OMELYAN:
@@ -374,8 +408,8 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       update_gauge(gauge, mom, dtau * lambda_c);
       
       //P_{k+1/2} = P_{k-1/2} - dtau/2 * (fU - fD)
-      fU = computeGaugeForce(gauge);
-      fD = computeFermionForce(gauge, phi);
+      computeGaugeForce(fU, gauge);
+      computeFermionForce(fD, gauge, phi);
       blas::axpy(-1.0, fD, fU);
       update_mom(fU, mom, dtauby2);
       
@@ -383,8 +417,8 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       update_gauge(gauge, mom, dtau * (1-2*lambda_c));
 
       //P_{k+1/2} = P_{k-1/2} - dtau/2 * (fU - fD)
-      fU = computeGaugeForce(gauge);
-      fD = computeFermionForce(gauge, phi);
+      computeGaugeForce(fU, gauge);
+      computeFermionForce(fD, gauge, phi);
       blas::axpy(-1.0, fD, fU);
       update_mom(fU, mom, dtauby2);
       
@@ -394,8 +428,8 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
 #else
       // PQPQP: less efficient, more fermion inversions
       //P_{k+1/2} = P_{k-1/2} - (dtau * lambda) * (fU - fD)
-      fU = computeGaugeForce(gauge);
-      fD = computeFermionForce(gauge, phi);
+      computeGaugeForce(fU, gauge);
+      computeFermionForce(fD, gauge, phi);
       blas::axpy(-1.0, fD, fU);
       update_mom(fU, mom, dtau * lambda_c);
       
@@ -403,8 +437,8 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       update_gauge(gauge, mom, dtauby2);
 
       //P_{k+1/2} = P_{k-1/2} - dtau * (1-2*lambda_c) * (fU - fD)
-      fU = computeGaugeForce(gauge);
-      fD = computeFermionForce(gauge, phi);
+      computeGaugeForce(fU, gauge);
+      computeFermionForce(fD, gauge, phi);
       blas::axpy(-1.0, fD, fU);
       update_mom(fU, mom, dtau * (1-2*lambda_c));
       
@@ -412,13 +446,13 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       update_gauge(gauge, mom, dtauby2);
 
       //P_{k+1/2} = P_{k-1/2} - dtau * lambda_c * (fU - fD)
-      fU = computeGaugeForce(gauge);
-      fD = computeFermionForce(gauge, phi);
+      computeGaugeForce(fU, gauge);
+      computeFermionForce(fD, gauge, phi);
       blas::axpy(-1.0, fD, fU);
       update_mom(fU, mom, dtau * lambda_c);
 #endif
       if (gauge->p.sampler == S_MCHMC) langevin_noise(mom, gauge);
-    }    
+    }
     break;
 
   case FGI:  
@@ -430,7 +464,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
 #if 1
       //PQPQP: more efficient, `easier` fermion inversions
       if(k == 0) {
-	fD = computeFermionForce(gauge, phi);
+	computeFermionForce(fD, gauge, phi);
 	update_mom(fD, mom, -lambda_dt);
       }
       
@@ -438,7 +472,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       forceGradient(mom, phi, gauge, one_minus_2lambda_dt, xi_dtdt);
       innerFGI(mom, gauge, dtauby2, inner_step);
       
-      fD = computeFermionForce(gauge, phi);
+      computeFermionForce(fD, gauge, phi);
       update_mom(fD, mom, k == gauge->p.n_step - 1 ? -lambda_dt : -two_lambda_dt);
 #else
       // QPQPQ: less efficient, `harder` fermion inversions
@@ -446,7 +480,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       forceGradient(mom, phi, gauge, one_minus_2lambda_dt/2, xi_dtdt/2);
       innerFGI(mom, gauge, dtauby2/2, inner_step);
 
-      fD = computeFermionForce(gauge, phi);
+      computeFermionForce(fD, gauge, phi);
       update_mom(fD, mom, -two_lambda_dt);
       
       innerFGI(mom, gauge, dtauby2/2, inner_step);
@@ -468,13 +502,13 @@ void HMC::forceGradient(field<double> *mom, std::vector<field<Complex>*> phi, fi
   // Copy the gauge and momentum, zero out the original momentum
   field<Complex> *gauge_copy = new field<Complex>(gauge->p);
   field<double> *mom_copy = new field<double>(mom->p);
-  field<double> *fD;
+  field<double> *fD = new field<double>(mom->p);
   
   blas::copy(gauge_copy, gauge);
   blas::copy(mom_copy, mom);
   blas::zero(mom);
 
-  fD = computeFermionForce(gauge, phi);
+  computeFermionForce(fD, gauge, phi);
   update_mom(fD, mom, -xi_dtdt / one_minus_2lambda_dt);
   
   // Given the momentum kick (force), update the links to U'
@@ -484,7 +518,7 @@ void HMC::forceGradient(field<double> *mom, std::vector<field<Complex>*> phi, fi
   blas::copy(mom, mom_copy);
   
   // Add our kick to the momentum
-  fD = computeFermionForce(gauge, phi);
+  computeFermionForce(fD, gauge, phi);
   update_mom(fD, mom, -one_minus_2lambda_dt);
   
   // Restore the gauge field
@@ -500,13 +534,13 @@ void HMC::forceGradient(field<double> *mom, field<Complex> *gauge,
   // Copy the gauge and momentum, zero out the original momentum
   field<Complex> *gauge_copy = new field<Complex>(gauge->p);
   field<double> *mom_copy = new field<double>(mom->p);
-  field<double> *fU;
+  field<double> *fU = new field<double>(mom->p);
   blas::copy(gauge_copy, gauge);
   blas::copy(mom_copy, mom);
   blas::zero(mom);
 
   // Compute the forces
-  fU = computeGaugeForce(gauge);
+  computeGaugeForce(fU, gauge);
   update_mom(fU, mom, xi_dtdt / one_minus_2lambda_dt);
   
   // Given the momentum kick (force), update the links to U'
@@ -516,7 +550,7 @@ void HMC::forceGradient(field<double> *mom, field<Complex> *gauge,
   blas::copy(mom, mom_copy);
 
   // Add our kick to the momentum
-  fU = computeGaugeForce(gauge);
+  computeGaugeForce(fU, gauge);
   update_mom(fU, mom, one_minus_2lambda_dt);
   
   // Restore the gauge field
@@ -539,12 +573,12 @@ void HMC::innerFGI(field<double> *mom, field<Complex> *gauge, double tau, int st
   double two_lambda_dt = lambda_dt*2;
   double xi_dtdt = 2*dtau*dtau*dtau*xi;
 
-  field<double> *fU;
+  field<double> *fU = new field<double>(mom->p);
   
   for(int k=0; k < steps; k++){
 
     if(k == 0) {
-      fU = computeGaugeForce(gauge);
+      computeGaugeForce(fU, gauge);
       update_mom(fU, mom, lambda_dt);
     }
 
@@ -552,14 +586,13 @@ void HMC::innerFGI(field<double> *mom, field<Complex> *gauge, double tau, int st
     forceGradient(mom, gauge, one_minus_2lambda_dt, xi_dtdt);
     update_gauge(gauge, mom, dtauby2);
 
-    fU = computeGaugeForce(gauge);
+    computeGaugeForce(fU, gauge);
     update_mom(fU, mom, k == steps - 1 ? lambda_dt : two_lambda_dt);    
   }
 }
 
-field<double>* HMC::computeGaugeForce(field<Complex> *gauge) {
-
-  field<double> *fU = new field<double>(gauge->p);
+void HMC::computeGaugeForce(field<double> *fU, field<Complex> *gauge) {
+  
   Complex plaq0 = 0.0, plaq = 0.0;
   double temp = 0.0;
   int xp1, xm1, yp1, ym1;
@@ -586,7 +619,7 @@ field<double>* HMC::computeGaugeForce(field<Complex> *gauge) {
       fU->write(x,y,1, temp);
     }
   }
-  return fU;
+  return;
 }
 
 //P_{k+1/2} = P_{k-1/2} - dtau * (f)

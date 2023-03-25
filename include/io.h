@@ -12,6 +12,10 @@ using namespace std;
 void writeGauge(field<Complex> *gauge, string name);
 void readGauge(field<Complex> *gauge, string name);
 
+// Momentum
+void writeMom(field<double> *mom, string name);
+void readMom(field<double> *mom, string name);
+
 // PFE
 void writePFE(PFE &pfe, string name);
 bool readPFE(PFE &pfe, string name);
