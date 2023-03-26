@@ -43,6 +43,7 @@ void Param::usage(char **argv) {
   printf("--cg-max-iter <N>                Maximum CG iterations before failure exit (1000).\n");
   printf("--cg-tol <float>                 Relative residual norm of CG solution (1e-9).\n");
   printf("--cg-verbosity <bool>            Sets CG verbosity as verbose or quiet (false).\n");
+  printf("--sampler-distinction <bool>     Indication of Sampler type in file name (false).\n");
   printf("\nEIGENSOLVER PARAMS\n");
   printf("--eig-n-ev <N>                   Size of IRAM search space (16).\n");
   printf("--eig-n-kr <N>                   Size of IRAM Krylov space (32).\n");
@@ -399,7 +400,30 @@ int Param::init(int argc, char **argv, int *idx) {
     i++;
     ret = 0;
     goto out;
-  } 
+  }
+    
+  // CG verbosity
+  if( strcmp(argv[i], "--sampler-distinction") == 0){
+    if (i+1 >= argc){
+      usage(argv);
+    }  
+    std::string sampler_dist(argv[i+1]);
+    if (sampler_dist == "true" || sampler_dist == "TRUE" ||
+	sampler_dist == "1") {
+      sampler_distinction = true;
+    }
+    else if (sampler_dist == "false" || sampler_dist == "FALSE" ||
+	sampler_dist == "0") {
+      sampler_distinction = false;
+    }
+      else {
+      cout<<"Invalid distinction condition ("<< sampler_dist<< ") given. Use false/true"<<endl;
+      exit(0);
+    }
+    i++;
+    ret = 0;
+    goto out;
+  }
 
   // Eigensolver params
   //-------------------------------------
@@ -795,9 +819,9 @@ void Param::print() {
 void constructName(string &name, Param p) {
 
   // Basics
-  //string sampler_string = p.sampler == S_HMC ? "_HMC" : "_MCHMC";
-
-  name += "_LX" + to_string(p.Nx) + "_LY" + to_string(p.Ny) + "_B" + to_string(p.beta);
+  string sampler_string = p.sampler == S_HMC ? "_HMC" : "_MCHMC";
+  string sampler_string_final = p.sampler_distinction == false ? "" : sampler_string;
+  name += "_LX" + to_string(p.Nx) + "_LY" + to_string(p.Ny) + "_B" + to_string(p.beta) + sampler_string_final;
 
   // Fermions
   if(p.flavours == 2) {

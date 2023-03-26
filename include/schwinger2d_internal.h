@@ -104,6 +104,7 @@ public:
   int max_iter_cg = 1000;
   double tol_cg = 1e-9;
   bool cg_verbosity = false;
+  bool sampler_distinction = false;
   Integrator integrator = FGI;
   Sampler sampler = S_HMC;
   double beta_eps = 0.2;

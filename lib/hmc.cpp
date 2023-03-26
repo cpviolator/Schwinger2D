@@ -268,7 +268,8 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
     hmc_count++;
   }
   
-  if (gauge->p.sampler == S_HMC ) exp_dH = exp(-(H-H_old));
+  // if (gauge->p.sampler == S_HMC ) exp_dH = exp(-(H-H_old));
+  exp_dH = exp(-(H-H_old));
   dH = (H-H_old);
 
   // Metropolis accept/reject step
@@ -670,6 +671,7 @@ void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
                 {
                 temp = 2*zeta*(mom->read(x,y,mu)) - (f->read(x,y,mu)/f_norm )* (1-zeta) * (1+zeta+ue *(1-zeta));
                 mom->write(x,y,mu, temp);}
+    double delta_r = delta - log(2) + log(1 + ue + (1-ue)*zeta*zeta);
   } 
     
 }
@@ -910,15 +912,20 @@ double HMC::measMomAction(field<double> *mom) {
   double temp = 0.0;
   int Nx = mom->p.Nx;
   int Ny = mom->p.Ny;
+  int d = Nx * Ny * 2;
 #pragma	omp parallel for reduction (+:action)
-  for(int x=0; x<Nx; x++)
-    for(int y=0; y<Ny; y++){
-      for(int mu=0; mu<2; mu++){
-	double temp = mom->read(x,y,mu);
-	action += 0.5 * temp * temp;
-      }
-    }
-  
+  if (mom->p.sampler == S_HMC){
+      for(int x=0; x<Nx; x++)
+        for(int y=0; y<Ny; y++){
+          for(int mu=0; mu<2; mu++){
+                double temp = mom->read(x,y,mu);
+                action += 0.5 * temp * temp;
+            }
+          }
+  }
+  else if (mom->p.sampler == S_MCHMC){
+      action = 0.5*d*log(blas::norm2(mom)/d);
+  }
   return action;
 }
 
@@ -958,8 +965,10 @@ double HMC::measAction(field<double> *mom, field<Complex> *gauge, std::vector<fi
   int Ny = gauge->p.Ny;
   int Nx = gauge->p.Nx;
   
+
   action += measMomAction(mom);
   action += (Nx * Ny)*beta*real(1.0 - measPlaq(gauge));
+
 
   if(gauge->p.flavours > 0) action += measFermAction(gauge, phi[0], pfe, false);
   if(gauge->p.flavours == 3) action += measFermAction(gauge, phi[1], pfe, true);
