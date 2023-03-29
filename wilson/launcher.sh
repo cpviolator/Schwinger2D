@@ -65,6 +65,8 @@ MAX_CG_ITER=10000
 CG_TOL=1e-9
 # CG verbosity
 CG_VERBOSITY=false
+# Sampler distinction
+SAMPLER_DISTINCTION=false
 
 # Eigensolver parameters
 #-----------------------------------------------
@@ -123,7 +125,8 @@ HMC_PARAMS="--hmc-traj-length ${HMC_TAU} --hmc-n-step ${HMC_NSTEP} --hmc-inner-s
 	    --hmc-checkpoint-start ${HMC_CHKPT_START} --hmc-skip ${HMC_SKIP} --hmc-reverse ${HMC_REVERSE} \
             --hmc-integrator ${HMC_INTEGRATOR} --hmc-sampler ${HMC_SAMPLER} --beta-eps ${HMC_BETA_EPS} \
 	    --pfe-degree ${HMC_AR_DEGREE} --pfe-prec ${HMC_AR_GMP_PREC} \
-	    --cg-max-iter ${MAX_CG_ITER} --cg-tol ${CG_TOL} --cg-verbosity ${CG_VERBOSITY}"
+	    --cg-max-iter ${MAX_CG_ITER} --cg-tol ${CG_TOL} --cg-verbosity ${CG_VERBOSITY} \
+        --sampler-distinction ${SAMPLER_DISTINCTION}"
 
 EIG_PARAMS="--eig-n-ev ${NEV} --eig-n-kr ${NKR} --eig-n-conv ${NCONV} --eig-n-deflate ${NDEFL} --eig-max-restarts ${MAX_IRAM_ITER} \
             --eig-tol ${EIG_TOL} --eig-operator ${EIG_OP} --eig-spectrum ${EIG_SPEC} --eig-block-scheme ${X_BLK} ${Y_BLK} \
