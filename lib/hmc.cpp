@@ -277,12 +277,15 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
       
       // Reject the configuration
       blas::copy(gauge, gauge_old);
+      // If a trajectory is rejected, the action difference
+      // is zero, so we only add 1 to exp_dH_ave
+      exp_dH_ave += 1.0;
     }
     else {
       // Accept this configuration
       accept = 1;
       // If a trajectory is rejected, the action difference
-      // is zero, so we only add when the gauge is accepted.
+      // is zero, so we only add to dH_ave when the gauge is accepted.
       exp_dH_ave += exp_dH;
       dH_ave += dH;
     }
