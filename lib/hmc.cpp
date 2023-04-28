@@ -673,15 +673,16 @@ void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
 
 void HMC::langevin_noise(field<double> *mom,field<Complex> *gauge){
   std::normal_distribution<double> distribution(0.0,1.0);
-  std::random_device random_g = std::random_device{};
+  //// Try one of the two options below if one doesnt compile
+  // std::random_device random_g = std::random_device{};
+  std::random_device random_g;
+  ////
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
   double temp = 0.0;
   int d = Nx * Ny * 2;
   double dtau = gauge->p.tau;
   double nu = sqrt((exp(2 * dtau / sqrt(d)) - 1.0) / d);
-  std::cout<<"nu "<< nu <<"\n";
-  std::cout<<"dtau "<< dtau <<"\n";
   // Peturb the momentum
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++)
