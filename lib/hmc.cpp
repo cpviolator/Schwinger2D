@@ -208,7 +208,7 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
     constructName(name, gauge->p);
     name += "_traj" + to_string(gauge->p.checkpoint_start) + ".dat";	
     readGauge(gauge,name);
-
+    
     if (gauge->p.sampler == S_MCHMC) {
       // Read momentum
       name = "mom/mom";
@@ -378,7 +378,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       //Final half step.
       //U_{k+1} = exp(i (dtau/2) P_{k+1/2}) * U_{k}
       update_gauge(gauge, mom, dtauby2);
-#else
+#else 
       //PQP: less efficient, more fermion inversions
       //Initial half step.
       //P_{k+1/2} = P_{k-1/2} - dtau/2 * (fU - fD)
@@ -392,10 +392,11 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       
       //Final half step.
       //P_{k+1/2} = P_{k-1/2} - dtau/2 * (fU - fD)
-      computeGaugeForce(gauge);
-      computeFermionForce(gauge, phi);
+      computeGaugeForce(fU, gauge);
+      computeFermionForce(fD, gauge, phi);
       blas::axpy(-1.0, fD, fU);
       update_mom(fU, mom, dtauby2);
+
 #endif
       if (gauge->p.sampler == S_MCHMC) langevin_noise(mom, gauge);
     }
@@ -604,6 +605,8 @@ void HMC::computeGaugeForce(field<double> *fU, field<Complex> *gauge) {
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
   double beta = gauge->p.beta;
+  double dtau = gauge->p.tau/gauge->p.n_step;
+
   for(int x=0; x<Nx; x++) {
     xp1 = (x+1)%Nx;
     xm1 = (x-1+Nx)%Nx;
@@ -632,7 +635,7 @@ void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
   int Nx = f->p.Nx;
   int Ny = f->p.Ny;
   double temp = 0.0;
-   
+
   if (mom->p.sampler == S_HMC) {  
     for(int x=0; x<Nx; x++)
       for(int y=0; y<Ny; y++)
@@ -641,25 +644,7 @@ void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
 	  mom->write(x,y,mu, temp);
 	}
   }
-//   ALTERNATE MCMHC DEFINITION, WHICH 
-//   else if (mom->p.sampler == S_MCHMC) {
-//     int d = Nx * Ny * 2;
-//     int f_norm = sqrt(blas::norm2(f)); 
-//     double ue = -1.0 * blas::DotProd(f,mom)/f_norm;
-//     double sh = sinh(dtau * f_norm / (d-1));
-//     double ch = cosh(dtau * f_norm / (d-1));
-//     double th = tanh(dtau * f_norm / (d-1));
-//     double delta_r = log(ch) + log1p(ue*th);
 
-//     // cout << "ue = << " << ue << " sh = << " << sh << " th = << " << th << " delta_r = " << delta_r << endl;
-    
-//     for(int x=0; x<Nx; x++)
-//       for(int y=0; y<Ny; y++)
-// 	for(int mu=0; mu<2; mu++) {
-// 	  temp = (mom->read(x,y,mu) - f->read(x,y,mu)/f_norm * (sh + ue * (ch - 1)))/ (ch + ue * sh);
-// 	  mom->write(x,y,mu, temp);
-// 	}
-//   }
   else if (mom->p.sampler == S_MCHMC) {
     double f_norm = sqrt(blas::norm2(f)); 
     int d = Nx * Ny * 2;
@@ -667,14 +652,20 @@ void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
     double ue = -blas::DotProd(f,mom) / f_norm;
     double delta = dtau * f_norm / (d-1);
 
+      
     double zeta = exp(-delta);
         for(int x=0; x<Nx; x++)
                 for(int y=0; y<Ny; y++)
                   for(int mu=0; mu<2; mu++)  
                 {
+                
                 temp = 2*zeta*(mom->read(x,y,mu)) - (f->read(x,y,mu)/f_norm )* (1-zeta) * (1+zeta+ue *(1-zeta));
-                mom->write(x,y,mu, temp);}
-    double delta_r = delta - log(2) + log(1 + ue + (1-ue)*zeta*zeta);
+                mom->write(x,y,mu, temp);
+                  
+                  }
+      
+      blas::ax(1/sqrt(blas::norm2(mom)), mom);
+    // double delta_r = delta - log(2) + log(1 + ue + (1-ue)*zeta*zeta);
   } 
     
 }
@@ -682,26 +673,26 @@ void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
 
 void HMC::langevin_noise(field<double> *mom,field<Complex> *gauge){
   std::normal_distribution<double> distribution(0.0,1.0);
-  std::default_random_engine generator;
+  std::random_device random_g = std::random_device{};
   int Nx = gauge->p.Nx;
   int Ny = gauge->p.Ny;
   double temp = 0.0;
   int d = Nx * Ny * 2;
   double dtau = gauge->p.tau;
   double nu = sqrt((exp(2 * dtau / sqrt(d)) - 1.0) / d);
-
+  std::cout<<"nu "<< nu <<"\n";
+  std::cout<<"dtau "<< dtau <<"\n";
   // Peturb the momentum
   for(int x=0; x<Nx; x++)
     for(int y=0; y<Ny; y++)
       for(int mu=0; mu<2; mu++) {
-        double randomN = distribution(generator);
+        double randomN = distribution(random_g);
         temp = mom->read(x,y,mu) + nu * randomN;
         mom->write(x,y,mu, temp);
       }
   
   // Normalise the momentum
-  double norm = blas::norm2(mom);
-  blas::ax(1/sqrt(norm), mom);
+  blas::ax(1/sqrt(blas::norm2(mom)), mom);
 }
 
 //U_{k} = exp(i dtau P_{k-1/2}) * U_{k-1}
@@ -902,7 +893,6 @@ double HMC::measGaugeAction(field<Complex> *gauge) {
       int yp1 = (y+1)%Ny;
       Complex plaq = (gauge->read(x,y,0) * gauge->read(xp1,y,1) *
 		      conj(gauge->read(x,yp1,0)) * conj(gauge->read(x,y,1)));
-      
       action += beta*real(1.0 - plaq);      
     }
   }

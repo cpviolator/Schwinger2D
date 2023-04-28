@@ -183,7 +183,6 @@ int main(int argc, char **argv) {
     //Perform Measurements
     //---------------------------------------------------------------------
     if((iter+1)%p.skip == 0 && iter >= p.therm) {
-      
       count++; //Number of measurements taken
 
       //Dump simulation data to stdout
