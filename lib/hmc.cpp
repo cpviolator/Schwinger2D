@@ -396,7 +396,6 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       computeFermionForce(fD, gauge, phi);
       blas::axpy(-1.0, fD, fU);
       update_mom(fU, mom, dtauby2);
-
 #endif
       if (gauge->p.sampler == S_MCHMC) langevin_noise(mom, gauge);
     }
@@ -476,7 +475,7 @@ void HMC::trajectory(field<double> *mom, field<Complex> *gauge, std::vector<fiel
       innerFGI(mom, gauge, dtauby2, inner_step);
       forceGradient(mom, phi, gauge, one_minus_2lambda_dt, xi_dtdt);
       innerFGI(mom, gauge, dtauby2, inner_step);
-      
+
       computeFermionForce(fD, gauge, phi);
       update_mom(fD, mom, k == gauge->p.n_step - 1 ? -lambda_dt : -two_lambda_dt);
 #else
@@ -630,13 +629,13 @@ void HMC::computeGaugeForce(field<double> *fU, field<Complex> *gauge) {
 }
 
 //P_{k+1/2} = P_{k-1/2} - dtau * (f)
-void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
+void HMC::update_mom(field<double> *f, field<double> *mom, double dtau, bool use_hmc_default){
   
   int Nx = f->p.Nx;
   int Ny = f->p.Ny;
   double temp = 0.0;
 
-  if (mom->p.sampler == S_HMC) {  
+  if (mom->p.sampler == S_HMC || use_hmc_default) {  
     for(int x=0; x<Nx; x++)
       for(int y=0; y<Ny; y++)
 	for(int mu=0; mu<2; mu++) {
@@ -644,8 +643,7 @@ void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
 	  mom->write(x,y,mu, temp);
 	}
   }
-
-  else if (mom->p.sampler == S_MCHMC) {
+  else if (mom->p.sampler == S_MCHMC && !use_hmc_default) {
     double f_norm = sqrt(blas::norm2(f)); 
     int d = Nx * Ny * 2;
     //update u
@@ -654,17 +652,17 @@ void HMC::update_mom(field<double> *f, field<double> *mom, double dtau){
 
       
     double zeta = exp(-delta);
-        for(int x=0; x<Nx; x++)
-                for(int y=0; y<Ny; y++)
-                  for(int mu=0; mu<2; mu++)  
-                {
+    for(int x=0; x<Nx; x++)
+      for(int y=0; y<Ny; y++)
+	for(int mu=0; mu<2; mu++)  
+	  {
                 
-                temp = 2*zeta*(mom->read(x,y,mu)) - (f->read(x,y,mu)/f_norm )* (1-zeta) * (1+zeta+ue *(1-zeta));
-                mom->write(x,y,mu, temp);
+	    temp = 2*zeta*(mom->read(x,y,mu)) - (f->read(x,y,mu)/f_norm )* (1-zeta) * (1+zeta+ue *(1-zeta));
+	    mom->write(x,y,mu, temp);
                   
-                  }
+	  }
       
-      blas::ax(1/sqrt(blas::norm2(mom)), mom);
+    blas::ax(1/sqrt(blas::norm2(mom)), mom);
     // double delta_r = delta - log(2) + log(1 + ue + (1-ue)*zeta*zeta);
   } 
     

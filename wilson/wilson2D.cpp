@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
     //---------------------------------------------------------------------
     if((iter+1)%p.skip == 0 && iter >= p.therm) {
       count++; //Number of measurements taken
-
+      
       //Dump simulation data to stdout
       gettimeofday(&total_end, NULL);  
       cout << fixed << setprecision(16) << iter +1 << " ";// Iteration
@@ -197,7 +197,7 @@ int main(int argc, char **argv) {
       cout << HMCStep->dH_ave/(count*p.skip) << " ";      // Average dH
       cout << (double)accepted/(count*p.skip) << " ";     // Average Acceptance
       cout << top_int << endl;                            // T charge
-      
+
       //Physical observables
       //-------------------------------------------------------------      
       //Polyakov Loops      
