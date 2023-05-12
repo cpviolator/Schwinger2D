@@ -269,8 +269,14 @@ int HMC::hmc(field<Complex> *gauge, int iter) {
   }
   
   // if (gauge->p.sampler == S_HMC ) exp_dH = exp(-(H-H_old));
-  exp_dH = exp(-(H-H_old));
-  dH = (H-H_old);
+  if (gauge->p.sampler == S_HMC ){
+      exp_dH = exp(-(H-H_old));
+      dH = (H-H_old);
+  }
+  else if (gauge->p.sampler == S_MCHMC ){
+      exp_dH = 1.0;
+      dH = (H-H_old);
+  }
 
   // Metropolis accept/reject step
   if (iter >= gauge->p.therm) {    

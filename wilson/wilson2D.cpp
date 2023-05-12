@@ -46,6 +46,7 @@ int main(int argc, char **argv) {
   srand48((long)p.seed);
   
   //Topology
+  bool evolve_started = false;  
   double top = 0.0;
   int top_int = 0;
   int top_old = 0;
@@ -105,7 +106,8 @@ int main(int argc, char **argv) {
     constructName(name, p);
     name += ".dat";
     snprintf(fname, 100, "%s", name.c_str());
-    fp = fopen(fname, iter==iter_offset ? "w" : "a");
+    fp = fopen(fname, !evolve_started ? "w" : "a");
+    evolve_started = true;
     fprintf(fp, "%d %d\n", iter, top_int);
     fclose(fp);
     

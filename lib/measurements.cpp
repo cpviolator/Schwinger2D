@@ -160,7 +160,7 @@ void measPionCorrelation(field<Complex> *gauge, int iter)
       
       corr += tmp;
     }
-    
+    //NOTE: CHANGE TO UNFOLDED
     //Compute folded propagator
     if ( y < ((Ny/2)+1) ) pion_corr[y] += corr;
     else {
