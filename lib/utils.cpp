@@ -790,7 +790,18 @@ void Param::print() {
   cout << "HMC:          Therm Sweeps = " << therm << endl; 
   cout << "              Data Points = " << iter_hmc << endl;
   cout << "              Start Point = " << checkpoint_start << endl;
-  cout << "              Integrator = " << (integrator == LEAPFROG ? "LEAPFROG" : "FGI") << endl;
+  std::string integrator_id;
+  switch(integrator) {
+      case LEAPFROG:
+        integrator_id = "LEAPFROG"; break;
+      case OMELYAN:
+        integrator_id = "OMELYAN"; break;
+      case FGI:
+        integrator_id = "FGI"; break;
+      default :
+        cout << "Error: unknown integrator label" << endl; exit(0);
+  }
+  cout << "              Integrator = " << (integrator_id) << endl;
   cout << "              Sampler = " << (sampler == S_HMC ? "S_HMC" : "S_MCHMC") << endl;
   if (sampler == S_MCHMC)  cout << "              Beta-eps = "<< beta_eps << endl;
   cout << "              Trajectory Length = " << tau << endl;
